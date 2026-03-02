@@ -40,6 +40,7 @@ $isAdmin = is_admin();
 $sections = [];
 $totalCount = 0;
 $perSection = 8;
+$hasDisbursementTime = table_column_exists($conn, 'disbursements', 'disbursement_time');
 
 $pushSection = static function (string $key, string $label, array $items) use (&$sections, &$totalCount): void {
     if (!$items) {
@@ -100,10 +101,12 @@ $searchApplications = static function (mysqli $conn, string $like, int $limit): 
     return $items;
 };
 
-$searchDisbursements = static function (mysqli $conn, string $like, int $limit): array {
+$searchDisbursements = static function (mysqli $conn, string $like, int $limit) use ($hasDisbursementTime): array {
     $items = [];
+    $timeSelectSql = $hasDisbursementTime ? ', d.disbursement_time' : ', NULL AS disbursement_time';
+    $timeOrderSql = $hasDisbursementTime ? ", COALESCE(d.disbursement_time, '00:00:00') DESC" : '';
     $stmt = $conn->prepare(
-        "SELECT d.id, d.reference_no, d.amount, d.disbursement_date, d.status,
+        "SELECT d.id, d.reference_no, d.amount, d.disbursement_date{$timeSelectSql}, d.status,
                 a.application_no, u.first_name, u.last_name
          FROM disbursements d
          INNER JOIN applications a ON a.id = d.application_id
@@ -113,7 +116,7 @@ $searchDisbursements = static function (mysqli $conn, string $like, int $limit):
             OR u.first_name LIKE ?
             OR u.last_name LIKE ?
             OR CONCAT(u.first_name, ' ', u.last_name) LIKE ?
-         ORDER BY d.disbursement_date DESC, d.id DESC
+         ORDER BY d.disbursement_date DESC{$timeOrderSql}, d.id DESC
          LIMIT ?"
     );
     if (!$stmt) {
@@ -130,7 +133,15 @@ $searchDisbursements = static function (mysqli $conn, string $like, int $limit):
         $fullName = trim((string) ($row['first_name'] ?? '') . ' ' . (string) ($row['last_name'] ?? ''));
         $meta = 'PHP ' . number_format((float) ($row['amount'] ?? 0), 2);
         if (!empty($row['disbursement_date'])) {
-            $meta .= ' | ' . date('M d, Y', strtotime((string) $row['disbursement_date']));
+            $scheduleLabel = date('M d, Y', strtotime((string) $row['disbursement_date']));
+            $timeValue = trim((string) ($row['disbursement_time'] ?? ''));
+            if ($hasDisbursementTime && $timeValue !== '' && preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $timeValue) === 1) {
+                $timeTs = strtotime($timeValue);
+                if ($timeTs !== false) {
+                    $scheduleLabel .= ' ' . date('h:i A', $timeTs);
+                }
+            }
+            $meta .= ' | ' . $scheduleLabel;
         }
         $meta .= ' | ' . strtoupper((string) ($row['status'] ?? ''));
         $meta .= ' | Ref: ' . (string) ($row['reference_no'] ?? '-');

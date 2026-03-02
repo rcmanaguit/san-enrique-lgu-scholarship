@@ -235,6 +235,9 @@ include __DIR__ . '/../includes/header.php';
                     <a href="verify-qr.php" class="btn btn-outline-primary">
                         <i class="fa-solid fa-qrcode me-1"></i>Scan / Verify QR
                     </a>
+                    <a href="sms.php" class="btn btn-outline-primary">
+                        <i class="fa-solid fa-comments me-1"></i>SMS Module
+                    </a>
                 </div>
             </div>
         </div>
@@ -363,6 +366,9 @@ include __DIR__ . '/../includes/header.php';
                 <i class="fa-solid fa-chart-pie"></i><span>Analytics</span>
             </a>
             <?php if ($isAdmin): ?>
+                <a href="../admin-only/staff.php" class="dashboard-action-btn">
+                    <i class="fa-solid fa-user-shield"></i><span>Staff</span>
+                </a>
                 <a href="../admin-only/announcements.php" class="dashboard-action-btn">
                     <i class="fa-regular fa-newspaper"></i><span>Announcements</span>
                 </a>

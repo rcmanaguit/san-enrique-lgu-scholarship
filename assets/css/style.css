@@ -42,7 +42,7 @@ body {
 body.public-landing {
     background:
         linear-gradient(180deg, rgba(249, 253, 255, 0.92), rgba(243, 248, 252, 0.97)),
-        url("../images/backgrounds/municipal-hall.jpg") center center / cover fixed no-repeat;
+        url("../images/branding/municipal-hall.jpg") center center / cover fixed no-repeat;
 }
 
 h1,
@@ -173,6 +173,161 @@ body.desktop-sidebar-enabled.desktop-sidebar-collapsed .nav-sidebar-toggle i {
     font-size: 0.66rem;
     line-height: 1.15;
     vertical-align: text-top;
+}
+
+.navbar-top-actions {
+    flex: 0 0 auto;
+}
+
+.nav-top-icon {
+    min-width: 38px;
+    height: 38px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.nav-top-icon i {
+    font-size: 0.95rem;
+}
+
+.nav-top-icon.active,
+.nav-top-icon.active:hover,
+.nav-top-icon.active:focus-visible {
+    color: #114365;
+    background: linear-gradient(90deg, rgba(120, 194, 255, 0.26), rgba(255, 182, 138, 0.28));
+    box-shadow: inset 0 0 0 1px rgba(45, 143, 213, 0.26);
+}
+
+.nav-top-icon-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    font-size: 0.62rem;
+    line-height: 1.1;
+}
+
+.navbar-global-search {
+    position: relative;
+    display: inline-flex;
+}
+
+.navbar-global-search.is-open .nav-top-icon {
+    color: #114365;
+    background: linear-gradient(90deg, rgba(120, 194, 255, 0.26), rgba(255, 182, 138, 0.28));
+    box-shadow: inset 0 0 0 1px rgba(45, 143, 213, 0.26);
+}
+
+.nav-search-panel {
+    position: absolute;
+    top: calc(100% + 0.55rem);
+    right: 0;
+    width: min(440px, calc(100vw - 1.3rem));
+    background: #fff;
+    border: 1px solid rgba(45, 143, 213, 0.24);
+    border-radius: 14px;
+    padding: 0.72rem;
+    display: none;
+    z-index: 1090;
+}
+
+.nav-search-panel.is-open {
+    display: block;
+}
+
+.nav-search-head {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.nav-search-head .input-group-text,
+.nav-search-head .form-control {
+    border-color: rgba(45, 143, 213, 0.3);
+}
+
+.nav-search-status {
+    padding: 0.45rem 0.1rem 0.36rem;
+}
+
+.nav-search-results {
+    max-height: min(58vh, 360px);
+    overflow: auto;
+    padding-right: 0.12rem;
+}
+
+.nav-search-empty {
+    border: 1px dashed rgba(45, 143, 213, 0.28);
+    border-radius: 11px;
+    background: rgba(120, 194, 255, 0.07);
+    color: var(--se-muted);
+    padding: 0.68rem 0.72rem;
+    font-size: 0.92rem;
+}
+
+.nav-search-section + .nav-search-section {
+    margin-top: 0.65rem;
+    padding-top: 0.65rem;
+    border-top: 1px dashed rgba(45, 143, 213, 0.2);
+}
+
+.nav-search-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    margin-bottom: 0.28rem;
+}
+
+.nav-search-section-title {
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--se-muted);
+    font-weight: 700;
+}
+
+.nav-search-item {
+    display: block;
+    text-decoration: none;
+    border: 1px solid transparent;
+    border-radius: 11px;
+    background: rgba(120, 194, 255, 0.08);
+    color: var(--se-text);
+    padding: 0.5rem 0.58rem;
+    margin-top: 0.42rem;
+}
+
+.nav-search-item:hover,
+.nav-search-item:focus-visible {
+    background: rgba(120, 194, 255, 0.16);
+    border-color: rgba(45, 143, 213, 0.36);
+    color: #104165;
+}
+
+.nav-search-item-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.nav-search-item-subtitle {
+    font-size: 0.79rem;
+    color: var(--se-muted);
+}
+
+.nav-search-item-meta {
+    margin-top: 0.2rem;
+    font-size: 0.74rem;
+    color: #355a74;
+}
+
+.nav-search-more {
+    font-size: 0.74rem;
+    color: var(--se-muted);
+    margin-top: 0.36rem;
+    padding-left: 0.1rem;
 }
 
 .auth-page {
@@ -1287,10 +1442,14 @@ body.photo-camera-overlay-open {
         padding: 0.72rem;
     }
 
-    .navbar .d-flex.gap-2 {
+    .navbar .app-nav-panel .d-flex.gap-2 {
         width: 100%;
         margin-top: 0.45rem;
         flex-wrap: wrap;
+    }
+
+    .nav-search-panel {
+        right: -0.2rem;
     }
 
     .nav-global-search .form-control {
@@ -1460,7 +1619,7 @@ body.photo-camera-overlay-open {
         height: 30px;
     }
 
-    .navbar .d-flex.gap-2 .btn {
+    .navbar .app-nav-panel .d-flex.gap-2 .btn {
         flex: 1 1 auto;
     }
 

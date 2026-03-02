@@ -9,6 +9,27 @@ require_role(['admin', 'staff'], '../index.php');
 $pageTitle = 'Disbursement Management';
 $approvedApplications = [];
 $disbursements = [];
+$hasDisbursementTime = db_ready() && table_column_exists($conn, 'disbursements', 'disbursement_time');
+$hasSchoolTypeColumn = db_ready() && table_column_exists($conn, 'applications', 'school_type');
+$hasBarangayColumn = db_ready() && table_column_exists($conn, 'applications', 'barangay');
+$allowedBarangays = san_enrique_barangays();
+$formatPayoutSchedule = static function (string $dateValue, ?string $timeValue = null): string {
+    $dateValue = trim($dateValue);
+    if ($dateValue === '' || preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateValue) !== 1) {
+        return '-';
+    }
+
+    $formatted = date('M d, Y', strtotime($dateValue));
+    $timeValue = trim((string) $timeValue);
+    if ($timeValue !== '' && preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $timeValue) === 1) {
+        $timeTs = strtotime($timeValue);
+        if ($timeTs !== false) {
+            $formatted .= ' ' . date('h:i A', $timeTs);
+        }
+    }
+
+    return $formatted;
+};
 
 if (is_post() && db_ready()) {
     if (!verify_csrf($_POST['csrf_token'] ?? null)) {
@@ -19,17 +40,22 @@ if (is_post() && db_ready()) {
         if ($action === 'update_disbursement_date') {
             $disbursementId = (int) ($_POST['disbursement_id'] ?? 0);
             $newDate = trim((string) ($_POST['disbursement_date'] ?? ''));
+            $newTime = trim((string) ($_POST['disbursement_time'] ?? ''));
+            $isDateValid = preg_match('/^\d{4}-\d{2}-\d{2}$/', $newDate) === 1;
+            $isTimeValid = !$hasDisbursementTime || $newTime === '' || preg_match('/^\d{2}:\d{2}$/', $newTime) === 1;
             if (
                 $disbursementId <= 0
                 || $newDate === ''
-                || preg_match('/^\d{4}-\d{2}-\d{2}$/', $newDate) !== 1
+                || !$isDateValid
+                || !$isTimeValid
             ) {
-                set_flash('danger', 'Please provide a valid payout date.');
+                set_flash('danger', 'Please provide a valid payout schedule date/time.');
                 redirect('disbursements.php');
             }
 
+            $currentTimeSelectSql = $hasDisbursementTime ? ', d.disbursement_time' : ', NULL AS disbursement_time';
             $stmtCurrent = $conn->prepare(
-                "SELECT d.disbursement_date, d.reference_no, a.application_no, u.id AS user_id, u.phone
+                "SELECT d.disbursement_date{$currentTimeSelectSql}, d.reference_no, a.application_no, u.id AS user_id, u.phone
                  FROM disbursements d
                  INNER JOIN applications a ON a.id = d.application_id
                  INNER JOIN users u ON u.id = a.user_id
@@ -46,22 +72,38 @@ if (is_post() && db_ready()) {
                 redirect('disbursements.php');
             }
 
-            $stmt = $conn->prepare("UPDATE disbursements SET disbursement_date = ? WHERE id = ? LIMIT 1");
-            $stmt->bind_param('si', $newDate, $disbursementId);
+            if ($hasDisbursementTime) {
+                $stmt = $conn->prepare(
+                    "UPDATE disbursements
+                     SET disbursement_date = ?, disbursement_time = NULLIF(?, '')
+                     WHERE id = ?
+                     LIMIT 1"
+                );
+                $stmt->bind_param('ssi', $newDate, $newTime, $disbursementId);
+            } else {
+                $stmt = $conn->prepare("UPDATE disbursements SET disbursement_date = ? WHERE id = ? LIMIT 1");
+                $stmt->bind_param('si', $newDate, $disbursementId);
+            }
             $stmt->execute();
             $stmt->close();
 
-            if ((string) ($current['disbursement_date'] ?? '') !== $newDate) {
-                $message = 'San Enrique LGU Scholarship: Payout Schedule date for application '
+            $previousDate = (string) ($current['disbursement_date'] ?? '');
+            $previousTime = trim((string) ($current['disbursement_time'] ?? ''));
+            $hasScheduleChange = $previousDate !== $newDate
+                || ($hasDisbursementTime && $previousTime !== $newTime);
+
+            if ($hasScheduleChange) {
+                $updatedSchedule = $formatPayoutSchedule($newDate, $hasDisbursementTime ? $newTime : null);
+                $message = 'San Enrique LGU Scholarship: Payout Schedule for application '
                     . $current['application_no'] . ' was updated to '
-                    . date('M d, Y', strtotime($newDate))
+                    . $updatedSchedule
                     . '. Ref No: ' . $current['reference_no'] . '.';
                 sms_send((string) ($current['phone'] ?? ''), $message, (int) ($current['user_id'] ?? 0), 'status_update');
                 create_notification(
                     $conn,
                     (int) ($current['user_id'] ?? 0),
                     'Payout Schedule Updated',
-                    'Payout Schedule date for application ' . (string) ($current['application_no'] ?? '') . ' is now ' . date('M d, Y', strtotime($newDate)) . '. Ref No: ' . (string) ($current['reference_no'] ?? '') . '.',
+                    'Payout Schedule for application ' . (string) ($current['application_no'] ?? '') . ' is now ' . $updatedSchedule . '. Ref No: ' . (string) ($current['reference_no'] ?? '') . '.',
                     'payout',
                     'my-application.php',
                     (int) (current_user()['id'] ?? 0)
@@ -74,26 +116,214 @@ if (is_post() && db_ready()) {
                 null,
                 'disbursement',
                 (string) $disbursementId,
-                'Disbursement date updated.',
+                'Disbursement payout schedule updated.',
                 [
                     'application_no' => (string) ($current['application_no'] ?? ''),
                     'reference_no' => (string) ($current['reference_no'] ?? ''),
-                    'previous_date' => (string) ($current['disbursement_date'] ?? ''),
+                    'previous_date' => $previousDate,
+                    'previous_time' => $hasDisbursementTime ? $previousTime : '',
                     'new_date' => $newDate,
+                    'new_time' => $hasDisbursementTime ? $newTime : '',
                 ]
             );
 
-            set_flash('success', 'Payout date updated.');
-        } else {
-            $applicationId = (int) ($_POST['application_id'] ?? 0);
+            set_flash('success', 'Payout schedule updated.');
+        } elseif ($action === 'create_bulk_disbursement') {
             $amount = (float) ($_POST['amount'] ?? 0);
             $date = trim((string) ($_POST['disbursement_date'] ?? ''));
+            $time = trim((string) ($_POST['disbursement_time'] ?? ''));
             $referenceNo = trim((string) ($_POST['reference_no'] ?? ''));
             $location = trim((string) ($_POST['payout_location'] ?? ''));
             $remarks = trim((string) ($_POST['remarks'] ?? ''));
+            $selectedSchoolTypes = $_POST['school_types'] ?? [];
+            if (!is_array($selectedSchoolTypes)) {
+                $selectedSchoolTypes = [];
+            }
+            $selectedSchoolTypes = array_values(array_unique(array_filter(array_map(
+                static fn($value): string => strtolower(trim((string) $value)),
+                $selectedSchoolTypes
+            ), static fn($value): bool => in_array($value, ['public', 'private'], true))));
+            if ($hasSchoolTypeColumn && !$selectedSchoolTypes) {
+                set_flash('warning', 'Please select at least one school type for bulk payout.');
+                redirect('disbursements.php');
+            }
 
-            if ($applicationId <= 0 || $amount <= 0 || !$date || !$referenceNo) {
-                set_flash('danger', 'Please complete required disbursement details.');
+            $selectedBarangays = $_POST['barangays'] ?? [];
+            if (!is_array($selectedBarangays)) {
+                $selectedBarangays = [];
+            }
+            $selectedBarangays = array_values(array_unique(array_filter(array_map(
+                static fn($value): string => trim((string) $value),
+                $selectedBarangays
+            ), static fn($value): bool => in_array($value, $allowedBarangays, true))));
+
+            $isDateValid = preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1;
+            $isTimeValid = !$hasDisbursementTime || $time === '' || preg_match('/^\d{2}:\d{2}$/', $time) === 1;
+
+            if ($amount <= 0 || !$isDateValid || !$isTimeValid || $referenceNo === '') {
+                set_flash('danger', 'Please complete required payout schedule details.');
+                redirect('disbursements.php');
+            }
+
+            $where = ["a.status IN ('approved', 'for_soa_submission', 'soa_submitted')"];
+            if ($hasSchoolTypeColumn && $selectedSchoolTypes) {
+                $escapedSchoolTypes = array_map(
+                    fn($value) => "'" . $conn->real_escape_string((string) $value) . "'",
+                    $selectedSchoolTypes
+                );
+                $where[] = 'a.school_type IN (' . implode(', ', $escapedSchoolTypes) . ')';
+            }
+            if ($hasBarangayColumn && $selectedBarangays) {
+                $escapedBarangays = array_map(
+                    fn($value) => "'" . $conn->real_escape_string((string) $value) . "'",
+                    $selectedBarangays
+                );
+                $where[] = 'a.barangay IN (' . implode(', ', $escapedBarangays) . ')';
+            }
+
+            $sqlTargets = "SELECT a.id, a.application_no, a.school_type, a.barangay, u.id AS user_id, u.phone
+                           FROM applications a
+                           INNER JOIN users u ON u.id = a.user_id
+                           WHERE " . implode(' AND ', $where) . "
+                           ORDER BY a.updated_at DESC, a.id DESC";
+            $resultTargets = $conn->query($sqlTargets);
+            $targets = $resultTargets instanceof mysqli_result ? $resultTargets->fetch_all(MYSQLI_ASSOC) : [];
+
+            if (!$targets) {
+                set_flash('warning', 'No approved applicants found for selected filters.');
+                redirect('disbursements.php');
+            }
+
+            $status = 'scheduled';
+            $createdCount = 0;
+            $failedCount = 0;
+            $currentActorId = (int) (current_user()['id'] ?? 0);
+            $scheduleLabel = $formatPayoutSchedule($date, $hasDisbursementTime ? $time : null);
+
+            if ($hasDisbursementTime) {
+                $stmtInsert = $conn->prepare(
+                    "INSERT INTO disbursements
+                    (application_id, amount, disbursement_date, disbursement_time, reference_no, payout_location, status, qr_token, remarks)
+                    VALUES (?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?, ?)"
+                );
+            } else {
+                $stmtInsert = $conn->prepare(
+                    "INSERT INTO disbursements
+                    (application_id, amount, disbursement_date, reference_no, payout_location, status, qr_token, remarks)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                );
+            }
+
+            if (!$stmtInsert) {
+                set_flash('danger', 'Unable to create bulk payout schedule right now.');
+                redirect('disbursements.php');
+            }
+
+            foreach ($targets as $target) {
+                $applicationId = (int) ($target['id'] ?? 0);
+                if ($applicationId <= 0) {
+                    $failedCount++;
+                    continue;
+                }
+
+                $qrToken = bin2hex(random_bytes(12));
+                $ok = false;
+                if ($hasDisbursementTime) {
+                    $ok = $stmtInsert->bind_param(
+                        'idsssssss',
+                        $applicationId,
+                        $amount,
+                        $date,
+                        $time,
+                        $referenceNo,
+                        $location,
+                        $status,
+                        $qrToken,
+                        $remarks
+                    ) && $stmtInsert->execute();
+                } else {
+                    $ok = $stmtInsert->bind_param(
+                        'idssssss',
+                        $applicationId,
+                        $amount,
+                        $date,
+                        $referenceNo,
+                        $location,
+                        $status,
+                        $qrToken,
+                        $remarks
+                    ) && $stmtInsert->execute();
+                }
+
+                if (!$ok) {
+                    $failedCount++;
+                    continue;
+                }
+
+                $createdCount++;
+                $applicationNo = (string) ($target['application_no'] ?? '');
+                $userId = (int) ($target['user_id'] ?? 0);
+                $phone = (string) ($target['phone'] ?? '');
+                $message = 'San Enrique LGU Scholarship: Payout Schedule for application '
+                    . $applicationNo
+                    . ' is scheduled on ' . $scheduleLabel
+                    . '. Ref No: ' . $referenceNo . '.';
+
+                sms_send($phone, $message, $userId, 'status_update');
+                create_notification(
+                    $conn,
+                    $userId,
+                    'Payout Schedule Created',
+                    'Your payout for application ' . $applicationNo . ' is scheduled on ' . $scheduleLabel . '. Ref No: ' . $referenceNo . '.',
+                    'payout',
+                    'my-application.php',
+                    $currentActorId
+                );
+            }
+            $stmtInsert->close();
+
+            audit_log(
+                $conn,
+                'disbursement_created',
+                null,
+                null,
+                'disbursement',
+                null,
+                'Bulk payout schedule created.',
+                [
+                    'created_count' => $createdCount,
+                    'failed_count' => $failedCount,
+                    'filters' => [
+                        'school_types' => $selectedSchoolTypes,
+                        'barangays' => $selectedBarangays,
+                    ],
+                    'reference_no' => $referenceNo,
+                    'amount' => $amount,
+                    'date' => $date,
+                    'time' => $hasDisbursementTime ? $time : '',
+                ]
+            );
+
+            if ($createdCount <= 0) {
+                set_flash('danger', 'No payout schedules were created. Please try again.');
+            } elseif ($failedCount > 0) {
+                set_flash('warning', 'Bulk payout schedule created for ' . $createdCount . ' applicant(s), with ' . $failedCount . ' failed record(s).');
+            } else {
+                set_flash('success', 'Bulk payout schedule created for ' . $createdCount . ' applicant(s).');
+            }
+        } elseif ($action === 'create_disbursement') {
+            $applicationId = (int) ($_POST['application_id'] ?? 0);
+            $amount = (float) ($_POST['amount'] ?? 0);
+            $date = trim((string) ($_POST['disbursement_date'] ?? ''));
+            $time = trim((string) ($_POST['disbursement_time'] ?? ''));
+            $referenceNo = trim((string) ($_POST['reference_no'] ?? ''));
+            $location = trim((string) ($_POST['payout_location'] ?? ''));
+            $remarks = trim((string) ($_POST['remarks'] ?? ''));
+            $isDateValid = preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1;
+            $isTimeValid = !$hasDisbursementTime || $time === '' || preg_match('/^\d{2}:\d{2}$/', $time) === 1;
+
+            if ($applicationId <= 0 || $amount <= 0 || !$date || !$referenceNo || !$isDateValid || !$isTimeValid) {
+                set_flash('danger', 'Please complete required payout schedule details.');
             } else {
                 $status = 'scheduled';
                 $qrToken = bin2hex(random_bytes(12));
@@ -109,26 +339,36 @@ if (is_post() && db_ready()) {
                 $applicant = $stmtApplicant->get_result()->fetch_assoc();
                 $stmtApplicant->close();
 
-                $stmt = $conn->prepare(
-                    "INSERT INTO disbursements
-                    (application_id, amount, disbursement_date, reference_no, payout_location, status, qr_token, remarks)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-                );
-                $stmt->bind_param('idssssss', $applicationId, $amount, $date, $referenceNo, $location, $status, $qrToken, $remarks);
+                if ($hasDisbursementTime) {
+                    $stmt = $conn->prepare(
+                        "INSERT INTO disbursements
+                        (application_id, amount, disbursement_date, disbursement_time, reference_no, payout_location, status, qr_token, remarks)
+                        VALUES (?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?, ?)"
+                    );
+                    $stmt->bind_param('idsssssss', $applicationId, $amount, $date, $time, $referenceNo, $location, $status, $qrToken, $remarks);
+                } else {
+                    $stmt = $conn->prepare(
+                        "INSERT INTO disbursements
+                        (application_id, amount, disbursement_date, reference_no, payout_location, status, qr_token, remarks)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                    );
+                    $stmt->bind_param('idssssss', $applicationId, $amount, $date, $referenceNo, $location, $status, $qrToken, $remarks);
+                }
                 $stmt->execute();
                 $newDisbursementId = (int) $stmt->insert_id;
                 $stmt->close();
 
                 if ($applicant) {
+                    $scheduledPayout = $formatPayoutSchedule($date, $hasDisbursementTime ? $time : null);
                     $message = 'San Enrique LGU Scholarship: Payout Schedule for application ' . $applicant['application_no']
-                        . ' is scheduled on ' . date('M d, Y', strtotime($date))
+                        . ' is scheduled on ' . $scheduledPayout
                         . '. Ref No: ' . $referenceNo . '.';
                     sms_send((string) ($applicant['phone'] ?? ''), $message, (int) ($applicant['user_id'] ?? 0), 'status_update');
                     create_notification(
                         $conn,
                         (int) ($applicant['user_id'] ?? 0),
                         'Payout Schedule Created',
-                        'Your payout for application ' . (string) ($applicant['application_no'] ?? '') . ' is scheduled on ' . date('M d, Y', strtotime($date)) . '. Ref No: ' . $referenceNo . '.',
+                        'Your payout for application ' . (string) ($applicant['application_no'] ?? '') . ' is scheduled on ' . $scheduledPayout . '. Ref No: ' . $referenceNo . '.',
                         'payout',
                         'my-application.php',
                         (int) (current_user()['id'] ?? 0)
@@ -148,10 +388,13 @@ if (is_post() && db_ready()) {
                         'reference_no' => $referenceNo,
                         'amount' => $amount,
                         'date' => $date,
+                        'time' => $hasDisbursementTime ? $time : '',
                     ]
                 );
-                set_flash('success', 'Disbursement entry created.');
+                set_flash('success', 'Payout schedule created.');
             }
+        } else {
+            set_flash('warning', 'Unknown payout action.');
         }
     }
     redirect('disbursements.php');
@@ -168,12 +411,14 @@ if (db_ready()) {
         $approvedApplications = $result->fetch_all(MYSQLI_ASSOC);
     }
 
-    $sql = "SELECT d.id, d.amount, d.disbursement_date, d.reference_no, d.status, d.qr_token,
+    $timeSelectSql = $hasDisbursementTime ? ', d.disbursement_time' : ', NULL AS disbursement_time';
+    $timeOrderSql = $hasDisbursementTime ? ", COALESCE(d.disbursement_time, '00:00:00') DESC" : '';
+    $sql = "SELECT d.id, d.amount, d.disbursement_date{$timeSelectSql}, d.reference_no, d.status, d.qr_token,
                    u.first_name, u.last_name, a.application_no, a.scholarship_type
             FROM disbursements d
             INNER JOIN applications a ON a.id = d.application_id
             INNER JOIN users u ON u.id = a.user_id
-            ORDER BY d.disbursement_date DESC, d.id DESC";
+            ORDER BY d.disbursement_date DESC{$timeOrderSql}, d.id DESC";
     $result = $conn->query($sql);
     if ($result instanceof mysqli_result) {
         $disbursements = $result->fetch_all(MYSQLI_ASSOC);
@@ -192,7 +437,89 @@ include __DIR__ . '/../includes/header.php';
 
 <div class="card card-soft shadow-sm mb-4">
     <div class="card-body">
-        <h2 class="h6">Add Disbursement Record</h2>
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+            <h2 class="h6 mb-0">Create Bulk Payout Schedule</h2>
+            <span class="badge text-bg-info">Recommended for payout batches</span>
+        </div>
+        <p class="small text-muted mb-3">Create one payout schedule for multiple approved applicants using school type and/or barangay filters.</p>
+        <form method="post" class="row g-3">
+            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+            <input type="hidden" name="action" value="create_bulk_disbursement">
+
+            <div class="col-6 col-md-2">
+                <label class="form-label">Amount *</label>
+                <input type="number" step="0.01" class="form-control" name="amount" required>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label">Date *</label>
+                <input type="date" class="form-control" name="disbursement_date" required>
+            </div>
+            <?php if ($hasDisbursementTime): ?>
+                <div class="col-6 col-md-2">
+                    <label class="form-label">Time</label>
+                    <input type="time" class="form-control" name="disbursement_time">
+                </div>
+            <?php endif; ?>
+            <div class="col-12 col-md-<?= $hasDisbursementTime ? '3' : '4' ?>">
+                <label class="form-label">Payout Batch/Reference No. *</label>
+                <input type="text" class="form-control" name="reference_no" required placeholder="Example: BATCH-2026-001">
+                <div class="form-text">Official payout batch or transaction code from the LGU office.</div>
+            </div>
+            <div class="col-12 col-md-<?= $hasDisbursementTime ? '3' : '4' ?>">
+                <label class="form-label">Payout Location</label>
+                <input type="text" class="form-control" name="payout_location" placeholder="LGU Treasury Office">
+            </div>
+
+            <div class="col-12 col-md-6">
+                <label class="form-label d-block">School Type Filter</label>
+                <?php if ($hasSchoolTypeColumn): ?>
+                    <div class="d-flex flex-wrap gap-3 pt-1">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="bulkSchoolTypePublic" name="school_types[]" value="public" checked>
+                            <label class="form-check-label" for="bulkSchoolTypePublic">Public</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="bulkSchoolTypePrivate" name="school_types[]" value="private" checked>
+                            <label class="form-check-label" for="bulkSchoolTypePrivate">Private</label>
+                        </div>
+                    </div>
+                    <div class="form-text">Check one or both. Leave both checked to include all school types.</div>
+                <?php else: ?>
+                    <div class="form-text text-muted">School type filter is unavailable in current database setup.</div>
+                <?php endif; ?>
+            </div>
+
+            <div class="col-12 col-md-6">
+                <label class="form-label">Barangay Filter</label>
+                <select class="form-select" name="barangays[]" multiple size="6" <?= $hasBarangayColumn ? '' : 'disabled' ?>>
+                    <?php foreach ($allowedBarangays as $barangay): ?>
+                        <option value="<?= e($barangay) ?>"><?= e($barangay) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <?php if ($hasBarangayColumn): ?>
+                    <div class="form-text">Optional. Select one or more barangays. Leave blank to include all barangays.</div>
+                <?php else: ?>
+                    <div class="form-text text-muted">Barangay filter is unavailable in current database setup.</div>
+                <?php endif; ?>
+            </div>
+
+            <div class="col-12">
+                <label class="form-label">Remarks</label>
+                <input type="text" class="form-control" name="remarks">
+            </div>
+
+            <div class="col-12">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fa-solid fa-layer-group me-1"></i>Create Bulk Schedule
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card card-soft shadow-sm mb-4">
+    <div class="card-body">
+        <h2 class="h6">Create Single Payout Schedule (Optional)</h2>
         <form method="post" class="row g-3">
             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
             <input type="hidden" name="action" value="create_disbursement">
@@ -215,9 +542,16 @@ include __DIR__ . '/../includes/header.php';
                 <label class="form-label">Date *</label>
                 <input type="date" class="form-control" name="disbursement_date" required>
             </div>
-            <div class="col-12 col-md-4">
-                <label class="form-label">Reference No. *</label>
+            <?php if ($hasDisbursementTime): ?>
+                <div class="col-6 col-md-2">
+                    <label class="form-label">Time</label>
+                    <input type="time" class="form-control" name="disbursement_time">
+                </div>
+            <?php endif; ?>
+            <div class="col-12 col-md-<?= $hasDisbursementTime ? '2' : '4' ?>">
+                <label class="form-label">Payout Batch/Reference No. *</label>
                 <input type="text" class="form-control" name="reference_no" required>
+                <div class="form-text">Official payout batch or transaction code from the LGU office.</div>
             </div>
             <div class="col-12 col-md-6">
                 <label class="form-label">Payout Location</label>
@@ -228,7 +562,7 @@ include __DIR__ . '/../includes/header.php';
                 <input type="text" class="form-control" name="remarks">
             </div>
             <div class="col-12">
-                <button type="submit" class="btn btn-primary">Save Record</button>
+                <button type="submit" class="btn btn-outline-primary">Save Single Schedule</button>
             </div>
         </form>
     </div>
@@ -247,15 +581,21 @@ include __DIR__ . '/../includes/header.php';
                             <th>Scholar</th>
                             <th>Scholarship</th>
                             <th>Amount</th>
-                            <th>Date</th>
-                            <th>Reference</th>
+                            <th>Payout Schedule</th>
+                            <th>Payout Ref No.</th>
                             <th>Status</th>
                             <th>QR Token</th>
-                            <th class="text-end">Update Date</th>
+                            <th class="text-end">Update Schedule</th>
                         </tr>
                     </thead>
                     <tbody>
                     <?php foreach ($disbursements as $row): ?>
+                        <?php
+                        $payoutSchedule = $formatPayoutSchedule(
+                            (string) ($row['disbursement_date'] ?? ''),
+                            $hasDisbursementTime ? (string) ($row['disbursement_time'] ?? '') : null
+                        );
+                        ?>
                         <tr>
                             <td><?= e($row['first_name'] . ' ' . $row['last_name']) ?></td>
                             <td>
@@ -263,7 +603,7 @@ include __DIR__ . '/../includes/header.php';
                                 <div class="small text-muted"><?= e((string) $row['application_no']) ?></div>
                             </td>
                             <td>PHP <?= number_format((float) $row['amount'], 2) ?></td>
-                            <td><?= date('M d, Y', strtotime((string) $row['disbursement_date'])) ?></td>
+                            <td><?= e($payoutSchedule) ?></td>
                             <td><?= e($row['reference_no']) ?></td>
                             <td><span class="badge <?= status_badge_class((string) $row['status']) ?>"><?= e(strtoupper((string) $row['status'])) ?></span></td>
                             <td><code><?= e($row['qr_token']) ?></code></td>
@@ -273,6 +613,9 @@ include __DIR__ . '/../includes/header.php';
                                     <input type="hidden" name="action" value="update_disbursement_date">
                                     <input type="hidden" name="disbursement_id" value="<?= (int) $row['id'] ?>">
                                     <input type="date" class="form-control form-control-sm" name="disbursement_date" value="<?= e((string) $row['disbursement_date']) ?>" required>
+                                    <?php if ($hasDisbursementTime): ?>
+                                        <input type="time" class="form-control form-control-sm" name="disbursement_time" value="<?= e(substr((string) ($row['disbursement_time'] ?? ''), 0, 5)) ?>">
+                                    <?php endif; ?>
                                     <button type="submit" class="btn btn-sm btn-outline-primary">Save</button>
                                 </form>
                             </td>

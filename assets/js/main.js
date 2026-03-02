@@ -4,7 +4,9 @@ document.addEventListener("DOMContentLoaded", () => {
     initPasswordToggles();
     initDesktopSidebar();
     initResponsiveNavbar();
+    initNavbarGlobalSearch();
     initCrudModalForms();
+    initRealtimePolling();
 });
 
 function setCurrentYear() {
@@ -203,6 +205,231 @@ function initResponsiveNavbar() {
                 collapse.hide();
             }
         });
+    });
+}
+
+function initNavbarGlobalSearch() {
+    const searchShells = document.querySelectorAll("[data-navbar-global-search]");
+    if (!searchShells.length) {
+        return;
+    }
+
+    searchShells.forEach((shell) => {
+        if (!(shell instanceof HTMLElement) || shell.dataset.navSearchBound === "1") {
+            return;
+        }
+        shell.dataset.navSearchBound = "1";
+
+        const toggleButton = shell.querySelector("[data-nav-search-toggle]");
+        const panel = shell.querySelector("[data-nav-search-panel]");
+        const input = shell.querySelector("[data-nav-search-input]");
+        const clearButton = shell.querySelector("[data-nav-search-clear]");
+        const status = shell.querySelector("[data-nav-search-status]");
+        const results = shell.querySelector("[data-nav-search-results]");
+        const openFullLink = shell.querySelector("[data-nav-search-open-full]");
+        const endpoint = String(shell.getAttribute("data-search-endpoint") || "").trim();
+        const pageUrl = String(shell.getAttribute("data-search-page") || "").trim();
+
+        if (!toggleButton || !panel || !input || !status || !results || endpoint === "") {
+            return;
+        }
+
+        let debounceTimer = 0;
+        let requestController = null;
+        let isOpen = false;
+
+        const setStatus = (message) => {
+            status.textContent = String(message || "");
+        };
+
+        const escapeHtml = (value) => {
+            const temp = document.createElement("div");
+            temp.textContent = value == null ? "" : String(value);
+            return temp.innerHTML;
+        };
+
+        const setFullPageLink = (query) => {
+            if (!openFullLink || pageUrl === "") {
+                return;
+            }
+            const normalized = String(query || "").trim();
+            openFullLink.href = normalized.length >= 2
+                ? `${pageUrl}?q=${encodeURIComponent(normalized)}`
+                : pageUrl;
+        };
+
+        const renderEmpty = (message) => {
+            results.innerHTML = `<div class="nav-search-empty">${escapeHtml(message)}</div>`;
+        };
+
+        const renderResults = (payload) => {
+            const sections = Array.isArray(payload && payload.sections) ? payload.sections : [];
+            if (!sections.length) {
+                renderEmpty("No matching records found.");
+                return;
+            }
+
+            const html = sections.map((section) => {
+                const sectionLabel = escapeHtml(section.label || "Results");
+                const sectionCount = Number(section.count || 0);
+                const sectionItems = Array.isArray(section.items) ? section.items : [];
+                const visibleItems = sectionItems.slice(0, 3);
+
+                const itemsHtml = visibleItems.map((item) => {
+                    const title = escapeHtml(item.title || "-");
+                    const subtitle = escapeHtml(item.subtitle || "");
+                    const meta = escapeHtml(item.meta || "");
+                    const url = escapeHtml(item.url || "#");
+
+                    return (
+                        `<a href="${url}" class="nav-search-item">` +
+                            `<div class="nav-search-item-title">${title}</div>` +
+                            (subtitle !== "" ? `<div class="nav-search-item-subtitle">${subtitle}</div>` : "") +
+                            (meta !== "" ? `<div class="nav-search-item-meta">${meta}</div>` : "") +
+                        `</a>`
+                    );
+                }).join("");
+
+                const moreCount = Math.max(0, sectionCount - visibleItems.length);
+                const moreLine = moreCount > 0
+                    ? `<div class="nav-search-more">+${moreCount} more in ${sectionLabel}</div>`
+                    : "";
+
+                return (
+                    `<div class="nav-search-section">` +
+                        `<div class="nav-search-section-head">` +
+                            `<span class="nav-search-section-title">${sectionLabel}</span>` +
+                            `<span class="badge text-bg-light">${sectionCount}</span>` +
+                        `</div>` +
+                        itemsHtml +
+                        moreLine +
+                    `</div>`
+                );
+            }).join("");
+
+            results.innerHTML = html;
+        };
+
+        const closePanel = () => {
+            isOpen = false;
+            shell.classList.remove("is-open");
+            panel.classList.remove("is-open");
+            toggleButton.setAttribute("aria-expanded", "false");
+        };
+
+        const openPanel = () => {
+            isOpen = true;
+            shell.classList.add("is-open");
+            panel.classList.add("is-open");
+            toggleButton.setAttribute("aria-expanded", "true");
+            window.setTimeout(() => {
+                input.focus();
+            }, 25);
+        };
+
+        const fetchResults = async (queryRaw) => {
+            const query = String(queryRaw || "").trim();
+            setFullPageLink(query);
+
+            if (query.length < 2) {
+                if (requestController) {
+                    requestController.abort();
+                }
+                renderEmpty("Type at least 2 characters to search.");
+                setStatus("Type at least 2 characters.");
+                return;
+            }
+
+            if (requestController) {
+                requestController.abort();
+            }
+            requestController = new AbortController();
+
+            setStatus("Searching...");
+            try {
+                const separator = endpoint.includes("?") ? "&" : "?";
+                const response = await fetch(
+                    `${endpoint}${separator}q=${encodeURIComponent(query)}`,
+                    {
+                        method: "GET",
+                        credentials: "same-origin",
+                        headers: {
+                            Accept: "application/json",
+                            "X-Requested-With": "XMLHttpRequest",
+                        },
+                        signal: requestController.signal,
+                    }
+                );
+
+                if (!response.ok) {
+                    throw new Error("Request failed");
+                }
+
+                const payload = await response.json();
+                renderResults(payload);
+                const total = Number((payload && payload.total) || 0);
+                setStatus(total > 0 ? `${total} result(s) found.` : "No results found.");
+            } catch (error) {
+                if (error && error.name === "AbortError") {
+                    return;
+                }
+                renderEmpty("Unable to load search results right now.");
+                setStatus("Search failed. Please try again.");
+            }
+        };
+
+        const queueSearch = () => {
+            if (debounceTimer) {
+                window.clearTimeout(debounceTimer);
+            }
+            debounceTimer = window.setTimeout(() => {
+                fetchResults(input.value);
+            }, 250);
+        };
+
+        toggleButton.addEventListener("click", (event) => {
+            event.preventDefault();
+            if (isOpen) {
+                closePanel();
+                return;
+            }
+            openPanel();
+            queueSearch();
+        });
+
+        if (clearButton) {
+            clearButton.addEventListener("click", () => {
+                input.value = "";
+                input.focus();
+                setFullPageLink("");
+                renderEmpty("Type at least 2 characters to search.");
+                setStatus("Type at least 2 characters.");
+            });
+        }
+
+        input.addEventListener("input", queueSearch);
+
+        document.addEventListener("click", (event) => {
+            if (!isOpen) {
+                return;
+            }
+            const target = event.target;
+            if (target instanceof Node && shell.contains(target)) {
+                return;
+            }
+            closePanel();
+        });
+
+        document.addEventListener("keydown", (event) => {
+            if (event.key !== "Escape" || !isOpen) {
+                return;
+            }
+            closePanel();
+        });
+
+        renderEmpty("Type at least 2 characters to search.");
+        setStatus("Type at least 2 characters.");
+        setFullPageLink("");
     });
 }
 
@@ -438,6 +665,7 @@ function extractCrudFormContext(form, submitter, actionValue) {
         soaDeadline: getValue("soa_submission_deadline"),
         endDate: getValue("end_date"),
         disbursementDate: getValue("disbursement_date"),
+        disbursementTime: getValue("disbursement_time"),
         amount: getValue("amount"),
         semester,
         academicYear,
@@ -483,6 +711,7 @@ function buildCrudTemplateReplacements(context) {
         soa_deadline: formatCrudDate(String(context.soaDeadline || "")),
         end_date: formatCrudDate(String(context.endDate || "")),
         disbursement_date: formatCrudDate(String(context.disbursementDate || "")),
+        disbursement_time: formatCrudTime(String(context.disbursementTime || "")),
         amount: formattedAmount,
     };
 }
@@ -507,6 +736,8 @@ function buildContextualCrudMessage(actionValue, fallbackMessage, context) {
     const deadline = formatCrudDate(context.soaDeadline || "");
     const endDate = formatCrudDate(context.endDate || "");
     const payoutDate = formatCrudDate(context.disbursementDate || "");
+    const payoutTime = formatCrudTime(context.disbursementTime || "");
+    const payoutSchedule = [payoutDate, payoutTime].filter((part) => part !== "").join(" ").trim();
     const referenceNo = context.referenceNo || "";
     const selectedApplication = context.selectedApplication || "";
     const amount = buildCrudTemplateReplacements(context).amount;
@@ -536,17 +767,23 @@ function buildContextualCrudMessage(actionValue, fallbackMessage, context) {
         return `Mark SOA/Student Copy as submitted for application ${appNo}?`;
     }
     if (action === "create_disbursement" && selectedApplication !== "") {
-        const detail = [amount !== "" ? `PHP ${amount}` : "", payoutDate !== "" ? payoutDate : ""].filter((part) => part !== "").join(", ");
+        const detail = [amount !== "" ? `PHP ${amount}` : "", payoutSchedule !== "" ? payoutSchedule : ""].filter((part) => part !== "").join(", ");
         return detail !== ""
             ? `Create payout schedule for ${selectedApplication} (${detail})?`
             : `Create payout schedule for ${selectedApplication}?`;
     }
-    if (action === "update_disbursement_date" && payoutDate !== "") {
+    if (action === "create_bulk_disbursement") {
+        const detail = [amount !== "" ? `PHP ${amount}` : "", payoutSchedule !== "" ? payoutSchedule : ""].filter((part) => part !== "").join(", ");
+        return detail !== ""
+            ? `Create bulk payout schedule for all matching applicants (${detail})?`
+            : "Create bulk payout schedule for all matching applicants?";
+    }
+    if (action === "update_disbursement_date" && payoutSchedule !== "") {
         if (appNo !== "" && referenceNo !== "") {
-            return `Update payout date for application ${appNo} (Ref ${referenceNo}) to ${payoutDate}?`;
+            return `Update payout schedule for application ${appNo} (Ref ${referenceNo}) to ${payoutSchedule}?`;
         }
         if (referenceNo !== "") {
-            return `Update payout date for reference ${referenceNo} to ${payoutDate}?`;
+            return `Update payout schedule for reference ${referenceNo} to ${payoutSchedule}?`;
         }
     }
     if (action === "create" && requirement !== "") {
@@ -584,6 +821,31 @@ function formatCrudDate(value) {
         year: "numeric",
         month: "short",
         day: "2-digit",
+    });
+}
+
+function formatCrudTime(value) {
+    const raw = String(value || "").trim();
+    if (raw === "") {
+        return "";
+    }
+
+    const match = raw.match(/^(\d{2}):(\d{2})(?::\d{2})?$/);
+    if (!match) {
+        return raw;
+    }
+
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+        return raw;
+    }
+
+    const parsed = new Date();
+    parsed.setHours(hours, minutes, 0, 0);
+    return parsed.toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
     });
 }
 
@@ -679,10 +941,16 @@ function crudActionPreset(actionValue) {
             confirmText: "Create Schedule",
             kind: "success",
         },
+        create_bulk_disbursement: {
+            title: "Create Bulk Payout Schedule?",
+            message: "Create payout schedules for all matching applicants?",
+            confirmText: "Create Bulk",
+            kind: "success",
+        },
         update_disbursement_date: {
             title: "Update Payout Schedule?",
-            message: "Save the updated payout date?",
-            confirmText: "Save Date",
+            message: "Save the updated payout schedule?",
+            confirmText: "Save Schedule",
             kind: "primary",
         },
         update_profile: {
@@ -853,4 +1121,146 @@ function showCrudConfirmModal(modalState, config) {
         modalState.element.addEventListener("hidden.bs.modal", hiddenHandler);
         modalState.modal.show();
     });
+}
+
+function initRealtimePolling() {
+    const config = window.SE_REALTIME_CONFIG || null;
+    if (!config || String(config.enabled).toLowerCase() === "false") {
+        return;
+    }
+
+    const endpoint = String(config.endpoint || "").trim();
+    if (endpoint === "") {
+        return;
+    }
+
+    const configuredInterval = parseInt(String(config.interval_ms || "12000"), 10);
+    const intervalMs = Number.isFinite(configuredInterval) ? Math.max(5000, configuredInterval) : 12000;
+    const autoReload = !(config.auto_reload === false || String(config.auto_reload).toLowerCase() === "false");
+
+    let lastChangeToken = "";
+    let hasPrimedToken = false;
+    let isPolling = false;
+    let pendingReload = false;
+
+    const notificationLink = document.querySelector("[data-realtime-notification='1']");
+    const notificationBadge = document.querySelector("[data-realtime-notification-badge]");
+
+    const updateNotificationBadge = (unreadCountRaw, unreadLabelRaw) => {
+        if (!notificationLink || !notificationBadge) {
+            return;
+        }
+
+        const numericUnread = Number(unreadCountRaw);
+        const unreadCount = Number.isFinite(numericUnread) ? Math.max(0, numericUnread) : 0;
+        const unreadLabel = String(unreadLabelRaw || (unreadCount > 99 ? "99+" : unreadCount));
+
+        notificationBadge.textContent = unreadLabel;
+        notificationBadge.classList.toggle("d-none", unreadCount <= 0);
+
+        const labelText = unreadCount > 0
+            ? `Notifications (${unreadLabel} unread)`
+            : "Notifications";
+        notificationLink.setAttribute("aria-label", labelText);
+        notificationLink.setAttribute("title", labelText);
+    };
+
+    const canReloadNow = () => {
+        if (document.hidden) {
+            return false;
+        }
+
+        if (document.querySelector(".modal.show")) {
+            return false;
+        }
+
+        const active = document.activeElement;
+        if (!(active instanceof HTMLElement)) {
+            return true;
+        }
+
+        const tag = active.tagName.toLowerCase();
+        const focusedField = tag === "input"
+            || tag === "textarea"
+            || tag === "select"
+            || active.isContentEditable;
+
+        return !focusedField;
+    };
+
+    const applyDeferredReload = () => {
+        if (!pendingReload || !autoReload) {
+            return;
+        }
+
+        if (!canReloadNow()) {
+            return;
+        }
+
+        pendingReload = false;
+        window.location.reload();
+    };
+
+    const pollRealtime = async () => {
+        if (isPolling) {
+            return;
+        }
+        isPolling = true;
+
+        try {
+            const separator = endpoint.includes("?") ? "&" : "?";
+            const realtimeUrl = `${endpoint}${separator}ts=${Date.now()}`;
+            const response = await fetch(realtimeUrl, {
+                method: "GET",
+                credentials: "same-origin",
+                cache: "no-store",
+                headers: {
+                    Accept: "application/json",
+                    "X-Requested-With": "XMLHttpRequest",
+                },
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            const data = await response.json();
+            if (!data || data.ok !== true) {
+                return;
+            }
+
+            if (Object.prototype.hasOwnProperty.call(data, "unread_notifications")) {
+                updateNotificationBadge(data.unread_notifications, data.unread_label);
+            }
+
+            const changeToken = String(data.change_token || "").trim();
+            if (changeToken === "") {
+                return;
+            }
+
+            if (!hasPrimedToken) {
+                lastChangeToken = changeToken;
+                hasPrimedToken = true;
+                return;
+            }
+
+            if (changeToken !== lastChangeToken) {
+                lastChangeToken = changeToken;
+                pendingReload = true;
+                applyDeferredReload();
+            }
+        } catch (error) {
+            // Ignore transient polling errors.
+        } finally {
+            isPolling = false;
+        }
+    };
+
+    document.addEventListener("visibilitychange", applyDeferredReload);
+    window.addEventListener("focus", applyDeferredReload);
+    document.addEventListener("click", applyDeferredReload, true);
+    document.addEventListener("keyup", applyDeferredReload, true);
+
+    pollRealtime();
+    window.setInterval(pollRealtime, intervalMs);
 }

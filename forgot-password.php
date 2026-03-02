@@ -31,7 +31,8 @@ if (is_post()) {
     }
 
     $action = trim((string) ($_POST['action'] ?? 'request_otp'));
-    $mobileValue = trim((string) ($_POST['phone'] ?? ''));
+    $mobileRaw = trim((string) ($_POST['phone'] ?? ''));
+    $mobileValue = preg_replace('/\D+/', '', $mobileRaw) ?? '';
 
     $sendResetOtp = static function (int $userId, string $phone) use ($conn): void {
         $code = otp_start('forgot_password', ['user_id' => $userId, 'phone' => $phone], 300, 5);
@@ -187,7 +188,19 @@ include __DIR__ . '/includes/header.php';
                     <input type="hidden" name="action" value="request_otp">
                     <div class="col-12">
                         <label class="form-label">Registered Mobile Number</label>
-                        <input type="text" class="form-control" name="phone" placeholder="09XXXXXXXXX" required value="<?= e($mobileValue) ?>">
+                        <input
+                            type="text"
+                            class="form-control"
+                            id="forgotPhone"
+                            name="phone"
+                            placeholder="09XXXXXXXXX"
+                            required
+                            value="<?= e($mobileValue) ?>"
+                            inputmode="numeric"
+                            pattern="[0-9]*"
+                            autocomplete="tel-national"
+                            maxlength="12"
+                        >
                     </div>
                     <div class="col-12 d-grid">
                         <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane me-1"></i>Send Reset Verification Code (OTP)</button>
@@ -263,6 +276,35 @@ include __DIR__ . '/includes/header.php';
         </p>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const mobileInput = document.getElementById('forgotPhone');
+    if (!mobileInput) {
+        return;
+    }
+
+    const sanitize = function () {
+        mobileInput.value = String(mobileInput.value || '').replace(/\D+/g, '').slice(0, 12);
+    };
+
+    mobileInput.addEventListener('input', sanitize);
+    mobileInput.addEventListener('paste', function () {
+        setTimeout(sanitize, 0);
+    });
+    mobileInput.addEventListener('keydown', function (event) {
+        const allowedKeys = [
+            'Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End',
+        ];
+        if (allowedKeys.includes(event.key) || event.ctrlKey || event.metaKey) {
+            return;
+        }
+        if (!/^\d$/.test(event.key)) {
+            event.preventDefault();
+        }
+    });
+});
+</script>
 
 <?php include __DIR__ . '/includes/footer.php'; ?>
 

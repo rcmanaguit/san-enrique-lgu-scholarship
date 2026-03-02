@@ -15,21 +15,32 @@ $hideNavbar = true;
 $hideFooter = true;
 $bodyClass = 'auth-page';
 $mobile = '';
+$loginFormPhoneSessionKey = 'login_form_phone';
 $authLogoRelativePath = 'assets/images/branding/lgu-logo.png';
 $authLogoAbsolutePath = __DIR__ . '/' . $authLogoRelativePath;
 $hasAuthLogo = file_exists($authLogoAbsolutePath);
 $isRegistrationOpen = db_ready() && current_open_application_period($conn) !== null;
 
+if (isset($_SESSION[$loginFormPhoneSessionKey])) {
+    $mobile = trim((string) $_SESSION[$loginFormPhoneSessionKey]);
+    unset($_SESSION[$loginFormPhoneSessionKey]);
+}
+
 if (is_post()) {
-    $mobile = trim((string) ($_POST['phone'] ?? ''));
+    $mobileRaw = trim((string) ($_POST['phone'] ?? ''));
+    $mobile = preg_replace('/\D+/', '', $mobileRaw) ?? '';
     $password = (string) ($_POST['password'] ?? '');
 
     if (!verify_csrf($_POST['csrf_token'] ?? null)) {
         set_flash('danger', 'Invalid request. Please try again.');
+        redirect('login.php');
     } elseif (!db_ready()) {
         set_flash('warning', 'The system is not ready yet. Please contact the administrator.');
+        redirect('login.php');
     } elseif (!$mobile || !$password) {
+        $_SESSION[$loginFormPhoneSessionKey] = $mobile;
         set_flash('danger', 'Mobile number and password are required.');
+        redirect('login.php');
     } else {
         $user = find_user_by_mobile($conn, $mobile);
 
@@ -46,7 +57,9 @@ if (is_post()) {
                     'phone_input' => normalize_mobile_number($mobile),
                 ]
             );
+            $_SESSION[$loginFormPhoneSessionKey] = $mobile;
             set_flash('danger', 'Invalid login credentials.');
+            redirect('login.php');
         } elseif ($user['status'] !== 'active') {
             audit_log(
                 $conn,
@@ -57,7 +70,9 @@ if (is_post()) {
                 (string) ($user['id'] ?? ''),
                 'Attempted login to inactive account.'
             );
+            $_SESSION[$loginFormPhoneSessionKey] = $mobile;
             set_flash('danger', 'Your account is inactive. Contact LGU staff.');
+            redirect('login.php');
         } else {
             session_regenerate_id(true);
             unset($user['password_hash']);
@@ -121,7 +136,19 @@ include __DIR__ . '/includes/header.php';
                     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                     <div class="mb-3">
                         <label for="phone" class="form-label">Mobile Number</label>
-                        <input type="text" class="form-control" id="phone" name="phone" required placeholder="09XXXXXXXXX" value="<?= e($mobile) ?>">
+                        <input
+                            type="text"
+                            class="form-control"
+                            id="phone"
+                            name="phone"
+                            required
+                            placeholder="09XXXXXXXXX"
+                            value="<?= e($mobile) ?>"
+                            inputmode="numeric"
+                            pattern="[0-9]*"
+                            autocomplete="tel-national"
+                            maxlength="12"
+                        >
                     </div>
                     <div class="mb-3">
                         <label for="password" class="form-label">Password</label>
@@ -149,5 +176,34 @@ include __DIR__ . '/includes/header.php';
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const mobileInput = document.getElementById('phone');
+    if (!mobileInput) {
+        return;
+    }
+
+    const sanitize = function () {
+        mobileInput.value = String(mobileInput.value || '').replace(/\D+/g, '').slice(0, 12);
+    };
+
+    mobileInput.addEventListener('input', sanitize);
+    mobileInput.addEventListener('paste', function () {
+        setTimeout(sanitize, 0);
+    });
+    mobileInput.addEventListener('keydown', function (event) {
+        const allowedKeys = [
+            'Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End',
+        ];
+        if (allowedKeys.includes(event.key) || event.ctrlKey || event.metaKey) {
+            return;
+        }
+        if (!/^\d$/.test(event.key)) {
+            event.preventDefault();
+        }
+    });
+});
+</script>
 
 <?php include __DIR__ . '/includes/footer.php'; ?>

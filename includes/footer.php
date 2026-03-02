@@ -1,4 +1,4 @@
-    </div>
+</div>
 </main>
 
 <?php
@@ -8,12 +8,28 @@ $onRolePage = str_contains($currentScript, '/shared/')
     || str_contains($currentScript, '/staff-only/');
 $assetBase = $onRolePage ? '../' : '';
 $extraJs = $extraJs ?? [];
+$user = current_user();
+$isPublicWebsite = !$onRolePage && !$user;
+$facebookPageUrl = 'https://www.facebook.com/groups/438677743308925';
+$realtimeConfig = [
+    'enabled' => true,
+    'endpoint' => $assetBase . 'realtime.php',
+    'interval_ms' => 5000,
+    'auto_reload' => true,
+];
 ?>
 <?php if (empty($hideFooter)): ?>
     <footer class="app-footer border-top py-3 bg-white">
         <div class="container d-flex justify-content-between align-items-center flex-wrap gap-2">
             <small class="text-muted">San Enrique LGU Scholarship Records Management System</small>
-            <small class="text-muted">Municipality of San Enrique, Negros Occidental</small>
+            <small class="text-muted d-flex align-items-center gap-2 flex-wrap">
+                <span>Municipality of San Enrique, Negros Occidental</span>
+                <?php if ($isPublicWebsite): ?>
+                    <a href="<?= e($facebookPageUrl) ?>" target="_blank" rel="noopener noreferrer" class="text-decoration-none">
+                        <i class="fa-brands fa-facebook me-1"></i>LGU-San Enrique Scholars
+                    </a>
+                <?php endif; ?>
+            </small>
         </div>
     </footer>
 <?php endif; ?>
@@ -45,9 +61,13 @@ $extraJs = $extraJs ?? [];
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+window.SE_REALTIME_CONFIG = <?= json_encode($realtimeConfig, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+</script>
 <script src="<?= e($assetBase) ?>assets/js/main.js"></script>
 <?php foreach ($extraJs as $jsFile): ?>
     <script src="<?= e((string) $jsFile) ?>"></script>
 <?php endforeach; ?>
 </body>
+
 </html>

@@ -1703,7 +1703,7 @@ function audit_action_label(string $action): string
         'change_mobile_otp_verify_failed' => 'Mobile Change Verification Code Check Failed',
         'change_mobile_success' => 'Mobile Number Changed',
         'disbursement_created' => 'Payout Schedule Created',
-        'disbursement_date_updated' => 'Payout Schedule Date Updated',
+        'disbursement_date_updated' => 'Payout Schedule Updated',
         'forgot_password_otp_generated_dev_mode' => 'Forgot Password Verification Code Generated (Dev Mode)',
         'forgot_password_otp_send_failed' => 'Forgot Password Verification Code Send Failed',
         'forgot_password_otp_sent' => 'Forgot Password Verification Code Sent',
@@ -1725,6 +1725,15 @@ function audit_action_label(string $action): string
         'register_otp_verify_failed' => 'Registration Verification Code Check Failed',
         'requirement_template_created' => 'Requirement Template Created',
         'requirement_template_status_changed' => 'Requirement Template Status Changed',
+        'sms_bulk_sent' => 'Bulk SMS Sent',
+        'sms_selected_sent' => 'Selected SMS Sent',
+        'sms_single_sent' => 'Single SMS Sent',
+        'sms_template_created' => 'SMS Template Created',
+        'sms_template_deleted' => 'SMS Template Deleted',
+        'sms_template_updated' => 'SMS Template Updated',
+        'staff_account_created' => 'Staff Account Created',
+        'staff_account_updated' => 'Staff Account Updated',
+        'staff_account_deleted' => 'Staff Account Deleted',
         default => ucwords(str_replace('_', ' ', $action)),
     };
 }
@@ -1743,6 +1752,8 @@ function audit_entity_label(?string $entityType): string
         'registration' => 'Registration',
         'password_reset' => 'Password Reset',
         'auth' => 'Authentication',
+        'sms' => 'SMS',
+        'sms_template' => 'SMS Template',
         'user' => 'User Account',
         default => ucwords(str_replace('_', ' ', $entityType)),
     };

@@ -18,6 +18,24 @@ $scanStatus = 'invalid';
 $applicationScanLogs = [];
 $recentScanLogs = [];
 $hasQrScanLogsTable = table_exists($conn, 'qr_scan_logs');
+$hasDisbursementTime = table_column_exists($conn, 'disbursements', 'disbursement_time');
+$formatPayoutSchedule = static function (string $dateValue, ?string $timeValue = null): string {
+    $dateValue = trim($dateValue);
+    if ($dateValue === '' || preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateValue) !== 1) {
+        return '-';
+    }
+
+    $formatted = date('M d, Y', strtotime($dateValue));
+    $timeValue = trim((string) $timeValue);
+    if ($timeValue !== '' && preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $timeValue) === 1) {
+        $timeTs = strtotime($timeValue);
+        if ($timeTs !== false) {
+            $formatted .= ' ' . date('h:i A', $timeTs);
+        }
+    }
+
+    return $formatted;
+};
 $currentUser = current_user();
 $scannerUserId = (int) ($currentUser['id'] ?? 0);
 
@@ -64,11 +82,13 @@ if ($scannedRaw !== '') {
     if ($application) {
         $scanStatus = 'matched';
 
+        $disbursementTimeSelectSql = $hasDisbursementTime ? ', disbursement_time' : ', NULL AS disbursement_time';
+        $disbursementTimeOrderSql = $hasDisbursementTime ? ", COALESCE(disbursement_time, '00:00:00') DESC" : '';
         $stmtDis = $conn->prepare(
-            "SELECT id, amount, disbursement_date, reference_no, payout_location, status, remarks
+            "SELECT id, amount, disbursement_date{$disbursementTimeSelectSql}, reference_no, payout_location, status, remarks
              FROM disbursements
              WHERE application_id = ?
-             ORDER BY disbursement_date DESC, id DESC"
+             ORDER BY disbursement_date DESC{$disbursementTimeOrderSql}, id DESC"
         );
         if ($stmtDis) {
             $applicationId = (int) $application['id'];
@@ -349,7 +369,7 @@ include __DIR__ . '/../includes/header.php';
                     <table class="table table-sm align-middle mb-0">
                         <thead>
                             <tr>
-                                <th>Date</th>
+                                <th>Payout Schedule</th>
                                 <th>Amount</th>
                                 <th>Reference</th>
                                 <th>Location</th>
@@ -358,8 +378,14 @@ include __DIR__ . '/../includes/header.php';
                         </thead>
                         <tbody>
                             <?php foreach ($disbursements as $row): ?>
+                                <?php
+                                $payoutSchedule = $formatPayoutSchedule(
+                                    (string) ($row['disbursement_date'] ?? ''),
+                                    $hasDisbursementTime ? (string) ($row['disbursement_time'] ?? '') : null
+                                );
+                                ?>
                                 <tr>
-                                    <td><?= date('M d, Y', strtotime((string) $row['disbursement_date'])) ?></td>
+                                    <td><?= e($payoutSchedule) ?></td>
                                     <td>PHP <?= number_format((float) $row['amount'], 2) ?></td>
                                     <td><?= e((string) $row['reference_no']) ?></td>
                                     <td><?= e((string) ($row['payout_location'] ?? '-')) ?></td>

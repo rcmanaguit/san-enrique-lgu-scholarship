@@ -169,6 +169,7 @@ CREATE TABLE IF NOT EXISTS disbursements (
     application_id INT UNSIGNED NOT NULL,
     amount DECIMAL(12,2) NOT NULL,
     disbursement_date DATE NOT NULL,
+    disbursement_time TIME NULL,
     reference_no VARCHAR(80) NOT NULL,
     payout_location VARCHAR(180) NULL,
     status ENUM('scheduled','released','cancelled') NOT NULL DEFAULT 'scheduled',
@@ -214,6 +215,25 @@ CREATE TABLE IF NOT EXISTS sms_logs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_sms_user
         FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS sms_templates (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    template_name VARCHAR(120) NOT NULL,
+    template_body VARCHAR(500) NOT NULL,
+    template_category VARCHAR(60) NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_by INT UNSIGNED NULL,
+    updated_by INT UNSIGNED NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_sms_templates_name (template_name),
+    CONSTRAINT fk_sms_templates_created_by
+        FOREIGN KEY (created_by) REFERENCES users(id)
+        ON DELETE SET NULL,
+    CONSTRAINT fk_sms_templates_updated_by
+        FOREIGN KEY (updated_by) REFERENCES users(id)
         ON DELETE SET NULL
 );
 
@@ -292,6 +312,7 @@ CREATE INDEX idx_audit_logs_action ON audit_logs(action);
 CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id);
 CREATE INDEX idx_notifications_user_read_created ON notifications(user_id, is_read, created_at);
 CREATE INDEX idx_notifications_created_at ON notifications(created_at);
+CREATE INDEX idx_sms_templates_active ON sms_templates(is_active, template_category);
 
 INSERT INTO users (
     role,
@@ -352,6 +373,68 @@ INSERT INTO requirement_templates (
 ('Original Student Copy / Statement of Account (SOA)', 'School-issued statement of account', NULL, NULL, NULL, 1, 1, 40),
 ('Certificate of Enrollment', 'Current semester enrollment certificate', 'Academic Scholarship', NULL, NULL, 1, 1, 50),
 ('Certificate of Good Moral', 'Issued by the school', NULL, 'new', NULL, 0, 1, 60);
+
+INSERT INTO sms_templates (
+    template_name,
+    template_body,
+    template_category,
+    is_active,
+    created_by,
+    updated_by
+) VALUES
+(
+    'Application Period Open',
+    'San Enrique LGU Scholarship: Applications are now open for [Semester] [School Year]. Please submit your requirements on or before [Deadline].',
+    'Application',
+    1,
+    1,
+    1
+),
+(
+    'Requirements Reminder',
+    'San Enrique LGU Scholarship Reminder: Please submit your complete requirements at the Mayor''s Office on or before [Deadline].',
+    'Requirements',
+    1,
+    1,
+    1
+),
+(
+    'Interview Notice',
+    'San Enrique LGU Scholarship Notice: Your interview is scheduled on [Date] at [Time], [Location]. Please arrive early and bring your valid ID.',
+    'Interview',
+    1,
+    1,
+    1
+),
+(
+    'SOA / Student Copy Reminder',
+    'San Enrique LGU Scholarship Reminder: Please submit your SOA/Student Copy at the Mayor''s Office on or before [Deadline].',
+    'SOA',
+    1,
+    1,
+    1
+),
+(
+    'Payout Schedule Advisory',
+    'San Enrique LGU Scholarship Advisory: Your payout schedule is on [Date] at [Time], [Location]. Please bring a valid ID and keep your QR code ready.',
+    'Payout',
+    1,
+    1,
+    1
+),
+(
+    'Office Advisory',
+    'San Enrique LGU Scholarship Advisory: [Announcement]. For questions, please visit the Mayor''s Office.',
+    'General',
+    1,
+    1,
+    1
+)
+ON DUPLICATE KEY UPDATE
+    template_body = VALUES(template_body),
+    template_category = VALUES(template_category),
+    is_active = VALUES(is_active),
+    updated_by = VALUES(updated_by);
 
 INSERT INTO barangays (name, town, province, is_active) VALUES
 ('Bagonawa', 'San Enrique', 'Negros Occidental', 1),
