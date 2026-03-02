@@ -1,0 +1,26 @@
+# Dependencies
+/vendor/
+
+# Runtime uploads
+/uploads/tmp/*
+!/uploads/tmp/.gitkeep
+/uploads/photos/*
+!/uploads/photos/.gitkeep
+/uploads/documents/*
+!/uploads/documents/.gitkeep
+!/uploads/.htaccess
+
+# Environment and local secrets
+.env
+.env.*
+!.env.example
+
+# Logs and temp files
+*.log
+*.tmp
+*.temp
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/

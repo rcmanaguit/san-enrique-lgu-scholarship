@@ -1,0 +1,12 @@
+{
+    "name": "san-enrique/lgu-scholarship-system",
+    "description": "San Enrique LGU Scholarship Records Management System",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "dompdf/dompdf": "^3.1",
+        "phpoffice/phpword": "^1.4",
+        "phpoffice/phpspreadsheet": "^5.5",
+        "endroid/qr-code": "^6.0"
+    }
+}
