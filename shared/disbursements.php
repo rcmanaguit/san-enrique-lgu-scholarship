@@ -491,13 +491,27 @@ include __DIR__ . '/../includes/header.php';
 
             <div class="col-12 col-md-6">
                 <label class="form-label">Barangay Filter</label>
-                <select class="form-select" name="barangays[]" multiple size="6" <?= $hasBarangayColumn ? '' : 'disabled' ?>>
-                    <?php foreach ($allowedBarangays as $barangay): ?>
-                        <option value="<?= e($barangay) ?>"><?= e($barangay) ?></option>
-                    <?php endforeach; ?>
-                </select>
                 <?php if ($hasBarangayColumn): ?>
-                    <div class="form-text">Optional. Select one or more barangays. Leave blank to include all barangays.</div>
+                    <div class="border rounded-3 p-3 bg-light-subtle">
+                        <div class="row g-2">
+                            <?php foreach ($allowedBarangays as $index => $barangay): ?>
+                                <?php $checkboxId = 'bulkBarangay_' . ($index + 1); ?>
+                                <div class="col-12 col-sm-6">
+                                    <div class="form-check">
+                                        <input
+                                            class="form-check-input"
+                                            type="checkbox"
+                                            id="<?= e($checkboxId) ?>"
+                                            name="barangays[]"
+                                            value="<?= e($barangay) ?>"
+                                        >
+                                        <label class="form-check-label" for="<?= e($checkboxId) ?>"><?= e($barangay) ?></label>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                    <div class="form-text">Optional. Check one or more barangays. Leave all unchecked to include all barangays.</div>
                 <?php else: ?>
                     <div class="form-text text-muted">Barangay filter is unavailable in current database setup.</div>
                 <?php endif; ?>

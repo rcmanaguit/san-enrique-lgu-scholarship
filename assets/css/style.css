@@ -337,6 +337,27 @@ body.desktop-sidebar-enabled.desktop-sidebar-collapsed .nav-sidebar-toggle i {
         linear-gradient(180deg, #fafdff 0%, #f2f7fc 100%);
 }
 
+.auth-page .app-main {
+    display: grid;
+    place-items: center;
+    min-height: 100vh;
+}
+
+.auth-page .app-main > .container {
+    width: min(100%, 1100px);
+}
+
+.auth-page .app-main .row.justify-content-center {
+    width: 100%;
+}
+
+@media (max-height: 780px) {
+    .auth-page .app-main {
+        display: block;
+        min-height: auto;
+    }
+}
+
 .auth-logo-wrap {
     display: flex;
     justify-content: center;
