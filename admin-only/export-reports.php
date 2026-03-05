@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
+/** @var mixed $conn */
+$conn = $GLOBALS['conn'] ?? null;
+
 require_login('../login.php');
 require_admin('../index.php');
 
@@ -109,7 +112,7 @@ if ($dataset === 'status_summary') {
     $title = 'San Enrique LGU Scholarship - Semester Disbursement Summary' . $rangeSuffix;
     $filenameBase = 'san_enrique_lgu_scholarship_semester_disbursements_' . date('Ymd_His');
 } elseif ($dataset === 'approved_scholars') {
-    $where = "a.status IN ('approved', 'for_soa_submission', 'soa_submitted')";
+    $where = "a.status = 'disbursed'";
     if ($fromDate !== '' && $toDate !== '') {
         $where .= " AND COALESCE(a.submitted_at, a.created_at) BETWEEN " . $esc($fromDate . ' 00:00:00') . " AND " . $esc($toDate . ' 23:59:59');
     }
@@ -122,7 +125,7 @@ if ($dataset === 'status_summary') {
                 u.phone,
                 a.school_name,
                 a.course,
-                a.scholarship_type,
+                a.applicant_type,
                 a.school_year,
                 FORMAT(COALESCE(SUM(d.amount), 0), 2) AS total_disbursed
             FROM applications a
@@ -142,26 +145,26 @@ if ($dataset === 'status_summary') {
         'phone' => 'Phone',
         'school_name' => 'School',
         'course' => 'Course',
-        'scholarship_type' => 'Scholarship',
+        'applicant_type' => 'Applicant Type',
         'school_year' => 'School Year',
         'total_disbursed' => 'Total Disbursed (PHP)',
     ];
-    $title = 'San Enrique LGU Scholarship - Approved Scholars' . $rangeSuffix;
+    $title = 'San Enrique LGU Scholarship - Disbursed Scholars' . $rangeSuffix;
     $filenameBase = 'san_enrique_lgu_scholarship_approved_scholars_' . date('Ymd_His');
 } elseif ($dataset === 'scholarship_summary') {
-    $sql = "SELECT scholarship_type, COUNT(*) AS total
+    $sql = "SELECT applicant_type, COUNT(*) AS total
             FROM applications
             {$appRangeWhere}
-            GROUP BY scholarship_type
-            ORDER BY total DESC, scholarship_type ASC";
+            GROUP BY applicant_type
+            ORDER BY total DESC, applicant_type ASC";
     $result = $conn->query($sql);
     $rows = $result instanceof mysqli_result ? $result->fetch_all(MYSQLI_ASSOC) : [];
 
     $columns = [
-        'scholarship_type' => 'Scholarship Type',
+        'applicant_type' => 'Applicant Type',
         'total' => 'Total Applications',
     ];
-    $title = 'San Enrique LGU Scholarship - Scholarship Type Summary' . $rangeSuffix;
+    $title = 'San Enrique LGU Scholarship - Applicant Type Summary' . $rangeSuffix;
     $filenameBase = 'san_enrique_lgu_scholarship_scholarship_summary_' . date('Ymd_His');
 } elseif ($dataset === 'sms_delivery_summary') {
     if (!table_exists($conn, 'sms_logs')) {

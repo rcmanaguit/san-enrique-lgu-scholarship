@@ -3,10 +3,13 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
+/** @var mixed $conn */
+$conn = $GLOBALS['conn'] ?? null;
+
 require_login('../login.php');
 require_role(['admin', 'staff'], '../index.php');
 
-$pageTitle = 'Analytics';
+$pageTitle = 'Analytics & Reports';
 $extraJs = ['https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js'];
 
 $defaultFromDate = date('Y-m-d', strtotime('-30 days'));
@@ -80,7 +83,7 @@ if (db_ready()) {
         "SELECT COUNT(*) AS total
          FROM applications
          WHERE COALESCE(submitted_at, created_at) BETWEEN ? AND ?
-           AND status IN ('approved', 'for_soa_submission', 'soa_submitted')"
+           AND status IN ('approved', 'for_soa_submission', 'soa_submitted', 'waitlisted', 'disbursed')"
     );
     if ($stmt) {
         $stmt->bind_param('ss', $fromDateTime, $toDateTime);
@@ -288,12 +291,18 @@ include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <h1 class="h4 m-0"><i class="fa-solid fa-chart-pie me-2 text-primary"></i>Data Analytics</h1>
+    <h1 class="h4 m-0"><i class="fa-solid fa-chart-pie me-2 text-primary"></i>Analytics & Reports</h1>
     <div class="d-flex gap-2">
-        <a href="../admin-only/reports.php?from_date=<?= e($fromDate) ?>&to_date=<?= e($toDate) ?>" class="btn btn-outline-primary btn-sm">
-            <i class="fa-solid fa-file-lines me-1"></i>Open Reports
-        </a>
         <?php if (is_admin()): ?>
+            <a href="../admin-only/export-reports.php?dataset=approved_scholars&format=pdf&from_date=<?= e($fromDate) ?>&to_date=<?= e($toDate) ?>" class="btn btn-outline-primary btn-sm">
+                <i class="fa-solid fa-file-pdf me-1"></i>Approved Scholars PDF
+            </a>
+            <a href="../admin-only/export-reports.php?dataset=approved_scholars&format=docx&from_date=<?= e($fromDate) ?>&to_date=<?= e($toDate) ?>" class="btn btn-outline-primary btn-sm">
+                <i class="fa-solid fa-file-word me-1"></i>Approved Scholars DOCX
+            </a>
+            <a href="../admin-only/export-reports.php?dataset=approved_scholars&format=xlsx&from_date=<?= e($fromDate) ?>&to_date=<?= e($toDate) ?>" class="btn btn-primary btn-sm">
+                <i class="fa-solid fa-file-excel me-1"></i>Approved Scholars XLSX
+            </a>
             <a href="../admin-only/logs.php?from_date=<?= e($fromDate) ?>&to_date=<?= e($toDate) ?>" class="btn btn-outline-primary btn-sm">
                 <i class="fa-solid fa-clipboard-list me-1"></i>Open Logs
             </a>
@@ -301,7 +310,42 @@ include __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
-<form method="get" class="card card-soft shadow-sm mb-3">
+<?php
+$baseQuery = http_build_query([
+    'from_date' => $fromDate,
+    'to_date' => $toDate,
+]);
+?>
+
+<?php if (is_admin()): ?>
+<div class="card card-soft shadow-sm mb-3">
+    <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <h2 class="h6 m-0">Report Exports (Selected Date Range)</h2>
+            <p class="small text-muted mb-0">Use these links for printable and spreadsheet reports.</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="../admin-only/export-reports.php?dataset=status_summary&format=pdf&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">Status PDF</a>
+            <a href="../admin-only/export-reports.php?dataset=status_summary&format=docx&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">Status DOCX</a>
+            <a href="../admin-only/export-reports.php?dataset=status_summary&format=xlsx&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">Status XLSX</a>
+            <a href="../admin-only/export-reports.php?dataset=scholarship_summary&format=pdf&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">Applicant Type PDF</a>
+            <a href="../admin-only/export-reports.php?dataset=scholarship_summary&format=docx&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">Applicant Type DOCX</a>
+            <a href="../admin-only/export-reports.php?dataset=scholarship_summary&format=xlsx&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">Applicant Type XLSX</a>
+            <a href="../admin-only/export-reports.php?dataset=monthly_disbursements&format=pdf&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">Disbursements PDF</a>
+            <a href="../admin-only/export-reports.php?dataset=monthly_disbursements&format=docx&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">Disbursements DOCX</a>
+            <a href="../admin-only/export-reports.php?dataset=monthly_disbursements&format=xlsx&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">Disbursements XLSX</a>
+            <a href="../admin-only/export-reports.php?dataset=sms_delivery_summary&format=pdf&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">SMS PDF</a>
+            <a href="../admin-only/export-reports.php?dataset=sms_delivery_summary&format=docx&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">SMS DOCX</a>
+            <a href="../admin-only/export-reports.php?dataset=sms_delivery_summary&format=xlsx&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">SMS XLSX</a>
+            <a href="../admin-only/export-reports.php?dataset=qr_scan_summary&format=pdf&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">QR PDF</a>
+            <a href="../admin-only/export-reports.php?dataset=qr_scan_summary&format=docx&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">QR DOCX</a>
+            <a href="../admin-only/export-reports.php?dataset=qr_scan_summary&format=xlsx&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">QR XLSX</a>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<form method="get" class="card card-soft shadow-sm mb-3" data-live-filter-form data-live-filter-debounce="200">
     <div class="card-body row g-2 align-items-end">
         <div class="col-6 col-md-3">
             <label class="form-label form-label-sm">From Date</label>
@@ -311,8 +355,8 @@ include __DIR__ . '/../includes/header.php';
             <label class="form-label form-label-sm">To Date</label>
             <input type="date" class="form-control form-control-sm" name="to_date" value="<?= e($toDate) ?>">
         </div>
-        <div class="col-12 col-md-6 d-flex gap-2">
-            <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-filter me-1"></i>Apply Range</button>
+        <div class="col-12 col-md-6 d-flex gap-2 align-items-center">
+            <span class="small text-muted">Live filter enabled</span>
             <a href="analytics.php" class="btn btn-outline-secondary btn-sm">Reset</a>
         </div>
     </div>

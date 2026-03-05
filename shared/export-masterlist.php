@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
+/** @var mixed $conn */
+$conn = $GLOBALS['conn'] ?? null;
+
 require_login('../login.php');
 require_role(['admin', 'staff'], '../index.php');
 
@@ -51,7 +54,6 @@ $provinceSelect = $hasProvinceColumn ? 'a.province' : "'" . $conn->real_escape_s
 $sql = "SELECT
             a.application_no,
             a.status,
-            a.scholarship_type,
             a.applicant_type,
             u.first_name,
             u.middle_name,
@@ -79,7 +81,6 @@ $rows = $result instanceof mysqli_result ? $result->fetch_all(MYSQLI_ASSOC) : []
 $columns = [
     'application_no' => 'Application No',
     'status' => 'Status',
-    'scholarship_type' => 'Scholarship Type',
     'applicant_type' => 'Applicant Type',
     'first_name' => 'First Name',
     'middle_name' => 'Middle Name',

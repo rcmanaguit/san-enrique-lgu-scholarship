@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes/bootstrap.php';
 
+/** @var mixed $conn */
+$conn = $GLOBALS['conn'] ?? null;
+
 require_login('login.php');
 require_role(['applicant'], 'index.php');
 
@@ -32,7 +35,7 @@ if (db_ready()) {
         "SELECT COUNT(*) AS total
          FROM applications
          WHERE user_id = ?
-           AND status IN ('approved', 'for_soa_submission', 'soa_submitted')"
+           AND status IN ('approved', 'for_soa_submission', 'soa_submitted', 'waitlisted', 'disbursed')"
     );
     $stmt->bind_param('i', $user['id']);
     $stmt->execute();
@@ -40,7 +43,7 @@ if (db_ready()) {
     $stmt->close();
 
     $stmt = $conn->prepare(
-        "SELECT id, scholarship_type, semester, school_year, status, submitted_at, updated_at
+        "SELECT id, semester, school_year, status, submitted_at, updated_at
          FROM applications
          WHERE user_id = ?
          ORDER BY id DESC
@@ -58,15 +61,14 @@ include __DIR__ . '/includes/header.php';
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <h1 class="h4 m-0">Welcome, <?= e($user['first_name']) ?></h1>
     <div class="d-flex gap-2 flex-wrap">
-        <a href="notifications.php" class="btn btn-outline-primary btn-sm"><i class="fa-regular fa-bell me-1"></i>Notifications</a>
-        <a href="profile-settings.php" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-user-gear me-1"></i>Profile / Settings</a>
         <?php if ($canApply): ?>
-            <a href="apply.php" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus me-1"></i>Submit New Application</a>
+            <a href="apply.php" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus me-1"></i>Start Application</a>
         <?php elseif ($openPeriod && $hasApplicationThisPeriod): ?>
             <button class="btn btn-secondary btn-sm" disabled><i class="fa-solid fa-lock me-1"></i>Already Applied This Period</button>
         <?php else: ?>
             <button class="btn btn-secondary btn-sm" disabled><i class="fa-solid fa-lock me-1"></i>Application Period Closed</button>
         <?php endif; ?>
+        <a href="my-application.php" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-folder-open me-1"></i>My Application</a>
     </div>
 </div>
 
@@ -87,39 +89,24 @@ include __DIR__ . '/includes/header.php';
     </div>
 <?php endif; ?>
 
-<div class="row g-3 mb-4">
-    <div class="col-6 col-md-3">
-        <div class="card card-soft metric-card">
-            <div class="card-body">
-                <p class="small text-muted mb-1">Total Applications</p>
-                <h3><?= $applicationCount ?></h3>
-            </div>
+<div class="card card-soft mb-4">
+    <div class="card-body d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+            <p class="small text-muted mb-1">Current Status</p>
+            <?php if ($latestApplication): ?>
+                <span class="badge <?= status_badge_class((string) $latestApplication['status']) ?>">
+                    <?= e(strtoupper((string) $latestApplication['status'])) ?>
+                </span>
+                <p class="small text-muted mt-2 mb-0">
+                    Last update: <?= date('F d, Y h:i A', strtotime((string) $latestApplication['updated_at'])) ?>
+                </p>
+            <?php else: ?>
+                <p class="mb-0 text-muted">No application yet.</p>
+            <?php endif; ?>
         </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="card card-soft metric-card">
-            <div class="card-body">
-                <p class="small text-muted mb-1">Approved</p>
-                <h3><?= $approvedCount ?></h3>
-            </div>
-        </div>
-    </div>
-    <div class="col-12 col-md-6">
-        <div class="card card-soft h-100">
-            <div class="card-body">
-                <p class="small text-muted mb-1">Current Status</p>
-                <?php if ($latestApplication): ?>
-                    <span class="badge <?= status_badge_class((string) $latestApplication['status']) ?>">
-                        <?= e(strtoupper((string) $latestApplication['status'])) ?>
-                    </span>
-                    <p class="small text-muted mt-2 mb-0">
-                        Last update:
-                        <?= date('F d, Y h:i A', strtotime((string) $latestApplication['updated_at'])) ?>
-                    </p>
-                <?php else: ?>
-                    <p class="mb-0 text-muted">No application yet.</p>
-                <?php endif; ?>
-            </div>
+        <div class="small text-muted text-end">
+            Total Applications: <strong><?= (int) $applicationCount ?></strong><br>
+            Approved: <strong><?= (int) $approvedCount ?></strong>
         </div>
     </div>
 </div>
@@ -138,7 +125,7 @@ include __DIR__ . '/includes/header.php';
                     <div class="small text-muted"><?= e(ucwords(str_replace('_', ' ', (string) $latestApplication['status']))) ?></div>
                 </div>
             </div>
-            <a href="my-application.php" class="btn btn-outline-primary btn-sm mt-2"><i class="fa-solid fa-folder-open me-1"></i>View Full Records</a>
+            <a href="my-application.php" class="btn btn-outline-primary btn-sm mt-2"><i class="fa-solid fa-folder-open me-1"></i>View Full Status</a>
         </div>
     </div>
 <?php else: ?>

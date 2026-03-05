@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
+/** @var mixed $conn */
+$conn = $GLOBALS['conn'] ?? null;
+
 require_login('../login.php');
 require_role(['admin', 'staff'], '../index.php');
 
@@ -32,21 +35,7 @@ if (!$hasBarangayColumn) {
     $barangayFilter = '';
 }
 
-$where = [];
-if ($statusFilter !== '') {
-    $where[] = "a.status = '" . $conn->real_escape_string($statusFilter) . "'";
-}
-if ($schoolTypeFilter !== '') {
-    $where[] = "a.school_type = '" . $conn->real_escape_string($schoolTypeFilter) . "'";
-}
-if ($schoolYearFilter !== '') {
-    $where[] = "a.school_year = '" . $conn->real_escape_string($schoolYearFilter) . "'";
-}
-if ($hasBarangayColumn && $barangayFilter !== '') {
-    $where[] = "a.barangay = '" . $conn->real_escape_string($barangayFilter) . "'";
-}
-
-$whereClause = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
+$whereClause = '';
 $barangaySelect = $hasBarangayColumn ? 'a.barangay' : "'' AS barangay";
 $townSelect = $hasTownColumn ? 'a.town' : "'" . $conn->real_escape_string(san_enrique_town()) . "' AS town";
 $provinceSelect = $hasProvinceColumn ? 'a.province' : "'" . $conn->real_escape_string(san_enrique_province()) . "' AS province";
@@ -54,7 +43,6 @@ $provinceSelect = $hasProvinceColumn ? 'a.province' : "'" . $conn->real_escape_s
 $sql = "SELECT
             a.id,
             a.application_no,
-            a.scholarship_type,
             a.applicant_type,
             a.school_name,
             a.school_type,
@@ -97,62 +85,32 @@ include __DIR__ . '/../includes/header.php';
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <h1 class="h4 m-0"><i class="fa-solid fa-table-list me-2 text-primary"></i>San Enrique LGU Scholarship Masterlist</h1>
     <div class="d-flex gap-2">
-        <a href="export-masterlist.php?<?= e($exportQuery) ?>&format=pdf" class="btn btn-outline-primary btn-sm">
+        <a
+            href="export-masterlist.php?<?= e($exportQuery) ?>&format=pdf"
+            class="btn btn-outline-primary btn-sm"
+            data-masterlist-export-link
+            data-export-format="pdf"
+        >
             <i class="fa-solid fa-file-pdf me-1"></i>Export PDF
         </a>
-        <a href="export-masterlist.php?<?= e($exportQuery) ?>&format=docx" class="btn btn-outline-primary btn-sm">
+        <a
+            href="export-masterlist.php?<?= e($exportQuery) ?>&format=docx"
+            class="btn btn-outline-primary btn-sm"
+            data-masterlist-export-link
+            data-export-format="docx"
+        >
             <i class="fa-solid fa-file-word me-1"></i>Export DOCX
         </a>
-        <a href="export-masterlist.php?<?= e($exportQuery) ?>&format=xlsx" class="btn btn-primary btn-sm">
+        <a
+            href="export-masterlist.php?<?= e($exportQuery) ?>&format=xlsx"
+            class="btn btn-primary btn-sm"
+            data-masterlist-export-link
+            data-export-format="xlsx"
+        >
             <i class="fa-solid fa-file-excel me-1"></i>Export XLSX
         </a>
     </div>
 </div>
-
-<form method="get" class="card card-soft mb-3">
-    <div class="card-body row g-2 align-items-end">
-        <div class="col-6 col-md-3">
-            <label class="form-label form-label-sm">Status</label>
-            <select name="status" class="form-select form-select-sm">
-                <option value="">All</option>
-                <?php foreach ($allowedStatus as $status): ?>
-                    <option value="<?= e($status) ?>" <?= $statusFilter === $status ? 'selected' : '' ?>>
-                        <?= e(ucwords(str_replace('_', ' ', $status))) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </div>
-        <div class="col-6 col-md-3">
-            <label class="form-label form-label-sm">School Type</label>
-            <select name="school_type" class="form-select form-select-sm">
-                <option value="">All</option>
-                <option value="public" <?= $schoolTypeFilter === 'public' ? 'selected' : '' ?>>Public</option>
-                <option value="private" <?= $schoolTypeFilter === 'private' ? 'selected' : '' ?>>Private</option>
-            </select>
-        </div>
-        <div class="col-6 col-md-2">
-            <label class="form-label form-label-sm">School Year</label>
-            <input type="text" name="school_year" class="form-control form-control-sm" value="<?= e($schoolYearFilter) ?>" placeholder="2026-2027">
-        </div>
-        <div class="col-6 col-md-2">
-            <label class="form-label form-label-sm">Barangay</label>
-            <select name="barangay" class="form-select form-select-sm" <?= $hasBarangayColumn ? '' : 'disabled' ?>>
-                <option value="">All</option>
-                <?php if ($hasBarangayColumn): ?>
-                    <?php foreach ($allowedBarangays as $barangay): ?>
-                        <option value="<?= e($barangay) ?>" <?= $barangayFilter === $barangay ? 'selected' : '' ?>><?= e($barangay) ?></option>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <option value="">Unavailable in current setup</option>
-                <?php endif; ?>
-            </select>
-        </div>
-        <div class="col-12 col-md-2 d-flex gap-2">
-            <button type="submit" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-filter me-1"></i>Apply</button>
-            <a href="masterlist.php" class="btn btn-outline-secondary btn-sm">Reset</a>
-        </div>
-    </div>
-</form>
 
 <?php if (!$rows): ?>
     <div class="card card-soft"><div class="card-body text-muted">No records found for selected filters.</div></div>
@@ -162,18 +120,45 @@ include __DIR__ . '/../includes/header.php';
             <div class="row g-2 align-items-end">
                 <div class="col-12 col-md-5">
                     <label class="form-label form-label-sm">Live Search</label>
-                    <input type="text" data-table-search class="form-control form-control-sm" placeholder="Search application no, name, school, scholarship, barangay">
+                    <input type="text" data-table-search class="form-control form-control-sm" placeholder="Search application no, name, school, applicant type, barangay">
                 </div>
-                <div class="col-6 col-md-3">
-                    <label class="form-label form-label-sm">Live Status Filter</label>
-                    <select data-table-filter class="form-select form-select-sm">
+                <div class="col-6 col-md-2">
+                    <label class="form-label form-label-sm">Status</label>
+                    <select class="form-select form-select-sm" data-table-filter data-filter-key="status">
                         <option value="">All</option>
                         <?php foreach ($allowedStatus as $status): ?>
-                            <option value="<?= e($status) ?>"><?= e(ucwords(str_replace('_', ' ', $status))) ?></option>
+                            <option value="<?= e($status) ?>" <?= $statusFilter === $status ? 'selected' : '' ?>>
+                                <?= e(ucwords(str_replace('_', ' ', $status))) ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="col-6 col-md-2">
+                    <label class="form-label form-label-sm">School Type</label>
+                    <select class="form-select form-select-sm" data-table-filter data-filter-key="school-type">
+                        <option value="">All</option>
+                        <option value="public" <?= $schoolTypeFilter === 'public' ? 'selected' : '' ?>>Public</option>
+                        <option value="private" <?= $schoolTypeFilter === 'private' ? 'selected' : '' ?>>Private</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label form-label-sm">School Year</label>
+                    <input type="text" class="form-control form-control-sm" data-table-filter data-filter-key="school-year" data-filter-mode="contains" value="<?= e($schoolYearFilter) ?>" placeholder="2026-2027">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label form-label-sm">Barangay</label>
+                    <select class="form-select form-select-sm" data-table-filter data-filter-key="barangay" <?= $hasBarangayColumn ? '' : 'disabled' ?>>
+                        <option value="">All</option>
+                        <?php if ($hasBarangayColumn): ?>
+                            <?php foreach ($allowedBarangays as $barangay): ?>
+                                <option value="<?= e($barangay) ?>" <?= $barangayFilter === $barangay ? 'selected' : '' ?>><?= e($barangay) ?></option>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <option value="">Unavailable in current setup</option>
+                        <?php endif; ?>
+                    </select>
+                </div>
+                <div class="col-6 col-md-1">
                     <label class="form-label form-label-sm">Rows</label>
                     <select data-table-per-page class="form-select form-select-sm">
                         <option value="10">10</option>
@@ -181,7 +166,10 @@ include __DIR__ . '/../includes/header.php';
                         <option value="50">50</option>
                     </select>
                 </div>
-                <div class="col-12 col-md-2 text-md-end">
+                <div class="col-6 col-md-1 d-grid">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="masterlistLiveReset">Reset</button>
+                </div>
+                <div class="col-12 col-md-12 text-md-end">
                     <span class="page-legend" data-table-summary></span>
                 </div>
             </div>
@@ -193,7 +181,7 @@ include __DIR__ . '/../includes/header.php';
                     <tr>
                         <th>Application</th>
                         <th>Applicant</th>
-                        <th>Scholarship</th>
+                        <th>Applicant Type</th>
                         <th>School</th>
                         <th>Status</th>
                         <th>Total Disbursed</th>
@@ -208,7 +196,7 @@ include __DIR__ . '/../includes/header.php';
                             $row['first_name'],
                             $row['last_name'],
                             $row['school_name'],
-                            $row['scholarship_type'],
+                            $row['applicant_type'],
                             $row['school_year'],
                             $row['barangay'],
                             $row['town'],
@@ -216,7 +204,14 @@ include __DIR__ . '/../includes/header.php';
                             $row['status'],
                         ]));
                         ?>
-                        <tr data-search="<?= e($searchText) ?>" data-filter="<?= e((string) $row['status']) ?>">
+                        <tr
+                            data-search="<?= e($searchText) ?>"
+                            data-filter="<?= e((string) $row['status']) ?>"
+                            data-status="<?= e((string) $row['status']) ?>"
+                            data-school-type="<?= e((string) $row['school_type']) ?>"
+                            data-school-year="<?= e((string) $row['school_year']) ?>"
+                            data-barangay="<?= e((string) ($row['barangay'] ?? '')) ?>"
+                        >
                             <td>
                                 <strong><?= e((string) $row['application_no']) ?></strong>
                                 <div class="small text-muted">#<?= (int) $row['id'] ?> | <?= e((string) $row['semester']) ?> / <?= e((string) $row['school_year']) ?></div>
@@ -227,8 +222,7 @@ include __DIR__ . '/../includes/header.php';
                                 <div class="small text-muted"><?= e((string) ($row['barangay'] ?? '')) ?>, <?= e((string) ($row['town'] ?? san_enrique_town())) ?>, <?= e((string) ($row['province'] ?? san_enrique_province())) ?></div>
                             </td>
                             <td>
-                                <?= e((string) $row['scholarship_type']) ?>
-                                <div class="small text-muted"><?= e(strtoupper((string) $row['applicant_type'])) ?></div>
+                                <?= e(strtoupper((string) $row['applicant_type'])) ?>
                             </td>
                             <td>
                                 <?= e((string) $row['school_name']) ?>
@@ -260,5 +254,81 @@ include __DIR__ . '/../includes/header.php';
         </div>
     </div>
 <?php endif; ?>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const resetBtn = document.getElementById('masterlistLiveReset');
+    const exportLinks = Array.from(document.querySelectorAll('[data-masterlist-export-link]'));
+    const statusFilter = document.querySelector('[data-live-table] [data-table-filter][data-filter-key="status"]');
+    const schoolTypeFilter = document.querySelector('[data-live-table] [data-table-filter][data-filter-key="school-type"]');
+    const schoolYearFilter = document.querySelector('[data-live-table] [data-table-filter][data-filter-key="school-year"]');
+    const barangayFilter = document.querySelector('[data-live-table] [data-table-filter][data-filter-key="barangay"]');
+
+    function updateExportLinks() {
+        if (!exportLinks.length) {
+            return;
+        }
+        const status = statusFilter instanceof HTMLSelectElement ? String(statusFilter.value || '').trim() : '';
+        const schoolType = schoolTypeFilter instanceof HTMLSelectElement ? String(schoolTypeFilter.value || '').trim() : '';
+        const schoolYear = schoolYearFilter instanceof HTMLInputElement ? String(schoolYearFilter.value || '').trim() : '';
+        const barangay = barangayFilter instanceof HTMLSelectElement ? String(barangayFilter.value || '').trim() : '';
+
+        exportLinks.forEach(function (link) {
+            const format = String(link.getAttribute('data-export-format') || '').trim().toLowerCase();
+            const params = new URLSearchParams();
+            if (status !== '') {
+                params.set('status', status);
+            }
+            if (schoolType !== '') {
+                params.set('school_type', schoolType);
+            }
+            if (schoolYear !== '') {
+                params.set('school_year', schoolYear);
+            }
+            if (barangay !== '') {
+                params.set('barangay', barangay);
+            }
+            if (format !== '') {
+                params.set('format', format);
+            }
+            link.setAttribute('href', 'export-masterlist.php?' + params.toString());
+        });
+    }
+
+    [statusFilter, schoolTypeFilter, schoolYearFilter, barangayFilter].forEach(function (control) {
+        if (!(control instanceof HTMLElement)) {
+            return;
+        }
+        const eventName = control instanceof HTMLInputElement ? 'input' : 'change';
+        control.addEventListener(eventName, updateExportLinks);
+    });
+
+    if (!resetBtn) {
+        updateExportLinks();
+        return;
+    }
+
+    resetBtn.addEventListener('click', function () {
+        const filterControls = Array.from(document.querySelectorAll('[data-live-table] [data-table-filter]'));
+        filterControls.forEach(function (control) {
+            if (!(control instanceof HTMLElement)) {
+                return;
+            }
+            if (control instanceof HTMLSelectElement) {
+                control.value = '';
+                control.dispatchEvent(new Event('change', { bubbles: true }));
+                return;
+            }
+            if (control instanceof HTMLInputElement) {
+                control.value = '';
+                control.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        });
+        updateExportLinks();
+    });
+
+    updateExportLinks();
+});
+</script>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>

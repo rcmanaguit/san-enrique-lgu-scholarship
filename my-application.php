@@ -3,16 +3,54 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes/bootstrap.php';
 
+/** @var mixed $conn */
+$conn = $GLOBALS['conn'] ?? null;
+
 require_login('login.php');
 require_role(['applicant'], 'index.php');
 
-$pageTitle = 'My Application Records';
+$pageTitle = 'My Application Progress';
 $user = current_user();
 $applications = [];
-$allowedStatus = application_status_options();
 $openPeriod = null;
 $hasApplicationThisPeriod = false;
 $canCreateNewApplication = false;
+$latestApplication = null;
+$statusFlow = [
+    'submitted',
+    'for_review',
+    'for_resubmission',
+    'for_interview',
+    'approved',
+    'for_soa_submission',
+    'soa_submitted',
+    'waitlisted',
+    'disbursed',
+];
+$statusDisplay = [
+    'submitted' => 'Submitted',
+    'for_review' => 'For Review',
+    'for_resubmission' => 'Resubmission Required',
+    'for_interview' => 'For Interview',
+    'approved' => 'Approved',
+    'for_soa_submission' => 'SOA Required',
+    'soa_submitted' => 'SOA Submitted',
+    'waitlisted' => 'Waitlisted',
+    'disbursed' => 'Completed (Disbursed)',
+    'rejected' => 'Rejected',
+];
+$nextActionByStatus = [
+    'submitted' => 'Wait for staff review of your documents.',
+    'for_review' => 'Wait for document verification result.',
+    'for_resubmission' => 'Resubmit the missing/incorrect documents as soon as possible.',
+    'for_interview' => 'Prepare for interview and wait for your interview schedule notice.',
+    'approved' => 'Wait for SOA submission notice from LGU staff.',
+    'for_soa_submission' => 'Submit your SOA/Student Copy before the deadline.',
+    'soa_submitted' => 'Wait for final ranking/next release schedule.',
+    'waitlisted' => 'Wait for final payout/slot confirmation from LGU.',
+    'disbursed' => 'Your scholarship payout has been released.',
+    'rejected' => 'Coordinate with LGU Scholarship Office for guidance on next cycle.',
+];
 
 if (db_ready()) {
     $openPeriod = current_open_application_period($conn);
@@ -22,7 +60,7 @@ if (db_ready()) {
     $canCreateNewApplication = $openPeriod !== null && !$hasApplicationThisPeriod;
 
     $stmt = $conn->prepare(
-        "SELECT a.id, a.application_no, a.qr_token, a.scholarship_type, a.school_name, a.school_type, a.semester, a.school_year,
+        "SELECT a.id, a.application_no, a.qr_token, a.school_name, a.school_type, a.semester, a.school_year,
                 a.status, a.review_notes, a.soa_submission_deadline, a.soa_submitted_at, a.submitted_at, a.updated_at,
                 COUNT(d.id) AS document_count
          FROM applications a
@@ -38,13 +76,14 @@ if (db_ready()) {
         $applications = $result->fetch_all(MYSQLI_ASSOC);
     }
     $stmt->close();
+    $latestApplication = $applications[0] ?? null;
 }
 
 include __DIR__ . '/includes/header.php';
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <h1 class="h4 m-0"><i class="fa-solid fa-folder-open me-2 text-primary"></i>My Applications</h1>
+    <h1 class="h4 m-0"><i class="fa-solid fa-folder-open me-2 text-primary"></i>My Application & Status</h1>
     <?php if ($canCreateNewApplication): ?>
         <a href="apply.php" class="btn btn-primary btn-sm">
             <i class="fa-solid fa-plus me-1"></i>New Application
@@ -67,7 +106,46 @@ include __DIR__ . '/includes/header.php';
         You already submitted an application in <?= e((string) ($openPeriod['period_name'] ?? 'the current period')) ?>.
         A new application is allowed only in the next open period.
     </div>
-<?php elseif (!$applications): ?>
+<?php endif; ?>
+
+<?php if ($latestApplication): ?>
+    <?php
+    $latestStatus = (string) ($latestApplication['status'] ?? '');
+    $latestStatusLabel = $statusDisplay[$latestStatus] ?? ucwords(str_replace('_', ' ', $latestStatus));
+    $latestNextAction = $nextActionByStatus[$latestStatus] ?? 'Wait for update from LGU Scholarship Office.';
+    $latestIndex = array_search($latestStatus, $statusFlow, true);
+    $latestIndex = $latestIndex === false ? -1 : (int) $latestIndex;
+    ?>
+    <div class="card card-soft shadow-sm mb-3">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+                <div>
+                    <h2 class="h6 mb-1">Current Application Progress</h2>
+                    <div class="small text-muted">
+                        <?= e((string) ($latestApplication['application_no'] ?? '-')) ?> |
+                        <?= e((string) ($latestApplication['semester'] ?? '-')) ?> / <?= e((string) ($latestApplication['school_year'] ?? '-')) ?>
+                    </div>
+                </div>
+                <span class="badge <?= status_badge_class($latestStatus) ?>"><?= e(strtoupper($latestStatusLabel)) ?></span>
+            </div>
+            <div class="small mb-2"><strong>Next Action:</strong> <?= e($latestNextAction) ?></div>
+            <div class="d-flex flex-wrap gap-2">
+                <?php foreach ($statusFlow as $index => $statusCode): ?>
+                    <?php
+                    $label = $statusDisplay[$statusCode] ?? ucwords(str_replace('_', ' ', $statusCode));
+                    $isDone = $latestIndex >= $index;
+                    ?>
+                    <span class="badge <?= $isDone ? 'text-bg-primary' : 'text-bg-light' ?>"><?= e($label) ?></span>
+                <?php endforeach; ?>
+                <?php if ($latestStatus === 'rejected'): ?>
+                    <span class="badge text-bg-danger">Rejected</span>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+<?php endif; ?>
+
+<?php if (db_ready() && !$applications): ?>
     <div class="card card-soft">
         <div class="card-body">
             <p class="text-muted mb-3">No application records yet.</p>
@@ -78,22 +156,13 @@ include __DIR__ . '/includes/header.php';
             <?php endif; ?>
         </div>
     </div>
-<?php else: ?>
+<?php elseif (db_ready()): ?>
     <div data-live-table class="card card-soft shadow-sm">
         <div class="card-body border-bottom table-controls">
             <div class="row g-2 align-items-end">
                 <div class="col-12 col-md-5">
                     <label class="form-label form-label-sm">Live Search</label>
-                    <input type="text" data-table-search class="form-control form-control-sm" placeholder="Search application no, scholarship, school, status">
-                </div>
-                <div class="col-6 col-md-3">
-                    <label class="form-label form-label-sm">Status Filter</label>
-                    <select data-table-filter class="form-select form-select-sm">
-                        <option value="">All</option>
-                        <?php foreach ($allowedStatus as $status): ?>
-                            <option value="<?= e($status) ?>"><?= e(ucwords(str_replace('_', ' ', $status))) ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <input type="text" data-table-search class="form-control form-control-sm" placeholder="Search application no, school, status">
                 </div>
                 <div class="col-6 col-md-2">
                     <label class="form-label form-label-sm">Rows</label>
@@ -114,7 +183,7 @@ include __DIR__ . '/includes/header.php';
                 <thead>
                     <tr>
                         <th>Application</th>
-                        <th>Scholarship</th>
+                        <th>School</th>
                         <th>Status</th>
                         <th>Documents</th>
                         <th>Updated</th>
@@ -127,21 +196,20 @@ include __DIR__ . '/includes/header.php';
                     $search = strtolower(
                         implode(' ', [
                             $row['application_no'],
-                            $row['scholarship_type'],
                             $row['school_name'],
                             $row['status'],
                             $row['school_year'],
                         ])
                     );
                     ?>
-                    <tr data-search="<?= e($search) ?>" data-filter="<?= e((string) $row['status']) ?>">
+                    <tr data-search="<?= e($search) ?>" data-filter="">
                         <td>
                             <strong><?= e((string) $row['application_no']) ?></strong>
                             <div class="small text-muted">#<?= (int) $row['id'] ?> | <?= e((string) $row['semester']) ?> / <?= e((string) $row['school_year']) ?></div>
                         </td>
                         <td>
-                            <div><?= e((string) $row['scholarship_type']) ?></div>
-                            <div class="small text-muted"><?= e((string) $row['school_name']) ?> (<?= e(strtoupper((string) $row['school_type'])) ?>)</div>
+                            <div><?= e((string) $row['school_name']) ?></div>
+                            <div class="small text-muted"><?= e(strtoupper((string) $row['school_type'])) ?></div>
                         </td>
                         <td>
                             <span class="badge <?= status_badge_class((string) $row['status']) ?>">

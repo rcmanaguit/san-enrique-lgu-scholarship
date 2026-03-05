@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
+/** @var mixed $conn */
+$conn = $GLOBALS['conn'] ?? null;
+
 require_login('../login.php');
 require_admin('../index.php');
 
@@ -258,12 +261,11 @@ include __DIR__ . '/../includes/header.php';
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <h1 class="h4 m-0"><i class="fa-solid fa-clipboard-list me-2 text-primary"></i>System Logs</h1>
     <div class="d-flex gap-2">
-        <a href="reports.php?<?= e($commonQuery) ?>" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-file-lines me-1"></i>Reports</a>
-        <a href="../shared/analytics.php?<?= e($commonQuery) ?>" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-chart-pie me-1"></i>Analytics</a>
+        <a href="../shared/analytics.php?<?= e($commonQuery) ?>" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-chart-pie me-1"></i>Analytics & Reports</a>
     </div>
 </div>
 
-<form method="get" class="card card-soft shadow-sm mb-3">
+<form method="get" class="card card-soft shadow-sm mb-3" data-live-filter-form data-live-filter-debounce="200">
     <div class="card-body row g-2 align-items-end">
         <div class="col-6 col-md-2">
             <label class="form-label form-label-sm">From</label>
@@ -339,8 +341,8 @@ include __DIR__ . '/../includes/header.php';
                 <?php endforeach; ?>
             </select>
         </div>
-        <div class="col-12 col-md-4 d-flex gap-2">
-            <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-filter me-1"></i>Apply</button>
+        <div class="col-12 col-md-4 d-flex gap-2 align-items-center">
+            <span class="small text-muted">Live filter enabled</span>
             <a href="logs.php" class="btn btn-outline-secondary btn-sm">Reset</a>
         </div>
     </div>

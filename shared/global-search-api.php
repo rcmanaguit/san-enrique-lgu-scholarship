@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
+/** @var mixed $conn */
+$conn = $GLOBALS['conn'] ?? null;
+
 require_login('../login.php');
 require_role(['admin', 'staff'], '../index.php');
 
@@ -58,7 +61,7 @@ $pushSection = static function (string $key, string $label, array $items) use (&
 $searchApplications = static function (mysqli $conn, string $like, int $limit): array {
     $items = [];
     $stmt = $conn->prepare(
-        "SELECT a.id, a.application_no, a.status, a.scholarship_type, a.school_name, a.school_year,
+        "SELECT a.id, a.application_no, a.status, a.applicant_type, a.school_name, a.school_year,
                 u.first_name, u.last_name
          FROM applications a
          INNER JOIN users u ON u.id = a.user_id
@@ -67,7 +70,6 @@ $searchApplications = static function (mysqli $conn, string $like, int $limit): 
             OR u.last_name LIKE ?
             OR CONCAT(u.first_name, ' ', u.last_name) LIKE ?
             OR a.school_name LIKE ?
-            OR a.scholarship_type LIKE ?
             OR u.phone LIKE ?
             OR u.email LIKE ?
          ORDER BY a.updated_at DESC, a.id DESC
@@ -77,7 +79,7 @@ $searchApplications = static function (mysqli $conn, string $like, int $limit): 
         return $items;
     }
 
-    $stmt->bind_param('ssssssssi', $like, $like, $like, $like, $like, $like, $like, $like, $limit);
+    $stmt->bind_param('sssssssi', $like, $like, $like, $like, $like, $like, $like, $limit);
     $stmt->execute();
     $result = $stmt->get_result();
     $rows = $result instanceof mysqli_result ? $result->fetch_all(MYSQLI_ASSOC) : [];
@@ -89,7 +91,7 @@ $searchApplications = static function (mysqli $conn, string $like, int $limit): 
             'title' => (string) ($row['application_no'] ?? 'Application'),
             'subtitle' => $fullName !== '' ? $fullName : '-',
             'meta' => trim(implode(' | ', array_filter([
-                (string) ($row['scholarship_type'] ?? ''),
+                strtoupper((string) ($row['applicant_type'] ?? '')),
                 strtoupper((string) ($row['status'] ?? '')),
                 (string) ($row['school_name'] ?? ''),
                 (string) ($row['school_year'] ?? ''),

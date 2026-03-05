@@ -1,6 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
     setCurrentYear();
     initLiveTables();
+    initLiveFilterForms();
     initPasswordToggles();
     initDesktopSidebar();
     initResponsiveNavbar();
@@ -38,15 +39,24 @@ function initLiveTable(wrapper) {
     }
 
     const searchInput = wrapper.querySelector("[data-table-search]");
-    const filterSelect = wrapper.querySelector("[data-table-filter]");
+    const filterControls = Array.from(wrapper.querySelectorAll("[data-table-filter]"));
     const perPageSelect = wrapper.querySelector("[data-table-per-page]");
     const pagerContainer = wrapper.querySelector("[data-table-pager]");
     const summary = wrapper.querySelector("[data-table-summary]");
+    const originalRowOrder = new Map(allRows.map((row, index) => [row, index]));
+    const sortLabelsToSkip = new Set(["actions", "action", "use", "select", "review"]);
+    const collator = new Intl.Collator(undefined, {
+        numeric: true,
+        sensitivity: "base",
+    });
 
     let state = {
         page: 1,
         perPage: parseInt(perPageSelect ? perPageSelect.value : "10", 10),
+        sortColumn: null,
+        sortDirection: "asc",
     };
+    const sortableColumns = initSortControls();
 
     function textMatch(row, query) {
         if (!query) {
@@ -56,11 +66,259 @@ function initLiveTable(wrapper) {
         return haystack.includes(query);
     }
 
-    function filterMatch(row, filterValue) {
-        if (!filterValue) {
+    function filterMatch(row) {
+        if (!filterControls.length) {
             return true;
         }
-        return (row.dataset.filter || "").toLowerCase() === filterValue;
+
+        for (const control of filterControls) {
+            const filterValue = ("value" in control ? String(control.value || "") : "").trim().toLowerCase();
+            if (!filterValue) {
+                continue;
+            }
+
+            const keyRaw = String(control.getAttribute("data-filter-key") || "filter").trim();
+            const key = keyRaw
+                ? keyRaw.replace(/-([a-z])/g, (_, chr) => chr.toUpperCase())
+                : "filter";
+            const mode = String(control.getAttribute("data-filter-mode") || "exact").trim().toLowerCase();
+            const rowValue = String((row.dataset && row.dataset[key]) || "").trim().toLowerCase();
+
+            if (mode === "contains") {
+                if (!rowValue.includes(filterValue)) {
+                    return false;
+                }
+            } else if (rowValue !== filterValue) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    function normalizeText(value) {
+        return String(value || "").replace(/\s+/g, " ").trim();
+    }
+
+    function parseDateSortValue(value) {
+        const looksLikeDate = /^(?:\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{2,4}|[A-Za-z]{3,9}\s+\d{1,2},\s+\d{4})/.test(value);
+        if (!looksLikeDate) {
+            return null;
+        }
+        const timestamp = Date.parse(value);
+        return Number.isFinite(timestamp) ? timestamp : null;
+    }
+
+    function parseNumberSortValue(value) {
+        const looksNumeric = /^(?:php|usd|eur|gbp|\$)?\s*[-+]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?\s*%?$/i.test(value);
+        if (!looksNumeric) {
+            return null;
+        }
+
+        const cleaned = value.replace(/(?:php|usd|eur|gbp|\$|,|%|\s)/gi, "");
+        const parsed = Number(cleaned);
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    function parseSortValue(rawValue) {
+        const normalized = normalizeText(rawValue);
+        if (normalized === "") {
+            return { kind: "empty", value: "" };
+        }
+
+        const dateValue = parseDateSortValue(normalized);
+        if (dateValue !== null) {
+            return { kind: "date", value: dateValue };
+        }
+
+        const numberValue = parseNumberSortValue(normalized);
+        if (numberValue !== null) {
+            return { kind: "number", value: numberValue };
+        }
+
+        return { kind: "text", value: normalized };
+    }
+
+    function getCellSortValue(row, columnIndex) {
+        const cell = row.cells[columnIndex];
+        if (!cell) {
+            return { kind: "empty", value: "" };
+        }
+        const explicitValue = cell.getAttribute("data-sort-value");
+        const sourceValue = explicitValue !== null ? explicitValue : cell.textContent;
+        return parseSortValue(sourceValue);
+    }
+
+    function compareSortValues(left, right) {
+        if (left.kind === "empty" && right.kind === "empty") {
+            return 0;
+        }
+        if (left.kind === "empty") {
+            return 1;
+        }
+        if (right.kind === "empty") {
+            return -1;
+        }
+
+        if (left.kind === right.kind) {
+            if (left.kind === "number" || left.kind === "date") {
+                return left.value - right.value;
+            }
+            return collator.compare(String(left.value), String(right.value));
+        }
+
+        const rank = { number: 1, date: 1, text: 2 };
+        const leftRank = rank[left.kind] || 3;
+        const rightRank = rank[right.kind] || 3;
+        if (leftRank !== rightRank) {
+            return leftRank - rightRank;
+        }
+        return collator.compare(String(left.value), String(right.value));
+    }
+
+    function compareRowsByColumn(leftRow, rightRow, columnIndex, direction) {
+        const leftValue = getCellSortValue(leftRow, columnIndex);
+        const rightValue = getCellSortValue(rightRow, columnIndex);
+
+        let comparison = compareSortValues(leftValue, rightValue);
+        if (comparison === 0) {
+            comparison = (originalRowOrder.get(leftRow) || 0) - (originalRowOrder.get(rightRow) || 0);
+        }
+
+        return direction === "desc" ? -comparison : comparison;
+    }
+
+    function isSortableColumn(headerCell) {
+        const explicitSetting = String(headerCell.getAttribute("data-sortable") || "").trim().toLowerCase();
+        if (explicitSetting === "false") {
+            return false;
+        }
+        if (explicitSetting === "true") {
+            return true;
+        }
+        if (headerCell.querySelector("input, select, textarea, button")) {
+            return false;
+        }
+
+        const label = normalizeText(headerCell.textContent || "").toLowerCase();
+        if (label === "") {
+            return false;
+        }
+        return !sortLabelsToSkip.has(label);
+    }
+
+    function initSortControls() {
+        if (!table.tHead || table.tHead.rows.length === 0) {
+            return [];
+        }
+
+        const headerRow = table.tHead.rows[table.tHead.rows.length - 1];
+        const headerCells = Array.from(headerRow.cells);
+        const columns = [];
+
+        headerCells.forEach((headerCell, index) => {
+            if (!isSortableColumn(headerCell)) {
+                return;
+            }
+
+            const label = normalizeText(headerCell.textContent || "");
+            const fallbackLabel = label !== "" ? label : `Column ${index + 1}`;
+
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "live-table-sort-button";
+            button.setAttribute("data-sort-direction", "none");
+            button.setAttribute("aria-label", `Sort by ${fallbackLabel}`);
+
+            const labelSpan = document.createElement("span");
+            labelSpan.className = "live-table-sort-label";
+            labelSpan.textContent = fallbackLabel;
+
+            const indicator = document.createElement("span");
+            indicator.className = "live-table-sort-indicator";
+            const icon = document.createElement("i");
+            icon.className = "fa-solid fa-sort";
+            icon.setAttribute("aria-hidden", "true");
+            indicator.appendChild(icon);
+
+            button.appendChild(labelSpan);
+            button.appendChild(indicator);
+
+            headerCell.classList.add("live-table-sortable");
+            headerCell.setAttribute("aria-sort", "none");
+            headerCell.textContent = "";
+            headerCell.appendChild(button);
+
+            button.addEventListener("click", () => {
+                if (state.sortColumn === index) {
+                    state.sortDirection = state.sortDirection === "asc" ? "desc" : "asc";
+                } else {
+                    state.sortColumn = index;
+                    state.sortDirection = "asc";
+                }
+                state.page = 1;
+                render();
+            });
+
+            columns.push({
+                index,
+                label: fallbackLabel,
+                headerCell,
+                button,
+                icon,
+            });
+        });
+
+        return columns;
+    }
+
+    function updateSortControls() {
+        sortableColumns.forEach((column) => {
+            const active = state.sortColumn === column.index;
+            const direction = active ? state.sortDirection : "none";
+            const ariaSort = direction === "asc"
+                ? "ascending"
+                : direction === "desc"
+                    ? "descending"
+                    : "none";
+
+            column.headerCell.setAttribute("aria-sort", ariaSort);
+            column.button.classList.toggle("is-active", active);
+            column.button.setAttribute("data-sort-direction", direction);
+
+            if (direction === "asc") {
+                column.icon.className = "fa-solid fa-sort-up";
+                column.button.setAttribute("aria-label", `Sort by ${column.label} (currently ascending)`);
+            } else if (direction === "desc") {
+                column.icon.className = "fa-solid fa-sort-down";
+                column.button.setAttribute("aria-label", `Sort by ${column.label} (currently descending)`);
+            } else {
+                column.icon.className = "fa-solid fa-sort";
+                column.button.setAttribute("aria-label", `Sort by ${column.label}`);
+            }
+        });
+    }
+
+    function applySorting(rows) {
+        const sortedRows = rows.slice();
+        if (state.sortColumn === null) {
+            return sortedRows;
+        }
+
+        sortedRows.sort((leftRow, rightRow) =>
+            compareRowsByColumn(leftRow, rightRow, state.sortColumn, state.sortDirection)
+        );
+        return sortedRows;
+    }
+
+    function reorderRows(sortedFilteredRows) {
+        const sortedSet = new Set(sortedFilteredRows);
+        const hiddenRows = allRows.filter((row) => !sortedSet.has(row));
+        const fragment = document.createDocumentFragment();
+
+        sortedFilteredRows.forEach((row) => fragment.appendChild(row));
+        hiddenRows.forEach((row) => fragment.appendChild(row));
+        tbody.appendChild(fragment);
     }
 
     function renderPager(totalPages) {
@@ -114,10 +372,11 @@ function initLiveTable(wrapper) {
 
     function render() {
         const query = (searchInput ? searchInput.value : "").trim().toLowerCase();
-        const filterValue = (filterSelect ? filterSelect.value : "").trim().toLowerCase();
+        const filteredRows = allRows.filter((row) => textMatch(row, query) && filterMatch(row));
+        const sortedRows = applySorting(filteredRows);
+        reorderRows(sortedRows);
 
-        const filteredRows = allRows.filter((row) => textMatch(row, query) && filterMatch(row, filterValue));
-        const total = filteredRows.length;
+        const total = sortedRows.length;
         const totalPages = Math.max(1, Math.ceil(total / state.perPage));
         if (state.page > totalPages) {
             state.page = totalPages;
@@ -125,7 +384,7 @@ function initLiveTable(wrapper) {
 
         allRows.forEach((row) => row.classList.add("d-none"));
         const start = (state.page - 1) * state.perPage;
-        const currentRows = filteredRows.slice(start, start + state.perPage);
+        const currentRows = sortedRows.slice(start, start + state.perPage);
         currentRows.forEach((row) => row.classList.remove("d-none"));
 
         if (summary) {
@@ -135,6 +394,7 @@ function initLiveTable(wrapper) {
                 : `Showing ${start + 1}-${end} of ${total} record(s)`;
         }
 
+        updateSortControls();
         renderPager(totalPages);
     }
 
@@ -145,12 +405,13 @@ function initLiveTable(wrapper) {
         });
     }
 
-    if (filterSelect) {
-        filterSelect.addEventListener("change", () => {
+    filterControls.forEach((control) => {
+        const eventName = control.tagName === "SELECT" ? "change" : "input";
+        control.addEventListener(eventName, () => {
             state.page = 1;
             render();
         });
-    }
+    });
 
     if (perPageSelect) {
         perPageSelect.addEventListener("change", () => {
@@ -161,6 +422,57 @@ function initLiveTable(wrapper) {
     }
 
     render();
+}
+
+function initLiveFilterForms() {
+    const forms = document.querySelectorAll("form[data-live-filter-form]");
+    if (!forms.length) {
+        return;
+    }
+
+    forms.forEach((form) => {
+        if (!(form instanceof HTMLFormElement) || form.dataset.liveFilterBound === "1") {
+            return;
+        }
+        form.dataset.liveFilterBound = "1";
+
+        let timerId = 0;
+        const debounceMsRaw = parseInt(String(form.getAttribute("data-live-filter-debounce") || "350"), 10);
+        const debounceMs = Number.isFinite(debounceMsRaw) ? Math.max(0, debounceMsRaw) : 350;
+
+        const submitNow = () => {
+            if (timerId) {
+                window.clearTimeout(timerId);
+                timerId = 0;
+            }
+            form.requestSubmit();
+        };
+
+        const submitDebounced = () => {
+            if (timerId) {
+                window.clearTimeout(timerId);
+            }
+            timerId = window.setTimeout(() => {
+                timerId = 0;
+                form.requestSubmit();
+            }, debounceMs);
+        };
+
+        const controls = Array.from(form.querySelectorAll("input, select, textarea"));
+        controls.forEach((control) => {
+            if (!(control instanceof HTMLElement)) {
+                return;
+            }
+            const type = (control.getAttribute("type") || "").toLowerCase();
+            if (type === "hidden" || type === "submit" || type === "button" || type === "reset") {
+                return;
+            }
+
+            const immediate = String(control.getAttribute("data-live-submit") || "").toLowerCase() === "immediate";
+            const eventName = control.tagName === "SELECT" || type === "date" ? "change" : "input";
+            control.addEventListener(eventName, immediate ? submitNow : submitDebounced);
+        });
+    });
 }
 
 function initPasswordToggles() {
@@ -197,15 +509,78 @@ function initResponsiveNavbar() {
         return;
     }
 
+    const navbar = document.querySelector(".navbar");
     const collapse = bootstrap.Collapse.getOrCreateInstance(navCollapse, { toggle: false });
+    const mobileBackdrop = document.querySelector("[data-mobile-nav-backdrop]");
+    const navToggler = document.querySelector(".navbar-toggler[data-bs-target='#mainNav']");
     const links = navCollapse.querySelectorAll("a.nav-link, a.btn");
+
+    const syncMobileNavState = () => {
+        const isMobile = window.innerWidth < 992;
+        const isOpen = navCollapse.classList.contains("show");
+        if (navbar) {
+            const mobileNavHeight = Math.max(52, Math.round(navbar.getBoundingClientRect().height));
+            document.documentElement.style.setProperty("--mobile-navbar-height", `${mobileNavHeight}px`);
+        }
+        if (mobileBackdrop) {
+            mobileBackdrop.classList.toggle("show", isMobile && isOpen);
+        }
+        if (navToggler) {
+            navToggler.classList.toggle("is-open", isMobile && isOpen);
+            navToggler.setAttribute("aria-expanded", isMobile && isOpen ? "true" : "false");
+        }
+        document.body.classList.toggle("mobile-nav-open", isMobile && isOpen);
+    };
+
+    if (mobileBackdrop) {
+        mobileBackdrop.addEventListener("click", () => {
+            if (window.innerWidth < 992 && navCollapse.classList.contains("show")) {
+                collapse.hide();
+            }
+        });
+    }
+
+    navCollapse.addEventListener("shown.bs.collapse", syncMobileNavState);
+    navCollapse.addEventListener("hidden.bs.collapse", syncMobileNavState);
+    window.addEventListener("resize", syncMobileNavState);
+    document.addEventListener("click", (event) => {
+        if (window.innerWidth >= 992 || !navCollapse.classList.contains("show")) {
+            return;
+        }
+        const target = event.target;
+        if (!(target instanceof Node)) {
+            return;
+        }
+        if (navCollapse.contains(target)) {
+            return;
+        }
+        if (navToggler && navToggler.contains(target)) {
+            return;
+        }
+        collapse.hide();
+    });
+    document.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") {
+            return;
+        }
+        if (window.innerWidth < 992 && navCollapse.classList.contains("show")) {
+            collapse.hide();
+        }
+    });
+
     links.forEach((link) => {
         link.addEventListener("click", () => {
+            const toggleKind = String(link.getAttribute("data-bs-toggle") || "").toLowerCase();
+            if (toggleKind === "dropdown" || toggleKind === "collapse") {
+                return;
+            }
             if (window.innerWidth < 992 && navCollapse.classList.contains("show")) {
                 collapse.hide();
             }
         });
     });
+
+    syncMobileNavState();
 }
 
 function initNavbarGlobalSearch() {
@@ -1122,6 +1497,90 @@ function showCrudConfirmModal(modalState, config) {
         modalState.modal.show();
     });
 }
+
+function showAlertModal(config) {
+    const message = String((config && config.message) || "Notice");
+    const modalState = getCrudConfirmModalState();
+    if (!modalState || typeof bootstrap === "undefined") {
+        window.alert(message);
+        return Promise.resolve();
+    }
+
+    const opts = Object.assign({
+        title: "Notice",
+        subtitle: "San Enrique LGU Scholarship",
+        message,
+        confirmText: "OK",
+        kind: "info",
+    }, config || {});
+
+    const kind = String(opts.kind || "info").toLowerCase();
+    const iconClass = {
+        info: "fa-solid fa-circle-info",
+        primary: "fa-solid fa-circle-info",
+        warning: "fa-solid fa-triangle-exclamation",
+        success: "fa-solid fa-circle-check",
+        danger: "fa-solid fa-circle-xmark",
+    }[kind] || "fa-solid fa-circle-info";
+
+    const iconTone = {
+        info: "is-info",
+        primary: "is-info",
+        warning: "is-warning",
+        success: "is-success",
+        danger: "is-danger",
+    }[kind] || "is-info";
+
+    const confirmButtonClass = {
+        info: "btn btn-primary",
+        primary: "btn btn-primary",
+        warning: "btn btn-warning",
+        success: "btn btn-success",
+        danger: "btn btn-danger",
+    }[kind] || "btn btn-primary";
+
+    modalState.titleElement.textContent = String(opts.title);
+    modalState.subtitleElement.textContent = String(opts.subtitle);
+    modalState.messageElement.textContent = String(opts.message);
+    modalState.confirmButton.textContent = String(opts.confirmText);
+    modalState.confirmButton.className = confirmButtonClass;
+    modalState.iconElement.className = "modal-se-icon " + iconTone;
+    modalState.iconElement.innerHTML = `<i class="${iconClass}"></i>`;
+    modalState.cancelButton.classList.add("d-none");
+
+    return new Promise((resolve) => {
+        let settled = false;
+
+        const cleanup = () => {
+            modalState.confirmButton.onclick = null;
+            modalState.element.removeEventListener("hidden.bs.modal", hiddenHandler);
+            modalState.cancelButton.classList.remove("d-none");
+            modalState.cancelButton.textContent = "Cancel";
+            modalState.cancelButton.className = "btn btn-outline-secondary";
+        };
+
+        const hiddenHandler = () => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            cleanup();
+            resolve();
+        };
+
+        modalState.confirmButton.onclick = () => {
+            settled = true;
+            cleanup();
+            modalState.modal.hide();
+            resolve();
+        };
+
+        modalState.element.addEventListener("hidden.bs.modal", hiddenHandler);
+        modalState.modal.show();
+    });
+}
+
+window.showAlertModal = showAlertModal;
 
 function initRealtimePolling() {
     const config = window.SE_REALTIME_CONFIG || null;

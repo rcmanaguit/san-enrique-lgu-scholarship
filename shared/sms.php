@@ -3,10 +3,13 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
+/** @var mixed $conn */
+$conn = $GLOBALS['conn'] ?? null;
+
 require_login('../login.php');
 require_role(['admin', 'staff'], '../index.php');
 
-$pageTitle = 'SMS Module';
+$pageTitle = 'SMS';
 $previewLimit = 200;
 
 $allowedStatus = application_status_options();
@@ -756,7 +759,7 @@ include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <h1 class="h4 m-0"><i class="fa-solid fa-comments me-2 text-primary"></i>SMS Module</h1>
+    <h1 class="h4 m-0"><i class="fa-solid fa-comments me-2 text-primary"></i>SMS</h1>
     <div class="d-flex align-items-center gap-2 flex-wrap">
         <span class="badge <?= $providerEnabled ? 'text-bg-success' : 'text-bg-secondary' ?>">
             <?= e($providerEnabled ? 'SMS Ready' : 'SMS Disabled') ?>
@@ -781,7 +784,7 @@ include __DIR__ . '/../includes/header.php';
             <section class="card card-soft shadow-sm h-100">
                 <div class="card-body">
                     <h2 class="h6 mb-3">Send SMS</h2>
-                    <form id="smsSendForm" method="post" class="row g-3" data-crud-modal="1" data-crud-title="Send SMS?" data-crud-message="Send this SMS now?" data-crud-confirm-text="Send SMS">
+                    <form id="smsSendForm" method="post" class="row g-3" data-crud-modal="1" data-crud-title="Send SMS Message?" data-crud-message="Send this message to the selected recipient scope now?" data-crud-confirm-text="Send Message">
                         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                         <input type="hidden" name="action" id="smsAction" value="send_bulk">
                         <input type="hidden" name="selected_recipient_ids" id="selectedRecipientIds" value="">
@@ -897,16 +900,16 @@ include __DIR__ . '/../includes/header.php';
                         </div>
 
                         <div class="col-12 d-flex flex-wrap gap-2">
-                            <button type="submit" class="btn btn-outline-primary" data-sms-send-mode="bulk" <?= $providerEnabled ? '' : 'disabled' ?>>
-                                <i class="fa-solid fa-users me-1"></i>Send Bulk
-                            </button>
                             <button type="submit" class="btn btn-primary" data-sms-send-mode="selected" <?= $providerEnabled ? '' : 'disabled' ?>>
                                 <i class="fa-solid fa-user-check me-1"></i>Send Selected
+                            </button>
+                            <button type="submit" class="btn btn-outline-primary" data-sms-send-mode="bulk" <?= $providerEnabled ? '' : 'disabled' ?>>
+                                <i class="fa-solid fa-users me-1"></i>Send All Filtered
                             </button>
                             <button type="submit" class="btn btn-outline-primary" data-sms-send-mode="single" <?= $providerEnabled ? '' : 'disabled' ?>>
                                 <i class="fa-solid fa-user me-1"></i>Send Single
                             </button>
-                            <a href="sms.php" class="btn btn-outline-secondary">Reset Filters</a>
+                            <a href="sms.php" class="btn btn-outline-secondary">Clear Filters</a>
                             <a href="../admin-only/logs.php?log_type=sms" class="btn btn-outline-primary">
                                 <i class="fa-solid fa-clipboard-list me-1"></i>View SMS Logs
                             </a>
@@ -1437,7 +1440,15 @@ document.addEventListener('DOMContentLoaded', function () {
             if (mode === 'single') {
                 if (singlePhoneInput && String(singlePhoneInput.value || '').trim() === '') {
                     event.preventDefault();
-                    alert('Enter a mobile number for Single SMS.');
+                    if (typeof window.showAlertModal === 'function') {
+                        window.showAlertModal({
+                            title: 'Mobile Number Required',
+                            message: 'Enter a mobile number for Single SMS.',
+                            kind: 'warning',
+                        });
+                    } else {
+                        alert('Enter a mobile number for Single SMS.');
+                    }
                     return;
                 }
             }
@@ -1446,7 +1457,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 const selected = collectSelectedIds();
                 if (selected.length === 0) {
                     event.preventDefault();
-                    alert('Select at least one recipient first.');
+                    if (typeof window.showAlertModal === 'function') {
+                        window.showAlertModal({
+                            title: 'No Recipient Selected',
+                            message: 'Select at least one recipient first.',
+                            kind: 'warning',
+                        });
+                    } else {
+                        alert('Select at least one recipient first.');
+                    }
                     return;
                 }
             }

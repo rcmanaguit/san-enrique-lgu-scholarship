@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes/bootstrap.php';
 
+/** @var mixed $conn */
+$conn = $GLOBALS['conn'] ?? null;
+
 $pageTitle = 'San Enrique LGU Scholarship Portal';
 $bodyClass = 'public-landing';
 $announcements = [];

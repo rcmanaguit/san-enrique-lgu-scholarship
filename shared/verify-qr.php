@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
+/** @var mixed $conn */
+$conn = $GLOBALS['conn'] ?? null;
+
 require_login('../login.php');
 require_role(['admin', 'staff'], '../index.php');
 
@@ -283,7 +286,6 @@ include __DIR__ . '/../includes/header.php';
 
             <div class="row mt-3">
                 <div class="col-12 col-md-6 small">
-                    <div><strong>Scholarship:</strong> <?= e((string) $application['scholarship_type']) ?></div>
                     <div><strong>Applicant Type:</strong> <?= e(strtoupper((string) $application['applicant_type'])) ?></div>
                     <div><strong>School:</strong> <?= e((string) $application['school_name']) ?> (<?= e(strtoupper((string) $application['school_type'])) ?>)</div>
                     <div><strong>Latest Scan Purpose:</strong> <?= e(qr_scan_purpose_label($scanPurpose)) ?></div>

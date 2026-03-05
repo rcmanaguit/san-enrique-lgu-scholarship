@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
+/** @var mixed $conn */
+$conn = $GLOBALS['conn'] ?? null;
+
 require_login('../login.php');
 require_admin('../index.php');
 
@@ -20,7 +23,6 @@ if (is_post()) {
     if ($action === 'create') {
         $requirementName = trim((string) ($_POST['requirement_name'] ?? ''));
         $description = trim((string) ($_POST['description'] ?? ''));
-        $scholarshipType = trim((string) ($_POST['scholarship_type'] ?? ''));
         $applicantType = trim((string) ($_POST['applicant_type'] ?? ''));
         $schoolType = trim((string) ($_POST['school_type'] ?? ''));
         $isRequired = isset($_POST['is_required']) ? 1 : 0;
@@ -29,16 +31,15 @@ if (is_post()) {
         if ($requirementName === '') {
             set_flash('danger', 'Requirement name is required.');
         } else {
-            $scholarshipType = $scholarshipType !== '' ? $scholarshipType : null;
             $applicantType = in_array($applicantType, ['new', 'renew'], true) ? $applicantType : null;
             $schoolType = in_array($schoolType, ['public', 'private'], true) ? $schoolType : null;
 
             $stmt = $conn->prepare(
                 "INSERT INTO requirement_templates
-                (requirement_name, description, scholarship_type, applicant_type, school_type, is_required, is_active, sort_order)
-                VALUES (?, ?, ?, ?, ?, ?, 1, ?)"
+                (requirement_name, description, applicant_type, school_type, is_required, is_active, sort_order)
+                VALUES (?, ?, ?, ?, ?, 1, ?)"
             );
-            $stmt->bind_param('sssssii', $requirementName, $description, $scholarshipType, $applicantType, $schoolType, $isRequired, $sortOrder);
+            $stmt->bind_param('ssssii', $requirementName, $description, $applicantType, $schoolType, $isRequired, $sortOrder);
             $stmt->execute();
             $newRequirementId = (int) $stmt->insert_id;
             $stmt->close();
@@ -103,10 +104,6 @@ include __DIR__ . '/../includes/header.php';
                 <label class="form-label form-label-sm">Requirement Name *</label>
                 <input type="text" name="requirement_name" class="form-control form-control-sm" required>
             </div>
-            <div class="col-12 col-md-3">
-                <label class="form-label form-label-sm">Scholarship Type (optional)</label>
-                <input type="text" name="scholarship_type" class="form-control form-control-sm" placeholder="e.g. Academic Scholarship">
-            </div>
             <div class="col-6 col-md-2">
                 <label class="form-label form-label-sm">Applicant Type</label>
                 <select name="applicant_type" class="form-select form-select-sm">
@@ -165,7 +162,6 @@ include __DIR__ . '/../includes/header.php';
                             <div class="small text-muted"><?= e((string) $row['description']) ?></div>
                         </td>
                         <td class="small">
-                            Scholarship: <?= e((string) ($row['scholarship_type'] ?: 'All')) ?><br>
                             Applicant: <?= e((string) ($row['applicant_type'] ?: 'All')) ?><br>
                             School: <?= e((string) ($row['school_type'] ?: 'All')) ?>
                         </td>

@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes/bootstrap.php';
 
+/** @var mixed $conn */
+$conn = $GLOBALS['conn'] ?? null;
+
 require_login('login.php');
 
 $pageTitle = 'Profile & Settings';
@@ -32,7 +35,6 @@ if (is_post()) {
         $schoolName = trim((string) ($_POST['school_name'] ?? ''));
         $schoolType = trim((string) ($_POST['school_type'] ?? ''));
         $course = trim((string) ($_POST['course'] ?? ''));
-        $yearLevel = trim((string) ($_POST['year_level'] ?? ''));
         $address = trim((string) ($_POST['address'] ?? ''));
 
         if ($firstName === '' || $lastName === '' || $email === '') {
@@ -58,13 +60,13 @@ if (is_post()) {
 
         $stmt = $conn->prepare(
             "UPDATE users
-             SET first_name = ?, middle_name = ?, last_name = ?, email = ?, school_name = ?, school_type = ?, course = ?, year_level = ?, address = ?
+             SET first_name = ?, middle_name = ?, last_name = ?, email = ?, school_name = ?, school_type = ?, course = ?, address = ?
              WHERE id = ?
              LIMIT 1"
         );
         if ($stmt) {
             $stmt->bind_param(
-                'sssssssssi',
+                'ssssssssi',
                 $firstName,
                 $middleName,
                 $lastName,
@@ -72,7 +74,6 @@ if (is_post()) {
                 $schoolName,
                 $schoolType,
                 $course,
-                $yearLevel,
                 $address,
                 $userId
             );
@@ -88,7 +89,6 @@ if (is_post()) {
             $_SESSION['user']['school_name'] = $schoolName;
             $_SESSION['user']['school_type'] = $schoolType;
             $_SESSION['user']['course'] = $course;
-            $_SESSION['user']['year_level'] = $yearLevel;
             $_SESSION['user']['address'] = $address;
         }
 
@@ -171,7 +171,7 @@ if (is_post()) {
 
 if (db_ready()) {
     $stmt = $conn->prepare(
-        "SELECT id, role, first_name, middle_name, last_name, email, phone, school_name, school_type, course, year_level, address, created_at
+        "SELECT id, role, first_name, middle_name, last_name, email, phone, school_name, school_type, course, address, created_at
          FROM users
          WHERE id = ?
          LIMIT 1"
@@ -243,10 +243,6 @@ include __DIR__ . '/includes/header.php';
                                 <option value="private" <?= $selectedSchoolType === 'private' ? 'selected' : '' ?>>Private</option>
                             </select>
                         </div>
-                        <div class="col-12 col-md-3">
-                            <label class="form-label">Year Level</label>
-                            <input type="text" class="form-control" name="year_level" value="<?= e((string) ($profile['year_level'] ?? '')) ?>">
-                        </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label">Course</label>
                             <input type="text" class="form-control" name="course" value="<?= e((string) ($profile['course'] ?? '')) ?>">
@@ -259,7 +255,6 @@ include __DIR__ . '/includes/header.php';
                         <input type="hidden" name="school_name" value="<?= e((string) ($profile['school_name'] ?? '')) ?>">
                         <input type="hidden" name="school_type" value="<?= e((string) ($profile['school_type'] ?? '')) ?>">
                         <input type="hidden" name="course" value="<?= e((string) ($profile['course'] ?? '')) ?>">
-                        <input type="hidden" name="year_level" value="<?= e((string) ($profile['year_level'] ?? '')) ?>">
                         <input type="hidden" name="address" value="<?= e((string) ($profile['address'] ?? '')) ?>">
                     <?php endif; ?>
 

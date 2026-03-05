@@ -616,10 +616,12 @@ function application_status_options(): array
     return [
         'submitted',
         'for_review',
+        'for_resubmission',
         'for_interview',
         'approved',
         'for_soa_submission',
         'soa_submitted',
+        'disbursed',
         'rejected',
         'waitlisted',
     ];
@@ -627,7 +629,7 @@ function application_status_options(): array
 
 function approved_phase_statuses(): array
 {
-    return ['approved', 'for_soa_submission', 'soa_submitted'];
+    return ['approved', 'for_soa_submission', 'soa_submitted', 'waitlisted'];
 }
 
 function status_badge_class(string $status): string
@@ -635,10 +637,12 @@ function status_badge_class(string $status): string
     return match ($status) {
         'submitted' => 'text-bg-primary',
         'for_review' => 'text-bg-info',
+        'for_resubmission' => 'text-bg-warning',
         'for_interview' => 'text-bg-warning',
         'approved' => 'text-bg-success',
         'for_soa_submission' => 'text-bg-warning',
         'soa_submitted' => 'text-bg-success',
+        'disbursed' => 'text-bg-success',
         'scheduled' => 'text-bg-info',
         'released' => 'text-bg-success',
         'cancelled' => 'text-bg-danger',
@@ -803,7 +807,7 @@ function wizard_default_state(): array
 function wizard_step1_is_complete(array $state): bool
 {
     $step1 = is_array($state['step1'] ?? null) ? $state['step1'] : [];
-    $required = ['scholarship_type', 'applicant_type', 'semester', 'school_year', 'school_name', 'school_type'];
+    $required = ['applicant_type', 'semester', 'school_year', 'school_name', 'school_type'];
     foreach ($required as $field) {
         if (trim((string) ($step1[$field] ?? '')) === '') {
             return false;
@@ -1207,22 +1211,20 @@ function generate_qr_token(): string
     return 'QR-' . date('YmdHis') . '-' . bin2hex(random_bytes(5));
 }
 
-function active_requirements(mysqli $conn, ?string $scholarshipType, ?string $applicantType, ?string $schoolType): array
+function active_requirements(mysqli $conn, ?string $applicantType, ?string $schoolType): array
 {
-    $sql = "SELECT id, requirement_name, description, scholarship_type, applicant_type, school_type, is_required, sort_order
-            FROM requirement_templates
-            WHERE is_active = 1
-              AND (scholarship_type IS NULL OR scholarship_type = ?)
-              AND (applicant_type IS NULL OR applicant_type = ?)
-              AND (school_type IS NULL OR school_type = ?)
-            ORDER BY sort_order ASC, id ASC";
-
-    $scholarshipType = $scholarshipType ?: '';
     $applicantType = $applicantType ?: '';
     $schoolType = $schoolType ?: '';
 
+    $sql = "SELECT id, requirement_name, description, applicant_type, school_type, is_required, sort_order
+            FROM requirement_templates
+            WHERE is_active = 1
+              AND (? = '' OR applicant_type IS NULL OR applicant_type = ?)
+              AND (? = '' OR school_type IS NULL OR school_type = ?)
+            ORDER BY sort_order ASC, id ASC";
+
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param('sss', $scholarshipType, $applicantType, $schoolType);
+    $stmt->bind_param('ssss', $applicantType, $applicantType, $schoolType, $schoolType);
     $stmt->execute();
     $result = $stmt->get_result();
     $rows = $result instanceof mysqli_result ? $result->fetch_all(MYSQLI_ASSOC) : [];

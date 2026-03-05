@@ -3,12 +3,20 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
+/** @var mixed $conn */
+$conn = $GLOBALS['conn'] ?? null;
+
 require_login('../login.php');
 require_role(['admin', 'staff'], '../index.php');
 
-$pageTitle = 'Disbursement Management';
+$pageTitle = 'Payout Queue';
 $approvedApplications = [];
 $disbursements = [];
+$disbursementSummary = [
+    'ready_candidates' => 0,
+    'scheduled_records' => 0,
+    'released_records' => 0,
+];
 $hasDisbursementTime = db_ready() && table_column_exists($conn, 'disbursements', 'disbursement_time');
 $hasSchoolTypeColumn = db_ready() && table_column_exists($conn, 'applications', 'school_type');
 $hasBarangayColumn = db_ready() && table_column_exists($conn, 'applications', 'barangay');
@@ -165,7 +173,7 @@ if (is_post() && db_ready()) {
                 redirect('disbursements.php');
             }
 
-            $where = ["a.status IN ('approved', 'for_soa_submission', 'soa_submitted')"];
+            $where = ["a.status IN ('soa_submitted', 'waitlisted')"];
             if ($hasSchoolTypeColumn && $selectedSchoolTypes) {
                 $escapedSchoolTypes = array_map(
                     fn($value) => "'" . $conn->real_escape_string((string) $value) . "'",
@@ -190,7 +198,7 @@ if (is_post() && db_ready()) {
             $targets = $resultTargets instanceof mysqli_result ? $resultTargets->fetch_all(MYSQLI_ASSOC) : [];
 
             if (!$targets) {
-                set_flash('warning', 'No approved applicants found for selected filters.');
+                set_flash('warning', 'No payout-ready applicants found for selected filters.');
                 redirect('disbursements.php');
             }
 
@@ -401,20 +409,21 @@ if (is_post() && db_ready()) {
 }
 
 if (db_ready()) {
-    $sql = "SELECT a.id, u.first_name, u.last_name, a.scholarship_type
+    $sql = "SELECT a.id, u.first_name, u.last_name, a.applicant_type
             FROM applications a
             INNER JOIN users u ON u.id = a.user_id
-            WHERE a.status IN ('approved', 'for_soa_submission', 'soa_submitted')
+            WHERE a.status IN ('soa_submitted', 'waitlisted')
             ORDER BY a.updated_at DESC";
     $result = $conn->query($sql);
     if ($result instanceof mysqli_result) {
         $approvedApplications = $result->fetch_all(MYSQLI_ASSOC);
     }
+    $disbursementSummary['ready_candidates'] = count($approvedApplications);
 
     $timeSelectSql = $hasDisbursementTime ? ', d.disbursement_time' : ', NULL AS disbursement_time';
     $timeOrderSql = $hasDisbursementTime ? ", COALESCE(d.disbursement_time, '00:00:00') DESC" : '';
     $sql = "SELECT d.id, d.amount, d.disbursement_date{$timeSelectSql}, d.reference_no, d.status, d.qr_token,
-                   u.first_name, u.last_name, a.application_no, a.scholarship_type
+                   u.first_name, u.last_name, a.application_no, a.applicant_type
             FROM disbursements d
             INNER JOIN applications a ON a.id = d.application_id
             INNER JOIN users u ON u.id = a.user_id
@@ -423,26 +432,66 @@ if (db_ready()) {
     if ($result instanceof mysqli_result) {
         $disbursements = $result->fetch_all(MYSQLI_ASSOC);
     }
+    $disbursementSummary['scheduled_records'] = count(array_filter($disbursements, static function (array $row): bool {
+        return (string) ($row['status'] ?? '') === 'scheduled';
+    }));
+    $disbursementSummary['released_records'] = count(array_filter($disbursements, static function (array $row): bool {
+        return (string) ($row['status'] ?? '') === 'released';
+    }));
 }
 
 include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <h1 class="h4 m-0">Disbursement Management</h1>
-    <a href="verify-qr.php" class="btn btn-outline-primary btn-sm">
-        <i class="fa-solid fa-qrcode me-1"></i>Open QR Scanner
-    </a>
+    <h1 class="h4 m-0">Payout Queue</h1>
 </div>
 
-<div class="card card-soft shadow-sm mb-4">
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-4">
+        <div class="card card-soft metric-card h-100">
+            <div class="card-body">
+                <p class="small text-muted mb-1">Ready Candidates</p>
+                <h3><?= number_format((int) ($disbursementSummary['ready_candidates'] ?? 0)) ?></h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4">
+        <div class="card card-soft metric-card h-100">
+            <div class="card-body">
+                <p class="small text-muted mb-1">Scheduled Records</p>
+                <h3><?= number_format((int) ($disbursementSummary['scheduled_records'] ?? 0)) ?></h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4">
+        <div class="card card-soft metric-card h-100">
+            <div class="card-body">
+                <p class="small text-muted mb-1">Released Records</p>
+                <h3><?= number_format((int) ($disbursementSummary['released_records'] ?? 0)) ?></h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card card-soft shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="d-flex flex-wrap gap-2" id="disbursementWorkflowTabs">
+            <button type="button" class="btn btn-sm btn-outline-primary active" data-workflow-tab="bulk">Bulk Schedule</button>
+            <button type="button" class="btn btn-sm btn-outline-primary" data-workflow-tab="single">Single Schedule</button>
+            <button type="button" class="btn btn-sm btn-outline-primary" data-workflow-tab="records">Records</button>
+        </div>
+    </div>
+</div>
+
+<div id="disbursementBulkSection" data-workflow-section="bulk" class="card card-soft shadow-sm mb-4">
     <div class="card-body">
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
             <h2 class="h6 mb-0">Create Bulk Payout Schedule</h2>
             <span class="badge text-bg-info">Recommended for payout batches</span>
         </div>
-        <p class="small text-muted mb-3">Create one payout schedule for multiple approved applicants using school type and/or barangay filters.</p>
-        <form method="post" class="row g-3">
+        <p class="small text-muted mb-3">Create one payout schedule for multiple payout-ready applicants using school type and/or barangay filters.</p>
+        <form method="post" class="row g-3" data-crud-modal="1" data-crud-title="Create Bulk Payout Schedule?" data-crud-message="Create payout schedule for all matching applicants?" data-crud-confirm-text="Create Schedule" data-crud-kind="primary">
             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
             <input type="hidden" name="action" value="create_bulk_disbursement">
 
@@ -504,6 +553,7 @@ include __DIR__ . '/../includes/header.php';
                                             id="<?= e($checkboxId) ?>"
                                             name="barangays[]"
                                             value="<?= e($barangay) ?>"
+                                            checked
                                         >
                                         <label class="form-check-label" for="<?= e($checkboxId) ?>"><?= e($barangay) ?></label>
                                     </div>
@@ -511,7 +561,7 @@ include __DIR__ . '/../includes/header.php';
                             <?php endforeach; ?>
                         </div>
                     </div>
-                    <div class="form-text">Optional. Check one or more barangays. Leave all unchecked to include all barangays.</div>
+                    <div class="form-text">Optional. Uncheck one or more barangays to exclude them. Leave all checked to include all barangays.</div>
                 <?php else: ?>
                     <div class="form-text text-muted">Barangay filter is unavailable in current database setup.</div>
                 <?php endif; ?>
@@ -531,19 +581,19 @@ include __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
-<div class="card card-soft shadow-sm mb-4">
+<div id="disbursementSingleSection" data-workflow-section="single" class="card card-soft shadow-sm mb-4 d-none">
     <div class="card-body">
         <h2 class="h6">Create Single Payout Schedule (Optional)</h2>
-        <form method="post" class="row g-3">
+        <form method="post" class="row g-3" data-crud-modal="1" data-crud-title="Create Single Payout Schedule?" data-crud-message="Create payout schedule for this applicant?" data-crud-confirm-text="Create Schedule" data-crud-kind="primary">
             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
             <input type="hidden" name="action" value="create_disbursement">
             <div class="col-12 col-md-4">
-                <label class="form-label">Approved Application *</label>
+                <label class="form-label">Payout-ready Application *</label>
                 <select class="form-select" name="application_id" required>
                     <option value="">Select</option>
                     <?php foreach ($approvedApplications as $app): ?>
                         <option value="<?= (int) $app['id'] ?>">
-                            #<?= (int) $app['id'] ?> - <?= e($app['first_name'] . ' ' . $app['last_name']) ?> (<?= e($app['scholarship_type']) ?>)
+                            #<?= (int) $app['id'] ?> - <?= e($app['first_name'] . ' ' . $app['last_name']) ?> (<?= e(strtoupper((string) $app['applicant_type'])) ?>)
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -576,15 +626,45 @@ include __DIR__ . '/../includes/header.php';
                 <input type="text" class="form-control" name="remarks">
             </div>
             <div class="col-12">
-                <button type="submit" class="btn btn-outline-primary">Save Single Schedule</button>
+                <button type="submit" class="btn btn-primary">Create Single Schedule</button>
             </div>
         </form>
     </div>
 </div>
 
-<div class="card card-soft shadow-sm">
-    <div class="card-body">
+<div id="disbursementRecordsSection" data-workflow-section="records" data-live-table class="card card-soft shadow-sm">
+    <div class="card-body border-bottom table-controls">
         <h2 class="h6">Disbursement Records</h2>
+        <?php if ($disbursements): ?>
+            <div class="row g-2 align-items-end mt-1">
+                <div class="col-12 col-md-5">
+                    <label class="form-label form-label-sm">Live Search</label>
+                    <input type="text" data-table-search class="form-control form-control-sm" placeholder="Search scholar, application no, ref no">
+                </div>
+                <div class="col-6 col-md-3">
+                    <label class="form-label form-label-sm">Status</label>
+                    <select data-table-filter class="form-select form-select-sm">
+                        <option value="">All</option>
+                        <option value="scheduled">Scheduled</option>
+                        <option value="released">Released</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label form-label-sm">Rows</label>
+                    <select data-table-per-page class="form-select form-select-sm">
+                        <option value="10" selected>10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-2 text-md-end">
+                    <span class="page-legend" data-table-summary></span>
+                </div>
+            </div>
+        <?php endif; ?>
+    </div>
+    <div class="card-body">
         <?php if (!$disbursements): ?>
             <p class="text-muted mb-0">No disbursement records yet.</p>
         <?php else: ?>
@@ -593,7 +673,7 @@ include __DIR__ . '/../includes/header.php';
                     <thead>
                         <tr>
                             <th>Scholar</th>
-                            <th>Scholarship</th>
+                            <th>Applicant Type</th>
                             <th>Amount</th>
                             <th>Payout Schedule</th>
                             <th>Payout Ref No.</th>
@@ -610,10 +690,19 @@ include __DIR__ . '/../includes/header.php';
                             $hasDisbursementTime ? (string) ($row['disbursement_time'] ?? '') : null
                         );
                         ?>
-                        <tr>
+                        <?php
+                        $search = strtolower(implode(' ', [
+                            (string) ($row['first_name'] ?? ''),
+                            (string) ($row['last_name'] ?? ''),
+                            (string) ($row['application_no'] ?? ''),
+                            (string) ($row['reference_no'] ?? ''),
+                            (string) ($row['status'] ?? ''),
+                        ]));
+                        ?>
+                        <tr data-search="<?= e($search) ?>" data-filter="<?= e((string) ($row['status'] ?? '')) ?>">
                             <td><?= e($row['first_name'] . ' ' . $row['last_name']) ?></td>
                             <td>
-                                <?= e($row['scholarship_type']) ?>
+                                <?= e(strtoupper((string) $row['applicant_type'])) ?>
                                 <div class="small text-muted"><?= e((string) $row['application_no']) ?></div>
                             </td>
                             <td>PHP <?= number_format((float) $row['amount'], 2) ?></td>
@@ -622,7 +711,7 @@ include __DIR__ . '/../includes/header.php';
                             <td><span class="badge <?= status_badge_class((string) $row['status']) ?>"><?= e(strtoupper((string) $row['status'])) ?></span></td>
                             <td><code><?= e($row['qr_token']) ?></code></td>
                             <td class="text-end">
-                                <form method="post" class="d-flex justify-content-end gap-1" data-application-no="<?= e((string) $row['application_no']) ?>" data-reference-no="<?= e((string) $row['reference_no']) ?>">
+                                <form method="post" class="d-flex justify-content-end gap-1" data-application-no="<?= e((string) $row['application_no']) ?>" data-reference-no="<?= e((string) $row['reference_no']) ?>" data-crud-modal="1" data-crud-title="Update Payout Schedule?" data-crud-message="Save updated payout schedule for this applicant?" data-crud-confirm-text="Update Schedule" data-crud-kind="primary">
                                     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                                     <input type="hidden" name="action" value="update_disbursement_date">
                                     <input type="hidden" name="disbursement_id" value="<?= (int) $row['id'] ?>">
@@ -630,7 +719,7 @@ include __DIR__ . '/../includes/header.php';
                                     <?php if ($hasDisbursementTime): ?>
                                         <input type="time" class="form-control form-control-sm" name="disbursement_time" value="<?= e(substr((string) ($row['disbursement_time'] ?? ''), 0, 5)) ?>">
                                     <?php endif; ?>
-                                    <button type="submit" class="btn btn-sm btn-outline-primary">Save</button>
+                                    <button type="submit" class="btn btn-sm btn-primary">Update</button>
                                 </form>
                             </td>
                         </tr>
@@ -640,7 +729,40 @@ include __DIR__ . '/../includes/header.php';
             </div>
         <?php endif; ?>
     </div>
+    <div class="card-body border-top d-flex justify-content-end">
+        <div class="d-flex gap-2" data-table-pager></div>
+    </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const tabButtons = Array.from(document.querySelectorAll('[data-workflow-tab]'));
+    const sections = Array.from(document.querySelectorAll('[data-workflow-section]'));
+
+    function setActiveTab(tabKey) {
+        tabButtons.forEach(function (button) {
+            const key = String(button.getAttribute('data-workflow-tab') || '').trim();
+            button.classList.toggle('active', key === tabKey);
+        });
+        sections.forEach(function (section) {
+            const key = String(section.getAttribute('data-workflow-section') || '').trim();
+            section.classList.toggle('d-none', key !== tabKey);
+        });
+    }
+
+    tabButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+            const key = String(button.getAttribute('data-workflow-tab') || '').trim();
+            if (key === '') {
+                return;
+            }
+            setActiveTab(key);
+        });
+    });
+
+    setActiveTab('bulk');
+});
+</script>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>
 

@@ -46,6 +46,9 @@ if ($savedCurrentStep >= 1 && $savedCurrentStep <= 6) {
 
 $step = isset($_GET['step']) ? (int) $_GET['step'] : $resumeStep;
 $step = max(1, min(6, $step));
+if ($step === 5) {
+    redirect('apply-photo.php');
+}
 
 if (isset($_GET['reset']) && $_GET['reset'] === '1') {
     wizard_clear();
@@ -67,7 +70,7 @@ if ($step >= 5 && empty($wizard['step4_done'])) {
     redirect('apply.php?step=4');
 }
 if ($step >= 6 && empty($wizard['photo_path'])) {
-    redirect('apply.php?step=5');
+    redirect('apply-photo.php');
 }
 wizard_save_persistent_draft($conn, (int) ($user['id'] ?? 0), $wizard, $step);
 
@@ -272,10 +275,25 @@ if (is_post()) {
         foreach ($requirements as $req) {
             $reqId = (string) $req['id'];
             $field = 'req_' . $reqId;
+            $captureField = 'req_capture_' . $reqId;
             $existing = $wizard['documents'][$reqId] ?? null;
 
-            $uploaded = upload_any_file($field, __DIR__ . '/uploads/tmp');
-            if ($uploaded) {
+            $capturedBase64 = trim((string) ($_POST[$captureField] ?? ''));
+            $storedFromCapture = '';
+            if ($capturedBase64 !== '') {
+                try {
+                    $storedFromCapture = save_base64_image($capturedBase64, __DIR__ . '/uploads/tmp');
+                } catch (Throwable $e) {
+                    $errors[] = $req['requirement_name'] . ': captured photo failed. Please retake.';
+                }
+            }
+
+            $uploaded = null;
+            if ($storedFromCapture === '') {
+                $uploaded = upload_any_file($field, __DIR__ . '/uploads/tmp');
+            }
+
+            if ($storedFromCapture !== '' || $uploaded) {
                 if ($existing && !empty($existing['file_path'])) {
                     $oldAbsolute = __DIR__ . '/' . ltrim((string) $existing['file_path'], '/');
                     if (file_exists($oldAbsolute)) {
@@ -283,13 +301,18 @@ if (is_post()) {
                     }
                 }
 
-                $relative = str_replace(str_replace('\\', '/', __DIR__) . '/', '', str_replace('\\', '/', (string) $uploaded['file_path']));
+                $filePath = $storedFromCapture !== '' ? $storedFromCapture : (string) $uploaded['file_path'];
+                $fileExt = $storedFromCapture !== '' ? 'jpg' : (string) $uploaded['ext'];
+                $originalName = $storedFromCapture !== ''
+                    ? ('captured_' . preg_replace('/[^a-z0-9]+/i', '_', (string) $req['requirement_name']) . '.jpg')
+                    : (string) $uploaded['original_name'];
+                $relative = str_replace(str_replace('\\', '/', __DIR__) . '/', '', str_replace('\\', '/', $filePath));
                 $wizard['documents'][$reqId] = [
                     'requirement_template_id' => (int) $req['id'],
                     'requirement_name' => (string) $req['requirement_name'],
                     'file_path' => $relative,
-                    'file_ext' => (string) $uploaded['ext'],
-                    'original_name' => (string) $uploaded['original_name'],
+                    'file_ext' => $fileExt,
+                    'original_name' => $originalName,
                 ];
             }
 
@@ -308,44 +331,7 @@ if (is_post()) {
 
         $wizard['step4_done'] = true;
         $persistWizard($wizard, 5);
-        redirect('apply.php?step=5');
-    }
-
-    if ($action === 'save_step5') {
-        $photoBase64 = trim((string) ($_POST['photo_base64'] ?? ''));
-        $existingPhoto = (string) ($wizard['photo_path'] ?? '');
-
-        try {
-            if ($photoBase64 !== '') {
-                $stored = save_base64_image($photoBase64, __DIR__ . '/uploads/tmp');
-                $relative = str_replace(str_replace('\\', '/', __DIR__) . '/', '', str_replace('\\', '/', $stored));
-
-                if ($existingPhoto !== '') {
-                    $oldAbsolute = __DIR__ . '/' . ltrim($existingPhoto, '/');
-                    if (file_exists($oldAbsolute)) {
-                        @unlink($oldAbsolute);
-                    }
-                }
-                $wizard['photo_path'] = $relative;
-            } else {
-                $uploaded = upload_any_file('photo_upload', __DIR__ . '/uploads/tmp', ['jpg', 'jpeg', 'png', 'webp']);
-                if ($uploaded) {
-                    $relative = str_replace(str_replace('\\', '/', __DIR__) . '/', '', str_replace('\\', '/', (string) $uploaded['file_path']));
-                    $wizard['photo_path'] = $relative;
-                }
-            }
-
-            if (empty($wizard['photo_path'])) {
-                set_flash('danger', 'Please upload/capture and crop your 2x2 photo.');
-                redirect('apply.php?step=5');
-            }
-        } catch (Throwable $e) {
-            set_flash('danger', 'Photo upload failed: ' . $e->getMessage());
-            redirect('apply.php?step=5');
-        }
-
-        $persistWizard($wizard, 6);
-        redirect('apply.php?step=6');
+        redirect('apply-photo.php');
     }
 
     if ($action === 'final_submit') {
@@ -369,15 +355,25 @@ if (is_post()) {
             }
         }
 
-        if (
-            !(bool) ($wizard['step1_done'] ?? false)
-            || !(bool) ($wizard['step2_done'] ?? false)
-            || !(bool) ($wizard['step3_done'] ?? false)
-            || empty($wizard['photo_path'])
-            || $missing
-        ) {
-            set_flash('danger', 'Please complete all required steps before final submission.');
-            redirect('apply.php?step=6');
+        if (!(bool) ($wizard['step1_done'] ?? false)) {
+            set_flash('danger', 'Please complete Step 1 before final submission.');
+            redirect('apply.php?step=1');
+        }
+        if (!(bool) ($wizard['step2_done'] ?? false)) {
+            set_flash('danger', 'Please complete Step 2 before final submission.');
+            redirect('apply.php?step=2');
+        }
+        if (!(bool) ($wizard['step3_done'] ?? false)) {
+            set_flash('danger', 'Please complete Step 3 before final submission.');
+            redirect('apply.php?step=3');
+        }
+        if ($missing) {
+            set_flash('danger', 'Please upload all required documents before final submission.');
+            redirect('apply.php?step=4');
+        }
+        if (empty($wizard['photo_path'])) {
+            set_flash('danger', 'Please complete your 2x2 photo before final submission.');
+            redirect('apply-photo.php');
         }
 
         $accountPassword = (string) ($_POST['account_password'] ?? '');
@@ -627,6 +623,7 @@ $step2 = $wizard['step2'];
 $step3 = $wizard['step3'];
 $requirements = $getRequirements($wizard);
 $barangayOptions = san_enrique_barangays();
+$reviewIssues = [];
 
 if (trim((string) ($step2['birth_date'] ?? '')) !== '' && trim((string) ($step2['age'] ?? '')) === '') {
     $step2['age'] = (string) (calculate_age_from_birth_date((string) ($step2['birth_date'] ?? '')) ?? '');
@@ -635,11 +632,29 @@ $step2['town'] = trim((string) ($step2['town'] ?? '')) !== '' ? (string) $step2[
 $step2['province'] = trim((string) ($step2['province'] ?? '')) !== '' ? (string) $step2['province'] : san_enrique_province();
 $step2['barangay'] = normalize_barangay((string) ($step2['barangay'] ?? ''));
 
+if (!(bool) ($wizard['step1_done'] ?? false)) {
+    $reviewIssues[] = ['text' => 'Step 1 (Program) is incomplete.', 'url' => 'apply.php?step=1'];
+}
+if (!(bool) ($wizard['step2_done'] ?? false)) {
+    $reviewIssues[] = ['text' => 'Step 2 (Personal) is incomplete.', 'url' => 'apply.php?step=2'];
+}
+if (!(bool) ($wizard['step3_done'] ?? false)) {
+    $reviewIssues[] = ['text' => 'Step 3 (Family) is incomplete.', 'url' => 'apply.php?step=3'];
+}
+foreach ($requirements as $req) {
+    $reqId = (string) ($req['id'] ?? '');
+    $required = (int) ($req['is_required'] ?? 1) === 1;
+    if ($required && empty($wizard['documents'][$reqId])) {
+        $reviewIssues[] = ['text' => 'Missing required document: ' . (string) ($req['requirement_name'] ?? 'Requirement'), 'url' => 'apply.php?step=4'];
+    }
+}
+if (empty($wizard['photo_path'])) {
+    $reviewIssues[] = ['text' => '2x2 photo is missing.', 'url' => 'apply-photo.php'];
+}
+
 $stepLabels = [1 => 'Program', 2 => 'Personal', 3 => 'Family', 4 => 'Requirements', 5 => '2x2 Photo', 6 => 'Review'];
 
-if ($step === 5) {
-    $extraCss = ['https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css'];
-}
+$extraJs = ['assets/js/apply-wizard.js', 'assets/js/capture-utils.js', 'assets/js/capture-ui.js'];
 
 include __DIR__ . '/includes/header.php';
 ?>
@@ -1036,6 +1051,28 @@ include __DIR__ . '/includes/header.php';
                                 <?php endif; ?>
                             </div>
                             <input type="file" name="<?= e($field) ?>" class="form-control mt-2" accept=".pdf,.jpg,.jpeg,.png">
+                            <input type="hidden" name="req_capture_<?= e($reqId) ?>" id="reqCaptureInput<?= e($reqId) ?>">
+                            <div class="d-flex flex-wrap gap-2 mt-2">
+                                <button
+                                    type="button"
+                                    class="btn btn-sm btn-outline-primary"
+                                    data-doc-capture-open
+                                    data-doc-capture-id="<?= e($reqId) ?>"
+                                    data-doc-capture-name="<?= e((string) $req['requirement_name']) ?>"
+                                >
+                                    <i class="fa-solid fa-camera me-1"></i>Capture Photo
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn btn-sm btn-outline-danger d-none"
+                                    id="reqCaptureClearBtn<?= e($reqId) ?>"
+                                    data-doc-capture-clear
+                                    data-doc-capture-id="<?= e($reqId) ?>"
+                                >
+                                    <i class="fa-solid fa-trash-can me-1"></i>Clear Capture
+                                </button>
+                            </div>
+                            <div class="small text-muted mt-1" id="reqCaptureStatus<?= e($reqId) ?>">Upload PDF/image or capture a clear photo.</div>
                             <?php if ($existing): ?>
                                 <div class="small mt-2 text-muted">Current: <?= e((string) ($existing['original_name'] ?? basename((string) $existing['file_path']))) ?></div>
                             <?php endif; ?>
@@ -1050,620 +1087,60 @@ include __DIR__ . '/includes/header.php';
             </form>
         </div>
     </div>
-<?php endif; ?>
 
-<?php if ($step === 5): ?>
-    <?php $existingPhotoPath = (string) ($wizard['photo_path'] ?? ''); ?>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
-    <div class="card card-soft shadow-sm">
-        <div class="card-body p-4">
-            <h2 class="h5 mb-3">Step 5: 2x2 Photo (Upload or Capture)</h2>
-            <p class="small text-muted">Use upload or live camera, then apply a square crop to match the 2x2 print requirement.</p>
-
-            <form method="post" enctype="multipart/form-data" id="step5Form">
-                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-                <input type="hidden" name="action" value="save_step5">
-                <input type="hidden" name="photo_base64" id="photoBase64">
-
-                <div class="photo-capture-shell">
-                    <div class="photo-step-hints">
-                        <span class="photo-step-chip"><i class="fa-solid fa-images me-1"></i>Select Source</span>
-                        <span class="photo-step-chip"><i class="fa-solid fa-crop-simple me-1"></i>Crop 1:1</span>
-                        <span class="photo-step-chip"><i class="fa-solid fa-circle-check me-1"></i>Apply</span>
-                    </div>
-                    <div class="photo-mode-switch mb-3" role="group" aria-label="Photo source">
-                        <button type="button" class="btn btn-outline-primary active" data-photo-mode="upload" aria-pressed="true">
-                            <i class="fa-solid fa-upload me-1"></i>Upload
-                        </button>
-                        <button type="button" class="btn btn-outline-primary" data-photo-mode="camera" aria-pressed="false">
-                            <i class="fa-solid fa-camera me-1"></i>Camera
-                        </button>
-                    </div>
-                    <div class="photo-status photo-status-info mb-3" id="photoStatusWrap">
-                        <span class="photo-status-icon" id="photoStatusIcon"><i class="fa-solid fa-circle-info"></i></span>
-                        <p class="small mb-0" id="photoStatus">Choose Upload or Camera to begin.</p>
-                    </div>
+    <div class="modal fade" id="docCaptureModal" tabindex="-1" aria-labelledby="docCaptureModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h6 m-0" id="docCaptureModalLabel">Capture Requirement Photo</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-
-                <div class="row g-3 align-items-start">
-                    <div class="col-12 col-lg-7">
-                        <div id="uploadPanel" class="photo-panel">
-                            <label class="form-label">Choose Image</label>
-                            <div class="photo-upload-drop">
-                                <input type="file" name="photo_upload" id="photoInput" class="form-control" accept="image/*" capture="user">
-                            </div>
-                            <div class="photo-file-name mt-2" id="photoFileName">No file selected yet.</div>
-                            <div class="small text-muted mt-1">Tip: On mobile phones this can open the camera directly.</div>
-                        </div>
-
-                        <div id="cameraPanel" class="photo-panel d-none">
-                            <label class="form-label">Camera Capture</label>
-                            <div class="camera-stage">
-                                <video id="cameraVideo" class="d-none" autoplay playsinline muted></video>
-                                <canvas id="cameraCanvas" class="d-none"></canvas>
-                                <div id="cameraPlaceholder" class="camera-placeholder">
-                                    <i class="fa-solid fa-camera-retro me-1"></i>Camera preview appears here after permission
-                                </div>
-                                <div id="cameraGuides" class="camera-guides d-none" aria-hidden="true"></div>
-                            </div>
-                            <div class="camera-control-grid mt-2">
-                                <button type="button" id="startCameraBtn" class="btn btn-outline-primary btn-sm">
-                                    <i class="fa-solid fa-video me-1"></i>Start
-                                </button>
-                                <button type="button" id="captureBtn" class="btn btn-primary btn-sm" disabled>
-                                    <i class="fa-solid fa-camera me-1"></i>Capture
-                                </button>
-                                <button type="button" id="retakeBtn" class="btn btn-outline-warning btn-sm" disabled>
-                                    <i class="fa-solid fa-rotate-right me-1"></i>Retake
-                                </button>
-                                <button type="button" id="stopCameraBtn" class="btn btn-outline-secondary btn-sm" disabled>
-                                    <i class="fa-solid fa-video-slash me-1"></i>Stop
-                                </button>
-                                <button type="button" id="toggleFullscreenBtn" class="btn btn-outline-dark btn-sm">
-                                    <i class="fa-solid fa-expand me-1"></i>Full Screen
-                                </button>
-                            </div>
-                            <div class="small text-muted mt-2">Best result: face the camera in good lighting, keep your head centered, and use Full Screen on phones.</div>
-                        </div>
-
-                        <div class="photo-source-shell mt-3 d-none" id="photoSourceShell">
-                            <div class="photo-source-header mb-2">
-                                <h3 class="h6 mb-0">Crop Photo</h3>
-                                <span class="badge text-bg-light border"><i class="fa-solid fa-square me-1"></i>1:1 Ratio</span>
-                            </div>
-                            <img id="photoSource" src="" alt="Source" class="img-fluid d-none photo-source">
-                        </div>
-                        <div class="d-flex flex-wrap gap-2 mt-3">
-                            <button type="button" id="cropBtn" class="btn btn-outline-primary d-none wizard-mobile-full">
-                                <i class="fa-solid fa-crop-simple me-1"></i>Use Cropped Photo
-                            </button>
-                            <button type="button" id="clearSourceBtn" class="btn btn-outline-danger d-none wizard-mobile-full">
-                                <i class="fa-solid fa-trash-can me-1"></i>Clear Selection
-                            </button>
-                        </div>
+                <div class="modal-body">
+                    <p class="small text-muted mb-2" id="docCaptureRequirementText"></p>
+                    <div class="camera-stage mb-2">
+                        <video id="docCaptureVideo" autoplay playsinline muted></video>
+                        <canvas id="docCaptureCanvas" class="d-none"></canvas>
+                        <div id="docCaptureGuides" class="camera-guides" aria-hidden="true"></div>
                     </div>
-                    <div class="col-12 col-lg-5">
-                        <div class="photo-preview-card">
-                            <h3 class="h6">2x2 Preview</h3>
-                            <div class="photo-frame mb-2" id="photoPreviewFrame">
-                                <?php if ($existingPhotoPath): ?>
-                                    <img src="<?= e($existingPhotoPath) ?>" alt="2x2 Photo" id="existingPhoto">
-                                <?php else: ?>
-                                    <span class="text-muted small">No photo yet</span>
-                                <?php endif; ?>
-                            </div>
-                            <p class="photo-preview-meta mb-0">Print target: exactly 2 x 2 inches (5.08 x 5.08 cm).</p>
-                        </div>
-                    </div>
+                    <div class="small text-muted mb-2">Align the document inside the guide box, keep steady, and ensure text is readable.</div>
+                    <div class="alert alert-secondary py-2 px-3 small mb-0" id="docCaptureAlert">Ready to capture.</div>
                 </div>
-
-                <div class="wizard-actions mt-4">
-                    <a href="apply.php?step=4" class="btn btn-outline-secondary"><i class="fa-solid fa-arrow-left me-1"></i>Previous</a>
-                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-arrow-right me-1"></i>Next Step</button>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="docCaptureRetakeBtn">
+                        <i class="fa-solid fa-rotate-right me-1"></i>Retake
+                    </button>
+                    <button type="button" class="btn btn-primary btn-sm" id="docCaptureUseBtn" disabled>
+                        <i class="fa-solid fa-check me-1"></i>Use This Capture
+                    </button>
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="docCaptureTakeBtn">
+                        <i class="fa-solid fa-camera me-1"></i>Capture
+                    </button>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
-
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            const form = document.getElementById('step5Form');
-            const input = document.getElementById('photoInput');
-            const source = document.getElementById('photoSource');
-            const previewFrame = document.getElementById('photoPreviewFrame');
-            const cropBtn = document.getElementById('cropBtn');
-            const clearSourceBtn = document.getElementById('clearSourceBtn');
-            const photoBase64 = document.getElementById('photoBase64');
-            const photoStatusWrap = document.getElementById('photoStatusWrap');
-            const photoStatusIcon = document.getElementById('photoStatusIcon');
-            const photoStatus = document.getElementById('photoStatus');
-            const photoFileName = document.getElementById('photoFileName');
-            const uploadPanel = document.getElementById('uploadPanel');
-            const cameraPanel = document.getElementById('cameraPanel');
-            const photoSourceShell = document.getElementById('photoSourceShell');
-            const modeButtons = document.querySelectorAll('[data-photo-mode]');
-            const cameraVideo = document.getElementById('cameraVideo');
-            const cameraCanvas = document.getElementById('cameraCanvas');
-            const cameraPlaceholder = document.getElementById('cameraPlaceholder');
-            const cameraGuides = document.getElementById('cameraGuides');
-            const startCameraBtn = document.getElementById('startCameraBtn');
-            const captureBtn = document.getElementById('captureBtn');
-            const retakeBtn = document.getElementById('retakeBtn');
-            const stopCameraBtn = document.getElementById('stopCameraBtn');
-            const toggleFullscreenBtn = document.getElementById('toggleFullscreenBtn');
-
-            let cropper = null;
-            let stream = null;
-            let fallbackFullscreenActive = false;
-            let currentMode = 'upload';
-            const initialPreview = previewFrame.innerHTML;
-            const hasInitialPhoto = previewFrame.querySelector('img') !== null;
-
-            function setStatus(message, tone) {
-                const safeTone = ['info', 'success', 'error'].includes(tone) ? tone : 'info';
-                const iconMap = {
-                    info: 'fa-circle-info',
-                    success: 'fa-circle-check',
-                    error: 'fa-circle-exclamation'
-                };
-                if (photoStatusWrap) {
-                    photoStatusWrap.classList.remove('photo-status-info', 'photo-status-success', 'photo-status-error');
-                    photoStatusWrap.classList.add('photo-status-' + safeTone);
-                }
-                if (photoStatusIcon) {
-                    photoStatusIcon.innerHTML = '<i class="fa-solid ' + iconMap[safeTone] + '"></i>';
-                }
-                if (!photoStatus) {
-                    return;
-                }
-                photoStatus.textContent = message;
+            if (!window.SE_CAPTURE_UI || typeof window.SE_CAPTURE_UI.initDocumentCaptureModal !== 'function') {
+                return;
             }
-
-            function showElement(element) {
-                if (element) {
-                    element.classList.remove('d-none');
-                }
-            }
-
-            function hideElement(element) {
-                if (element) {
-                    element.classList.add('d-none');
-                }
-            }
-
-            function updateFileName(file) {
-                if (!photoFileName) {
-                    return;
-                }
-                if (file) {
-                    photoFileName.textContent = 'Selected: ' + file.name;
-                    return;
-                }
-                photoFileName.textContent = 'No file selected yet.';
-            }
-
-            function getNativeFullscreenElement() {
-                return document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || null;
-            }
-
-            function requestNativeFullscreen(element) {
-                if (!element) {
-                    return Promise.reject(new Error('Missing fullscreen target element.'));
-                }
-                if (element.requestFullscreen) {
-                    return element.requestFullscreen();
-                }
-                if (element.webkitRequestFullscreen) {
-                    element.webkitRequestFullscreen();
-                    return Promise.resolve();
-                }
-                if (element.msRequestFullscreen) {
-                    element.msRequestFullscreen();
-                    return Promise.resolve();
-                }
-                return Promise.reject(new Error('Fullscreen API is not supported.'));
-            }
-
-            function exitNativeFullscreen() {
-                if (document.exitFullscreen) {
-                    return document.exitFullscreen();
-                }
-                if (document.webkitExitFullscreen) {
-                    document.webkitExitFullscreen();
-                    return Promise.resolve();
-                }
-                if (document.msExitFullscreen) {
-                    document.msExitFullscreen();
-                    return Promise.resolve();
-                }
-                return Promise.resolve();
-            }
-
-            function setFallbackFullscreen(active) {
-                fallbackFullscreenActive = !!active;
-                if (cameraPanel) {
-                    cameraPanel.classList.toggle('photo-panel-overlay', fallbackFullscreenActive);
-                }
-                document.body.classList.toggle('photo-camera-overlay-open', fallbackFullscreenActive);
-            }
-
-            function isCameraFullscreenActive() {
-                return !!getNativeFullscreenElement() || fallbackFullscreenActive;
-            }
-
-            function syncFullscreenButton() {
-                if (!toggleFullscreenBtn) {
-                    return;
-                }
-                if (currentMode !== 'camera') {
-                    toggleFullscreenBtn.innerHTML = '<i class="fa-solid fa-expand me-1"></i>Full Screen';
-                    toggleFullscreenBtn.classList.remove('btn-warning');
-                    toggleFullscreenBtn.classList.add('btn-outline-dark');
-                    return;
-                }
-
-                if (isCameraFullscreenActive()) {
-                    toggleFullscreenBtn.innerHTML = '<i class="fa-solid fa-compress me-1"></i>Exit Full Screen';
-                    toggleFullscreenBtn.classList.remove('btn-outline-dark');
-                    toggleFullscreenBtn.classList.add('btn-warning');
-                    return;
-                }
-
-                toggleFullscreenBtn.innerHTML = '<i class="fa-solid fa-expand me-1"></i>Full Screen';
-                toggleFullscreenBtn.classList.remove('btn-warning');
-                toggleFullscreenBtn.classList.add('btn-outline-dark');
-            }
-
-            async function enterCameraFullscreen() {
-                if (!cameraPanel) {
-                    return;
-                }
-
-                if (currentMode !== 'camera') {
-                    setMode('camera', true);
-                }
-
-                setStatus('Opening full-screen camera...', 'info');
-                setFallbackFullscreen(false);
-
-                try {
-                    await requestNativeFullscreen(cameraPanel);
-                } catch (error) {
-                    // Fallback for browsers/devices where element fullscreen is restricted.
-                    setFallbackFullscreen(true);
-                }
-
-                syncFullscreenButton();
-                setStatus('Full-screen camera enabled.', 'success');
-            }
-
-            async function exitCameraFullscreen(silent) {
-                const wasActive = isCameraFullscreenActive();
-
-                if (fallbackFullscreenActive) {
-                    setFallbackFullscreen(false);
-                }
-
-                if (getNativeFullscreenElement()) {
-                    try {
-                        await exitNativeFullscreen();
-                    } catch (error) {
-                        // Continue cleanup even when fullscreen exit fails.
-                    }
-                }
-
-                syncFullscreenButton();
-                if (!silent && wasActive) {
-                    setStatus('Exited full-screen camera.', 'info');
-                }
-            }
-
-            function onNativeFullscreenChange() {
-                if (!getNativeFullscreenElement()) {
-                    setFallbackFullscreen(false);
-                }
-                syncFullscreenButton();
-            }
-
-            function cleanupCropper() {
-                if (cropper) {
-                    cropper.destroy();
-                    cropper = null;
-                }
-                source.removeAttribute('src');
-                hideElement(source);
-                hideElement(photoSourceShell);
-                hideElement(cropBtn);
-                hideElement(clearSourceBtn);
-            }
-
-            function stopCamera(silent) {
-                if (stream) {
-                    stream.getTracks().forEach(function (track) {
-                        track.stop();
-                    });
-                    stream = null;
-                }
-                if (cameraVideo) {
-                    cameraVideo.pause();
-                    cameraVideo.srcObject = null;
-                }
-                showElement(cameraPlaceholder);
-                hideElement(cameraVideo);
-                hideElement(cameraCanvas);
-                hideElement(cameraGuides);
-                if (captureBtn) {
-                    captureBtn.disabled = true;
-                }
-                if (stopCameraBtn) {
-                    stopCameraBtn.disabled = true;
-                }
-                if (startCameraBtn) {
-                    startCameraBtn.disabled = false;
-                }
-                if (!silent && currentMode === 'camera') {
-                    setStatus('Camera stopped. You can start it again anytime.', 'info');
-                }
-            }
-
-            async function startCamera() {
-                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                    setStatus('Camera is not supported on this device/browser.', 'error');
-                    return;
-                }
-
-                if (startCameraBtn) {
-                    startCameraBtn.disabled = true;
-                }
-                stopCamera(true);
-                setStatus('Requesting camera permission...', 'info');
-                try {
-                    stream = await navigator.mediaDevices.getUserMedia({
-                        video: {
-                            facingMode: 'user',
-                            width: { ideal: 1080 },
-                            height: { ideal: 1080 }
-                        },
-                        audio: false
-                    });
-                    cameraVideo.srcObject = stream;
-                    await cameraVideo.play();
-                    showElement(cameraVideo);
-                    hideElement(cameraPlaceholder);
-                    showElement(cameraGuides);
-                    if (captureBtn) {
-                        captureBtn.disabled = false;
-                    }
-                    if (stopCameraBtn) {
-                        stopCameraBtn.disabled = false;
-                    }
-                    if (retakeBtn) {
-                        retakeBtn.disabled = true;
-                    }
-                    setStatus('Camera ready. Keep your face centered and tap Capture.', 'success');
-                } catch (error) {
-                    setStatus('Unable to access camera. Allow permission or switch to Upload.', 'error');
-                } finally {
-                    if (startCameraBtn) {
-                        startCameraBtn.disabled = false;
-                    }
-                }
-            }
-
-            function buildCropper(dataUrl) {
-                cleanupCropper();
-                source.src = dataUrl;
-                showElement(photoSourceShell);
-                showElement(source);
-                showElement(cropBtn);
-                showElement(clearSourceBtn);
-                cropper = new Cropper(source, {
-                    aspectRatio: 1,
-                    viewMode: 1,
-                    autoCropArea: 1,
-                    responsive: true,
-                    dragMode: 'move',
-                    background: false
-                });
-                setStatus('Adjust the square crop and tap "Use Cropped Photo".', 'info');
-            }
-
-            function setMode(mode, keepStatus) {
-                const safeMode = mode === 'camera' ? 'camera' : 'upload';
-                currentMode = safeMode;
-                modeButtons.forEach(function (btn) {
-                    const btnMode = btn.getAttribute('data-photo-mode');
-                    const isActive = btnMode === safeMode;
-                    btn.classList.toggle('active', isActive);
-                    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-                });
-                if (safeMode === 'camera') {
-                    hideElement(uploadPanel);
-                    showElement(cameraPanel);
-                    startCamera();
-                    syncFullscreenButton();
-                } else {
-                    exitCameraFullscreen(true);
-                    showElement(uploadPanel);
-                    hideElement(cameraPanel);
-                    stopCamera(true);
-                    if (retakeBtn) {
-                        retakeBtn.disabled = true;
-                    }
-                    syncFullscreenButton();
-                    if (!keepStatus) {
-                        setStatus('Upload a clear photo file, then crop and apply it.', 'info');
-                    }
-                }
-            }
-
-            function restoreInitialPreview() {
-                previewFrame.innerHTML = initialPreview;
-            }
-
-            modeButtons.forEach(function (btn) {
-                btn.addEventListener('click', function () {
-                    const mode = btn.getAttribute('data-photo-mode') || 'upload';
-                    setMode(mode);
-                });
+            window.SE_CAPTURE_UI.initDocumentCaptureModal({
+                modalId: 'docCaptureModal',
+                requirementTextId: 'docCaptureRequirementText',
+                videoId: 'docCaptureVideo',
+                canvasId: 'docCaptureCanvas',
+                takeBtnId: 'docCaptureTakeBtn',
+                retakeBtnId: 'docCaptureRetakeBtn',
+                useBtnId: 'docCaptureUseBtn',
+                alertId: 'docCaptureAlert',
+                openSelector: '[data-doc-capture-open]',
+                clearSelector: '[data-doc-capture-clear]',
+                hiddenInputPrefix: 'reqCaptureInput',
+                statusPrefix: 'reqCaptureStatus',
+                clearBtnPrefix: 'reqCaptureClearBtn',
+                fileInputNamePrefix: 'req_',
+                blurThreshold: 16
             });
-
-            input.addEventListener('change', function (event) {
-                const file = event.target.files && event.target.files[0];
-                updateFileName(file || null);
-                if (!file) {
-                    return;
-                }
-                photoBase64.value = '';
-
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    buildCropper(e.target.result);
-                };
-                reader.readAsDataURL(file);
-            });
-
-            if (startCameraBtn) {
-                startCameraBtn.addEventListener('click', function () {
-                    if (currentMode !== 'camera') {
-                        setMode('camera');
-                        return;
-                    }
-                    startCamera();
-                });
-            }
-
-            if (stopCameraBtn) {
-                stopCameraBtn.addEventListener('click', function () {
-                    stopCamera(false);
-                });
-            }
-
-            if (toggleFullscreenBtn) {
-                toggleFullscreenBtn.addEventListener('click', async function () {
-                    if (currentMode !== 'camera') {
-                        setMode('camera', true);
-                    }
-                    if (isCameraFullscreenActive()) {
-                        await exitCameraFullscreen(false);
-                        return;
-                    }
-                    await enterCameraFullscreen();
-                });
-            }
-
-            if (captureBtn) {
-                captureBtn.addEventListener('click', function () {
-                    if (!stream || !cameraVideo.videoWidth || !cameraVideo.videoHeight) {
-                        setStatus('Camera feed is not ready yet.', 'error');
-                        return;
-                    }
-
-                    const width = cameraVideo.videoWidth;
-                    const height = cameraVideo.videoHeight;
-                    cameraCanvas.width = width;
-                    cameraCanvas.height = height;
-                    const ctx = cameraCanvas.getContext('2d');
-                    if (!ctx) {
-                        setStatus('Failed to process camera image. Try again.', 'error');
-                        return;
-                    }
-                    ctx.drawImage(cameraVideo, 0, 0, width, height);
-                    const data = cameraCanvas.toDataURL('image/jpeg', 0.95);
-                    buildCropper(data);
-                    stopCamera(true);
-                    if (retakeBtn) {
-                        retakeBtn.disabled = false;
-                    }
-                    setStatus('Captured. Fine-tune the crop and apply.', 'success');
-                });
-            }
-
-            if (retakeBtn) {
-                retakeBtn.addEventListener('click', function () {
-                    cleanupCropper();
-                    photoBase64.value = '';
-                    setMode('camera', true);
-                    setStatus('Ready for retake. Keep your face inside the guide.', 'info');
-                });
-            }
-
-            cropBtn.addEventListener('click', function () {
-                if (!cropper) {
-                    setStatus('Please select or capture a photo first.', 'error');
-                    return;
-                }
-                const canvas = cropper.getCroppedCanvas({ width: 512, height: 512 });
-                if (!canvas) {
-                    setStatus('Unable to crop this image. Please try another photo.', 'error');
-                    return;
-                }
-                const data = canvas.toDataURL('image/jpeg', 0.92);
-                photoBase64.value = data;
-                previewFrame.innerHTML = '<img src="' + data + '" alt="2x2 Preview">';
-                setStatus('2x2 photo applied successfully. You can continue to the next step.', 'success');
-            });
-
-            if (clearSourceBtn) {
-                clearSourceBtn.addEventListener('click', function () {
-                    cleanupCropper();
-                    photoBase64.value = '';
-                    if (input) {
-                        input.value = '';
-                    }
-                    updateFileName(null);
-                    restoreInitialPreview();
-                    if (currentMode === 'camera') {
-                        startCamera();
-                        setStatus('Selection cleared. Capture a new photo when ready.', 'info');
-                        return;
-                    }
-                    setStatus('Selection cleared. Upload or capture a new photo.', 'info');
-                });
-            }
-
-            if (form) {
-                form.addEventListener('submit', function (event) {
-                    const hasAppliedCrop = photoBase64.value.trim() !== '';
-                    const hasUpload = !!(input && input.files && input.files.length > 0);
-                    const hasPreviewImage = previewFrame.querySelector('img') !== null;
-                    const hasPendingSource = !source.classList.contains('d-none');
-
-                    if (hasPendingSource && !hasAppliedCrop) {
-                        event.preventDefault();
-                        setStatus('Tap "Use Cropped Photo" before continuing.', 'error');
-                        return;
-                    }
-
-                    if (!hasAppliedCrop && !hasUpload && !hasPreviewImage) {
-                        event.preventDefault();
-                        setStatus('Please upload or capture a photo first.', 'error');
-                    }
-                });
-            }
-
-            window.addEventListener('beforeunload', function () {
-                exitCameraFullscreen(true);
-                stopCamera(true);
-            });
-
-            document.addEventListener('fullscreenchange', onNativeFullscreenChange);
-            document.addEventListener('webkitfullscreenchange', onNativeFullscreenChange);
-            document.addEventListener('msfullscreenchange', onNativeFullscreenChange);
-            document.addEventListener('MSFullscreenChange', onNativeFullscreenChange);
-            document.addEventListener('keydown', function (event) {
-                if (event.key === 'Escape' && fallbackFullscreenActive) {
-                    exitCameraFullscreen(true);
-                }
-            });
-
-            updateFileName(null);
-            setMode('upload', true);
-            if (hasInitialPhoto) {
-                setStatus('Existing 2x2 photo detected. You can keep it or replace it.', 'info');
-            } else {
-                setStatus('Choose Upload or Camera to begin your 2x2 photo.', 'info');
-            }
         });
     </script>
 <?php endif; ?>
@@ -1673,6 +1150,21 @@ include __DIR__ . '/includes/header.php';
         <div class="card-body p-4">
             <h2 class="h5 mb-3">Step 6: Review and Preview Before Submit</h2>
             <p class="small text-muted mb-3">Review your details carefully before final submission. You can still go back and edit any step.</p>
+            <?php if ($reviewIssues): ?>
+                <div class="alert alert-warning">
+                    <strong>Complete these first:</strong>
+                    <ul class="mb-0 mt-2">
+                        <?php foreach ($reviewIssues as $issue): ?>
+                            <li>
+                                <?= e((string) ($issue['text'] ?? 'Incomplete item')) ?>
+                                <?php if (!empty($issue['url'])): ?>
+                                    <a href="<?= e((string) $issue['url']) ?>" class="ms-1">Fix</a>
+                                <?php endif; ?>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endif; ?>
 
             <div class="row g-3 mb-3">
                 <div class="col-12 col-lg-8">
@@ -1703,7 +1195,7 @@ include __DIR__ . '/includes/header.php';
                 <div class="col-12 col-lg-4">
                     <div class="card card-soft h-100">
                         <div class="card-body">
-                            <h3 class="h6">2x2 Photo <a class="small ms-2" href="apply.php?step=5">Edit</a></h3>
+                            <h3 class="h6">2x2 Photo <a class="small ms-2" href="apply-photo.php">Edit</a></h3>
                             <div class="photo-frame">
                                 <?php if (!empty($wizard['photo_path'])): ?>
                                     <img src="<?= e((string) $wizard['photo_path']) ?>" alt="2x2 Photo">
@@ -1771,8 +1263,8 @@ include __DIR__ . '/includes/header.php';
                     </div>
                 </div>
                 <div class="col-12 wizard-actions">
-                    <a href="apply.php?step=5" class="btn btn-outline-secondary"><i class="fa-solid fa-arrow-left me-1"></i>Previous</a>
-                    <button type="submit" class="btn btn-primary">
+                    <a href="apply-photo.php" class="btn btn-outline-secondary"><i class="fa-solid fa-arrow-left me-1"></i>Previous</a>
+                    <button type="submit" class="btn btn-primary" <?= $reviewIssues ? 'disabled' : '' ?>>
                         <i class="fa-solid fa-paper-plane me-1"></i>Submit Final Application
                     </button>
                 </div>
@@ -1782,230 +1274,38 @@ include __DIR__ . '/includes/header.php';
     </div>
 <?php endif; ?>
 
-<?php if ($step === 2): ?>
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const birthDateInput = document.getElementById('birthDateInput');
-            const ageInput = document.getElementById('ageInput');
-            if (!birthDateInput || !ageInput) {
-                return;
-            }
-
-            function calculateAge(value) {
-                if (!value) {
-                    return '';
-                }
-                const birthDate = new Date(value + 'T00:00:00');
-                if (Number.isNaN(birthDate.getTime())) {
-                    return '';
-                }
-
-                const today = new Date();
-                const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-                if (birthDate > todayDate) {
-                    return '';
-                }
-
-                let age = todayDate.getFullYear() - birthDate.getFullYear();
-                const monthDiff = todayDate.getMonth() - birthDate.getMonth();
-                if (monthDiff < 0 || (monthDiff === 0 && todayDate.getDate() < birthDate.getDate())) {
-                    age -= 1;
-                }
-
-                return age >= 0 ? String(age) : '';
-            }
-
-            function syncAge() {
-                ageInput.value = calculateAge(birthDateInput.value);
-            }
-
-            birthDateInput.addEventListener('change', syncAge);
-            birthDateInput.addEventListener('input', syncAge);
-            syncAge();
-        });
-    </script>
-<?php endif; ?>
-
-<?php if ($step === 3): ?>
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const toggles = document.querySelectorAll('.js-na-toggle[data-target]');
-            if (!toggles.length) {
-                return;
-            }
-
-            function applyNaState(toggle) {
-                const targetSelector = toggle.getAttribute('data-target') || '';
-                if (!targetSelector) {
-                    return;
-                }
-                const target = document.querySelector(targetSelector);
-                if (!target) {
-                    return;
-                }
-
-                const disabled = !!toggle.checked;
-                const fields = target.querySelectorAll('input, select, textarea');
-                fields.forEach(function (field) {
-                    if (!(field instanceof HTMLElement)) {
-                        return;
-                    }
-                    if (disabled) {
-                        if (field instanceof HTMLInputElement) {
-                            if (field.type === 'checkbox' || field.type === 'radio') {
-                                field.checked = false;
-                            } else {
-                                field.value = '';
-                            }
-                        } else if (field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement) {
-                            field.value = '';
-                        }
-                        field.setAttribute('disabled', 'disabled');
-                    } else {
-                        field.removeAttribute('disabled');
-                    }
-                });
-
-                target.style.opacity = disabled ? '0.65' : '1';
-            }
-
-            toggles.forEach(function (toggle) {
-                if (!(toggle instanceof HTMLInputElement)) {
-                    return;
-                }
-                toggle.addEventListener('change', function () {
-                    applyNaState(toggle);
-                });
-                applyNaState(toggle);
-            });
-        });
-    </script>
-<?php endif; ?>
-
 <?php if (in_array($step, [1, 2, 3], true)): ?>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            const form = document.querySelector('form[data-autosave-step="<?= (int) $step ?>"]');
-            const statusEl = document.getElementById('autosaveStatus');
-            if (!form) {
+            if (!window.SE_APPLY_WIZARD) {
                 return;
             }
 
-            const step = parseInt(form.getAttribute('data-autosave-step') || '0', 10);
-            const csrfInput = form.querySelector('input[name="csrf_token"]');
-            if (!csrfInput || !step) {
-                return;
+            if (<?= (int) $step ?> === 2 && typeof window.SE_APPLY_WIZARD.initBirthdateAgeSync === 'function') {
+                window.SE_APPLY_WIZARD.initBirthdateAgeSync({
+                    birthDateInputId: 'birthDateInput',
+                    ageInputId: 'ageInput'
+                });
             }
 
-            const endpoint = 'apply-autosave.php';
-            let lastSnapshot = '';
-            let timer = null;
-            let saving = false;
-            let queued = false;
-
-            function setStatus(text, className) {
-                if (!statusEl) {
-                    return;
-                }
-                statusEl.className = 'small mb-3 ' + className;
-                statusEl.textContent = text;
+            if (<?= (int) $step ?> === 3 && typeof window.SE_APPLY_WIZARD.initNaToggles === 'function') {
+                window.SE_APPLY_WIZARD.initNaToggles({
+                    toggleSelector: '.js-na-toggle[data-target]',
+                    honorsToggleId: 'honorsNaToggle',
+                    honorsInputSelector: '.js-honors-input'
+                });
             }
 
-            function buildSnapshot() {
-                const formData = new FormData(form);
-                formData.delete('csrf_token');
-                formData.delete('action');
-
-                const params = new URLSearchParams();
-                for (const entry of formData.entries()) {
-                    const key = entry[0];
-                    const value = entry[1];
-                    if (value instanceof File) {
-                        continue;
-                    }
-                    params.append(key, String(value));
-                }
-                return params.toString();
+            if (typeof window.SE_APPLY_WIZARD.initAutosave === 'function') {
+                window.SE_APPLY_WIZARD.initAutosave({
+                    formSelector: 'form[data-autosave-step="<?= (int) $step ?>"]',
+                    statusId: 'autosaveStatus',
+                    step: <?= (int) $step ?>,
+                    endpoint: 'apply-autosave.php',
+                    intervalMs: 10000,
+                    debounceMs: 1200
+                });
             }
-
-            function buildPayload() {
-                const formData = new FormData(form);
-                formData.set('csrf_token', csrfInput.value);
-                formData.set('action', 'autosave_step');
-                formData.set('step', String(step));
-                return formData;
-            }
-
-            async function saveDraft(force) {
-                const snapshot = buildSnapshot();
-                if (!force && snapshot === lastSnapshot) {
-                    return;
-                }
-                if (saving) {
-                    queued = true;
-                    return;
-                }
-
-                saving = true;
-                setStatus('Auto-saving draft...', 'text-muted');
-
-                try {
-                    const response = await fetch(endpoint, {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        body: buildPayload(),
-                    });
-                    const data = await response.json();
-                    if (!response.ok || !data.ok) {
-                        setStatus('Auto-save failed. Keep this page open and try again.', 'text-danger');
-                    } else {
-                        lastSnapshot = snapshot;
-                        setStatus('Draft saved at ' + (data.saved_time || 'just now') + '.', 'text-success');
-                    }
-                } catch (error) {
-                    setStatus('Auto-save failed. Check your connection.', 'text-danger');
-                } finally {
-                    saving = false;
-                    if (queued) {
-                        queued = false;
-                        saveDraft(false);
-                    }
-                }
-            }
-
-            function scheduleSave() {
-                if (timer) {
-                    window.clearTimeout(timer);
-                }
-                timer = window.setTimeout(function () {
-                    saveDraft(false);
-                }, 1200);
-            }
-
-            lastSnapshot = buildSnapshot();
-            setStatus('Auto-save is enabled for this step.', 'text-muted');
-
-            form.addEventListener('input', scheduleSave);
-            form.addEventListener('change', scheduleSave);
-            form.addEventListener('submit', function () {
-                if (timer) {
-                    window.clearTimeout(timer);
-                }
-            });
-
-            window.setInterval(function () {
-                saveDraft(false);
-            }, 10000);
-
-            window.addEventListener('beforeunload', function () {
-                const snapshot = buildSnapshot();
-                if (snapshot === lastSnapshot) {
-                    return;
-                }
-                if (navigator.sendBeacon) {
-                    navigator.sendBeacon(endpoint, buildPayload());
-                }
-            });
         });
     </script>
 <?php endif; ?>

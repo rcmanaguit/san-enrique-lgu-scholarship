@@ -120,6 +120,25 @@ function normalize_phone_number(string $phone): string
     return $digits;
 }
 
+function sms_resolve_ca_bundle_path(): string
+{
+    $candidates = [
+        trim((string) getenv('SMS_CURL_CAINFO')),
+        trim((string) ini_get('curl.cainfo')),
+        trim((string) ini_get('openssl.cafile')),
+        'C:\\wamp64\\bin\\php\\php8.3.28\\extras\\ssl\\cacert.pem',
+        'C:\\wamp64\\bin\\apache\\apache2.4.65\\bin\\cacert.pem',
+    ];
+
+    foreach ($candidates as $candidate) {
+        if ($candidate !== '' && is_file($candidate) && is_readable($candidate)) {
+            return $candidate;
+        }
+    }
+
+    return '';
+}
+
 function sms_send(string $recipientPhone, string $message, ?int $userId = null, string $smsType = 'single'): array
 {
     $provider = sms_active_provider_config();
@@ -196,6 +215,7 @@ function sms_send_via_textbee(array $provider, string $phone, string $message): 
     if ($timeout <= 0) {
         $timeout = 20;
     }
+    $caBundle = sms_resolve_ca_bundle_path();
 
     if ($deviceId === '' || $apiKey === '') {
         return [
@@ -214,22 +234,37 @@ function sms_send_via_textbee(array $provider, string $phone, string $message): 
     }
 
     $url = $baseUrl . '/api/v1/gateway/devices/' . rawurlencode($deviceId) . '/send-sms';
-    $payload = [
-        'recipients' => $phone,
+    // TextBee expects JSON body with recipients as an array.
+    $payload = json_encode([
+        'recipients' => [$phone],
         'message' => $message,
-    ];
+    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
+    if (!is_string($payload) || $payload === '') {
+        return [
+            'ok' => false,
+            'provider' => $providerKey,
+            'error' => 'Unable to encode TextBee payload.',
+        ];
+    }
+
+    $curlOptions = [
         CURLOPT_POST => true,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT => $timeout,
         CURLOPT_HTTPHEADER => [
             'x-api-key: ' . $apiKey,
             'Accept: application/json',
+            'Content-Type: application/json',
         ],
         CURLOPT_POSTFIELDS => $payload,
-    ]);
+    ];
+    if ($caBundle !== '') {
+        $curlOptions[CURLOPT_CAINFO] = $caBundle;
+    }
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, $curlOptions);
 
     $body = curl_exec($ch);
     $curlErr = curl_error($ch);

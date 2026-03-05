@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes/bootstrap.php';
 
+/** @var mixed $conn */
+$conn = $GLOBALS['conn'] ?? null;
+
 header('Content-Type: application/json; charset=UTF-8');
 
 $respond = static function (array $payload, int $statusCode = 200): void {
@@ -50,17 +53,12 @@ $wizard = wizard_state();
 
 if ($step === 1) {
     $wizard['step1'] = [
-        'scholarship_type' => trim((string) ($_POST['scholarship_type'] ?? '')),
         'applicant_type' => trim((string) ($_POST['applicant_type'] ?? '')),
         'semester' => trim((string) ($_POST['semester'] ?? '')),
         'school_year' => trim((string) ($_POST['school_year'] ?? '')),
         'school_name' => trim((string) ($_POST['school_name'] ?? '')),
         'school_type' => trim((string) ($_POST['school_type'] ?? '')),
         'course' => trim((string) ($_POST['course'] ?? '')),
-        'year_level' => trim((string) ($_POST['year_level'] ?? '')),
-        'gwa' => trim((string) ($_POST['gwa'] ?? '')),
-        'family_income' => trim((string) ($_POST['family_income'] ?? '')),
-        'reason' => trim((string) ($_POST['reason'] ?? '')),
     ];
 }
 
@@ -91,8 +89,7 @@ if ($step === 2) {
 }
 
 if ($step === 3) {
-    $motherNa = isset($_POST['mother_na']) ? 1 : 0;
-    $fatherNa = isset($_POST['father_na']) ? 1 : 0;
+    $honorsNa = isset($_POST['honors_na']) ? 1 : 0;
     $siblingsNa = isset($_POST['siblings_na']) ? 1 : 0;
     $grantsNa = isset($_POST['grants_na']) ? 1 : 0;
 
@@ -130,6 +127,9 @@ if ($step === 3) {
             'year' => trim((string) ($row['year'] ?? '')),
             'honors' => trim((string) ($row['honors'] ?? '')),
         ];
+        if ($honorsNa) {
+            $entry['honors'] = '';
+        }
         if (implode('', $entry) !== '') {
             $education[] = $entry;
         }
@@ -152,16 +152,15 @@ if ($step === 3) {
     }
 
     $wizard['step3'] = [
-        'mother_na' => $motherNa,
-        'mother_name' => $motherNa ? '' : trim((string) ($_POST['mother_name'] ?? '')),
-        'mother_age' => $motherNa ? '' : trim((string) ($_POST['mother_age'] ?? '')),
-        'mother_occupation' => $motherNa ? '' : trim((string) ($_POST['mother_occupation'] ?? '')),
-        'mother_monthly_income' => $motherNa ? '' : trim((string) ($_POST['mother_monthly_income'] ?? '')),
-        'father_na' => $fatherNa,
-        'father_name' => $fatherNa ? '' : trim((string) ($_POST['father_name'] ?? '')),
-        'father_age' => $fatherNa ? '' : trim((string) ($_POST['father_age'] ?? '')),
-        'father_occupation' => $fatherNa ? '' : trim((string) ($_POST['father_occupation'] ?? '')),
-        'father_monthly_income' => $fatherNa ? '' : trim((string) ($_POST['father_monthly_income'] ?? '')),
+        'mother_name' => trim((string) ($_POST['mother_name'] ?? '')),
+        'mother_age' => trim((string) ($_POST['mother_age'] ?? '')),
+        'mother_occupation' => trim((string) ($_POST['mother_occupation'] ?? '')),
+        'mother_monthly_income' => trim((string) ($_POST['mother_monthly_income'] ?? '')),
+        'father_name' => trim((string) ($_POST['father_name'] ?? '')),
+        'father_age' => trim((string) ($_POST['father_age'] ?? '')),
+        'father_occupation' => trim((string) ($_POST['father_occupation'] ?? '')),
+        'father_monthly_income' => trim((string) ($_POST['father_monthly_income'] ?? '')),
+        'honors_na' => $honorsNa,
         'siblings_na' => $siblingsNa,
         'siblings' => $siblings,
         'education' => $education,

@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
+/** @var mixed $conn */
+$conn = $GLOBALS['conn'] ?? null;
+
 require_login('../login.php');
 require_role(['admin', 'staff'], '../index.php');
 
@@ -27,7 +30,7 @@ $currentSemesterLabel = 'Current Semester';
 $approvalRate = 0.0;
 $processingRate = 0.0;
 $recentApplications = [];
-$scholarshipBreakdown = [];
+$applicantTypeBreakdown = [];
 
 $trendLabels = [];
 $trendData = [];
@@ -102,11 +105,13 @@ if (db_ready()) {
         + ($statusTotals['for_interview'] ?? 0);
     $stats['approved'] = ($statusTotals['approved'] ?? 0)
         + ($statusTotals['for_soa_submission'] ?? 0)
-        + ($statusTotals['soa_submitted'] ?? 0);
+        + ($statusTotals['soa_submitted'] ?? 0)
+        + ($statusTotals['waitlisted'] ?? 0)
+        + ($statusTotals['disbursed'] ?? 0);
     $stats['for_soa_submission'] = (int) ($statusTotals['for_soa_submission'] ?? 0);
-    $stats['rejected_waitlisted'] = (int) ($statusTotals['rejected'] ?? 0) + (int) ($statusTotals['waitlisted'] ?? 0);
+    $stats['rejected_waitlisted'] = (int) ($statusTotals['rejected'] ?? 0);
 
-    $recentSql = "SELECT a.id, a.application_no, a.scholarship_type, a.status, a.updated_at, u.first_name, u.last_name
+    $recentSql = "SELECT a.id, a.application_no, a.applicant_type, a.status, a.updated_at, u.first_name, u.last_name
                   FROM applications a
                   INNER JOIN users u ON u.id = a.user_id
                   ORDER BY a.updated_at DESC
@@ -116,14 +121,14 @@ if (db_ready()) {
         $recentApplications = $recentResult->fetch_all(MYSQLI_ASSOC);
     }
 
-    $scholarshipSql = "SELECT scholarship_type, COUNT(*) AS total
+    $scholarshipSql = "SELECT applicant_type, COUNT(*) AS total
                        FROM applications
-                       GROUP BY scholarship_type
+                       GROUP BY applicant_type
                        ORDER BY total DESC
                        LIMIT 6";
     $scholarshipResult = $conn->query($scholarshipSql);
     if ($scholarshipResult instanceof mysqli_result) {
-        $scholarshipBreakdown = $scholarshipResult->fetch_all(MYSQLI_ASSOC);
+        $applicantTypeBreakdown = $scholarshipResult->fetch_all(MYSQLI_ASSOC);
     }
 
     $trendSql = "SELECT school_year, semester, COUNT(*) AS total
@@ -173,8 +178,8 @@ if (!$statusChartLabels) {
 
 $scholarshipChartLabels = [];
 $scholarshipChartData = [];
-foreach ($scholarshipBreakdown as $row) {
-    $label = trim((string) ($row['scholarship_type'] ?? ''));
+foreach ($applicantTypeBreakdown as $row) {
+    $label = strtoupper(trim((string) ($row['applicant_type'] ?? '')));
     if ($label === '') {
         $label = 'Unspecified';
     }
@@ -227,16 +232,13 @@ include __DIR__ . '/../includes/header.php';
             <div class="col-12 col-xl-4">
                 <div class="d-grid gap-2">
                     <a href="applications.php" class="btn btn-primary">
-                        <i class="fa-solid fa-folder-tree me-1"></i>Manage Applications
+                        <i class="fa-solid fa-folder-tree me-1"></i>Open Application Queue
                     </a>
-                    <a href="masterlist.php" class="btn btn-outline-primary">
-                        <i class="fa-solid fa-table-list me-1"></i>Open Masterlist
-                    </a>
-                    <a href="verify-qr.php" class="btn btn-outline-primary">
-                        <i class="fa-solid fa-qrcode me-1"></i>Scan / Verify QR
+                    <a href="disbursements.php" class="btn btn-outline-primary">
+                        <i class="fa-solid fa-money-check-dollar me-1"></i>Open Payout Queue
                     </a>
                     <a href="sms.php" class="btn btn-outline-primary">
-                        <i class="fa-solid fa-comments me-1"></i>SMS Module
+                        <i class="fa-solid fa-comments me-1"></i>Open SMS
                     </a>
                 </div>
             </div>
@@ -294,7 +296,7 @@ include __DIR__ . '/../includes/header.php';
         <article class="card card-soft dashboard-stat-card tone-red h-100">
             <div class="card-body">
                 <span class="dashboard-stat-icon"><i class="fa-solid fa-circle-xmark"></i></span>
-                <p class="small mb-1">Rejected / Waitlisted</p>
+                <p class="small mb-1">Rejected</p>
                 <h3><?= number_format($stats['rejected_waitlisted']) ?></h3>
             </div>
         </article>
@@ -328,7 +330,7 @@ include __DIR__ . '/../includes/header.php';
     <div class="col-12">
         <section class="card card-soft dashboard-chart-card">
             <div class="card-body">
-                <h2 class="h6 mb-3"><i class="fa-solid fa-chart-column me-1 text-primary"></i>Top Scholarship Types</h2>
+                <h2 class="h6 mb-3"><i class="fa-solid fa-chart-column me-1 text-primary"></i>Top Applicant Types</h2>
                 <div class="dashboard-chart-canvas dashboard-chart-canvas-wide">
                     <canvas id="scholarshipTypeChart"></canvas>
                 </div>
@@ -339,50 +341,26 @@ include __DIR__ . '/../includes/header.php';
 
 <section class="card card-soft shadow-sm mb-4">
     <div class="card-body">
-        <h2 class="h6 mb-3">Quick Actions</h2>
+        <h2 class="h6 mb-3">Workflow Shortcuts</h2>
         <div class="dashboard-action-grid">
-            <a href="masterlist.php" class="dashboard-action-btn">
-                <i class="fa-solid fa-table-list"></i><span>Masterlist</span>
-            </a>
             <a href="applications.php" class="dashboard-action-btn">
-                <i class="fa-solid fa-folder-tree"></i><span>Applications</span>
-            </a>
-            <a href="interviews.php" class="dashboard-action-btn">
-                <i class="fa-solid fa-calendar-check"></i><span>Interviews</span>
+                <i class="fa-solid fa-folder-tree"></i><span>Application Queue</span>
             </a>
             <a href="disbursements.php" class="dashboard-action-btn">
-                <i class="fa-solid fa-money-check-dollar"></i><span>Payout Schedule</span>
+                <i class="fa-solid fa-money-check-dollar"></i><span>Payout Queue</span>
             </a>
-            <a href="verify-qr.php" class="dashboard-action-btn">
-                <i class="fa-solid fa-qrcode"></i><span>QR Verification</span>
-            </a>
-            <a href="scholars.php" class="dashboard-action-btn">
-                <i class="fa-solid fa-users"></i><span>Scholars</span>
-            </a>
-            <a href="global-search.php" class="dashboard-action-btn">
-                <i class="fa-solid fa-magnifying-glass"></i><span>Global Search</span>
+            <a href="sms.php" class="dashboard-action-btn">
+                <i class="fa-solid fa-comments"></i><span>SMS</span>
             </a>
             <a href="analytics.php" class="dashboard-action-btn">
-                <i class="fa-solid fa-chart-pie"></i><span>Analytics</span>
+                <i class="fa-solid fa-chart-pie"></i><span>Reports</span>
+            </a>
+            <a href="../admin-only/announcements.php" class="dashboard-action-btn">
+                <i class="fa-regular fa-newspaper"></i><span>Announcements</span>
             </a>
             <?php if ($isAdmin): ?>
-                <a href="../admin-only/staff.php" class="dashboard-action-btn">
-                    <i class="fa-solid fa-user-shield"></i><span>Staff</span>
-                </a>
-                <a href="../admin-only/announcements.php" class="dashboard-action-btn">
-                    <i class="fa-regular fa-newspaper"></i><span>Announcements</span>
-                </a>
-                <a href="../admin-only/requirements.php" class="dashboard-action-btn">
-                    <i class="fa-solid fa-list-check"></i><span>Requirements</span>
-                </a>
                 <a href="../admin-only/application-periods.php" class="dashboard-action-btn">
                     <i class="fa-solid fa-calendar-days"></i><span>Application Periods</span>
-                </a>
-                <a href="../admin-only/reports.php" class="dashboard-action-btn">
-                    <i class="fa-solid fa-chart-line"></i><span>Reports</span>
-                </a>
-                <a href="../admin-only/logs.php" class="dashboard-action-btn">
-                    <i class="fa-solid fa-clipboard-list"></i><span>Logs</span>
                 </a>
             <?php endif; ?>
         </div>
@@ -404,7 +382,7 @@ include __DIR__ . '/../includes/header.php';
                         <tr>
                             <th>Application</th>
                             <th>Applicant</th>
-                            <th>Scholarship</th>
+                            <th>Applicant Type</th>
                             <th>Status</th>
                             <th>Updated</th>
                         </tr>
@@ -417,7 +395,7 @@ include __DIR__ . '/../includes/header.php';
                                 <div class="small text-muted">#<?= (int) $row['id'] ?></div>
                             </td>
                             <td><?= e(trim((string) ($row['first_name'] ?? '') . ' ' . (string) ($row['last_name'] ?? ''))) ?></td>
-                            <td><?= e((string) ($row['scholarship_type'] ?? '')) ?></td>
+                            <td><?= e(strtoupper((string) ($row['applicant_type'] ?? ''))) ?></td>
                             <td><span class="badge <?= status_badge_class((string) ($row['status'] ?? '')) ?>"><?= e(strtoupper((string) ($row['status'] ?? ''))) ?></span></td>
                             <td><?= date('M d, Y h:i A', strtotime((string) ($row['updated_at'] ?? 'now'))) ?></td>
                         </tr>

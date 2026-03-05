@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
+/** @var mixed $conn */
+$conn = $GLOBALS['conn'] ?? null;
+
 require_login('../login.php');
 require_admin('../index.php');
 
@@ -328,6 +331,9 @@ include __DIR__ . '/../includes/header.php';
                 <button type="button" class="btn btn-outline-primary w-100 announcement-template-btn" id="insertRequirementsBtn">
                     <i class="fa-solid fa-list-check me-1"></i>Insert Active Requirements List
                 </button>
+                <button type="button" class="btn btn-outline-secondary w-100 mt-2 announcement-template-btn" id="clearAnnouncementContentBtn">
+                    <i class="fa-solid fa-eraser me-1"></i>Clear Content
+                </button>
             </div>
             <div class="col-12">
                 <div class="form-text mt-0">Choose a template to auto-fill title and content, then adjust details before publishing.</div>
@@ -412,6 +418,7 @@ include __DIR__ . '/../includes/header.php';
         const titleInput = document.getElementById('announcementTitle');
         const contentInput = document.getElementById('announcementContent');
         const insertRequirementsBtn = document.getElementById('insertRequirementsBtn');
+        const clearAnnouncementContentBtn = document.getElementById('clearAnnouncementContentBtn');
         const promptModalEl = document.getElementById('announcementPromptModal');
         const promptIconEl = document.getElementById('announcementPromptIcon');
         const promptTitleEl = document.getElementById('announcementPromptTitle');
@@ -680,6 +687,36 @@ include __DIR__ . '/../includes/header.php';
         });
 
         insertRequirementsBtn.addEventListener('click', insertRequirements);
+        if (clearAnnouncementContentBtn) {
+            clearAnnouncementContentBtn.addEventListener('click', async function () {
+                if (contentInput.value.trim() === '') {
+                    return;
+                }
+
+                const proceed = await showPrompt({
+                    title: 'Clear Announcement Content?',
+                    message: 'This will clear the content text area.',
+                    confirmText: 'Clear Content',
+                    cancelText: 'Cancel',
+                    kind: 'warning',
+                    confirmClass: 'btn btn-danger'
+                });
+
+                if (!proceed) {
+                    return;
+                }
+
+                contentInput.value = '';
+                contentInput.focus();
+            });
+        }
+
+        const url = new URL(window.location.href);
+        const preselectTemplate = String(url.searchParams.get('template') || '').trim();
+        if (preselectTemplate !== '' && Object.prototype.hasOwnProperty.call(templateFactory, preselectTemplate)) {
+            templateSelect.value = preselectTemplate;
+            applyTemplate(preselectTemplate);
+        }
 
         const deleteForms = document.querySelectorAll('.js-delete-announcement-form');
         deleteForms.forEach(function (form) {

@@ -70,6 +70,16 @@ $notificationsActive = $isActive('notifications.php');
 $profileActive = $isActive(['profile-settings.php', 'account-security.php']);
 $globalSearchActive = $isActive('shared/global-search.php');
 $canUseGlobalSearch = $user && in_array((string) ($user['role'] ?? ''), ['admin', 'staff'], true);
+$settingsNavActive = $isActive([
+    'profile-settings.php',
+    'account-security.php',
+    'admin-only/announcements.php',
+    'admin-only/requirements.php',
+    'admin-only/application-periods.php',
+    'admin-only/staff.php',
+    'admin-only/logs.php',
+]);
+$isAdminUser = $user && (string) ($user['role'] ?? '') === 'admin';
 $brandHomePath = 'index.php';
 if ($user && in_array((string) ($user['role'] ?? ''), ['admin', 'staff'], true)) {
     $brandHomePath = 'shared/dashboard.php';
@@ -81,6 +91,10 @@ if ($user && in_array((string) ($user['role'] ?? ''), ['admin', 'staff'], true))
     data-desktop-sidebar="<?= $enableDesktopSidebar ? '1' : '0' ?>">
     <div class="container">
         <div class="navbar-left-cluster">
+            <button class="navbar-toggler me-2" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
+                aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
             <?php if ($enableDesktopSidebar): ?>
                 <button type="button" class="btn btn-outline-primary btn-sm nav-sidebar-toggle d-none d-lg-inline-flex"
                     data-sidebar-toggle aria-label="Toggle sidebar" aria-expanded="true" title="Toggle sidebar">
@@ -105,7 +119,7 @@ if ($user && in_array((string) ($user['role'] ?? ''), ['admin', 'staff'], true))
                         data-search-page="<?= e($link('shared/global-search.php')) ?>">
                         <button
                             type="button"
-                            class="btn btn-outline-primary btn-sm nav-top-icon<?= $globalSearchActive ? ' active' : '' ?>"
+                            class="btn btn-outline-primary btn-sm nav-top-icon d-none d-lg-inline-flex<?= $globalSearchActive ? ' active' : '' ?>"
                             title="Global Search"
                             aria-label="Global Search"
                             aria-expanded="false"
@@ -157,7 +171,7 @@ if ($user && in_array((string) ($user['role'] ?? ''), ['admin', 'staff'], true))
                     <i class="fa-solid fa-user-gear"></i>
                 </a>
                 <a
-                    class="btn btn-outline-danger btn-sm nav-top-icon"
+                    class="btn btn-outline-danger btn-sm nav-top-icon d-none d-lg-inline-flex"
                     href="<?= e($link('logout.php')) ?>"
                     title="Logout"
                     aria-label="Logout"
@@ -166,13 +180,9 @@ if ($user && in_array((string) ($user['role'] ?? ''), ['admin', 'staff'], true))
                 </a>
             </div>
         <?php endif; ?>
-        <button class="navbar-toggler<?= $user ? ' ms-2' : ' ms-auto' ?>" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
-            aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
         <div class="collapse navbar-collapse app-nav-panel" id="mainNav">
             <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                <?php if (!$user || $user['role'] === 'applicant'): ?>
+                <?php if (!$user): ?>
                     <li class="nav-item">
                         <a class="<?= e($navLinkClass(['announcements.php', 'shared/announcements.php'])) ?>"
                             href="<?= e($link('announcements.php')) ?>"><i
@@ -185,20 +195,9 @@ if ($user && in_array((string) ($user['role'] ?? ''), ['admin', 'staff'], true))
                                 class="fa-solid fa-gauge me-1"></i>Dashboard</a>
                     </li>
                     <li class="nav-item">
-                        <?php if ($hasOpenApplicationPeriod): ?>
-                            <a class="<?= e($navLinkClass('apply.php')) ?>" href="<?= e($link('apply.php')) ?>"><i
-                                    class="fa-solid fa-file-pen me-1"></i>Apply</a>
-                        <?php else: ?>
-                            <a class="nav-link disabled" href="#" tabindex="-1" aria-disabled="true"
-                                title="Application Period Closed">
-                                <i class="fa-solid fa-file-pen me-1"></i>Apply (Closed)
-                            </a>
-                        <?php endif; ?>
-                    </li>
-                    <li class="nav-item">
                         <a class="<?= e($navLinkClass('my-application.php')) ?>"
                             href="<?= e($link('my-application.php')) ?>"><i class="fa-solid fa-folder-open me-1"></i>My
-                            Application</a>
+                            Application & Status</a>
                     </li>
                 <?php endif; ?>
                 <?php if ($user && in_array($user['role'], ['admin', 'staff'], true)): ?>
@@ -210,73 +209,79 @@ if ($user && in_array((string) ($user['role'] ?? ''), ['admin', 'staff'], true))
                     <li class="nav-item">
                         <a class="<?= e($navLinkClass('shared/applications.php')) ?>"
                             href="<?= e($link('shared/applications.php')) ?>"><i
-                                class="fa-solid fa-folder-tree me-1"></i>Applications</a>
+                                class="fa-solid fa-folder-tree me-1"></i>Application Queue</a>
                     </li>
                     <li class="nav-item">
-                        <a class="<?= e($navLinkClass('shared/masterlist.php')) ?>"
-                            href="<?= e($link('shared/masterlist.php')) ?>"><i
-                                class="fa-solid fa-table-list me-1"></i>Masterlist</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="<?= e($navLinkClass('shared/interviews.php')) ?>"
-                            href="<?= e($link('shared/interviews.php')) ?>"><i
-                                class="fa-solid fa-calendar-check me-1"></i>Interviews</a>
+                        <a class="<?= e($navLinkClass(['shared/scholars.php', 'shared/applicants-scholars.php', 'shared/masterlist.php'])) ?>"
+                            href="<?= e($link('shared/scholars.php')) ?>"><i
+                                class="fa-solid fa-users-between-lines me-1"></i>Applicants & Scholars</a>
                     </li>
                     <li class="nav-item">
                         <a class="<?= e($navLinkClass('shared/disbursements.php')) ?>"
                             href="<?= e($link('shared/disbursements.php')) ?>"><i
-                                class="fa-solid fa-money-check-dollar me-1"></i>Disbursements</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="<?= e($navLinkClass('shared/verify-qr.php')) ?>"
-                            href="<?= e($link('shared/verify-qr.php')) ?>"><i class="fa-solid fa-qrcode me-1"></i>QR
-                            Scanner</a>
+                                class="fa-solid fa-money-check-dollar me-1"></i>Payout Queue</a>
                     </li>
                     <li class="nav-item">
                         <a class="<?= e($navLinkClass('shared/sms.php')) ?>" href="<?= e($link('shared/sms.php')) ?>"><i
-                                class="fa-solid fa-comments me-1"></i>SMS Module</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="<?= e($navLinkClass('shared/scholars.php')) ?>"
-                            href="<?= e($link('shared/scholars.php')) ?>"><i class="fa-solid fa-users me-1"></i>Scholars</a>
+                                class="fa-solid fa-comments me-1"></i>SMS</a>
                     </li>
                     <li class="nav-item">
                         <a class="<?= e($navLinkClass('shared/analytics.php')) ?>"
                             href="<?= e($link('shared/analytics.php')) ?>"><i
-                                class="fa-solid fa-chart-pie me-1"></i>Analytics</a>
+                                class="fa-solid fa-chart-pie me-1"></i>Analytics & Reports</a>
                     </li>
-                    <?php if ($user['role'] === 'admin'): ?>
-                        <li class="nav-item">
-                            <a class="<?= e($navLinkClass('admin-only/staff.php')) ?>"
-                                href="<?= e($link('admin-only/staff.php')) ?>"><i
-                                    class="fa-solid fa-user-shield me-1"></i>Staff</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="<?= e($navLinkClass('admin-only/announcements.php')) ?>"
-                                href="<?= e($link('admin-only/announcements.php')) ?>"><i
-                                    class="fa-regular fa-newspaper me-1"></i>Manage Announcements</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="<?= e($navLinkClass('admin-only/requirements.php')) ?>"
-                                href="<?= e($link('admin-only/requirements.php')) ?>"><i
-                                    class="fa-solid fa-list-check me-1"></i>Requirements</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="<?= e($navLinkClass('admin-only/application-periods.php')) ?>"
-                                href="<?= e($link('admin-only/application-periods.php')) ?>"><i
-                                    class="fa-solid fa-calendar-days me-1"></i>Application Periods</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="<?= e($navLinkClass('admin-only/reports.php')) ?>"
-                                href="<?= e($link('admin-only/reports.php')) ?>"><i
-                                    class="fa-solid fa-chart-line me-1"></i>Reports</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="<?= e($navLinkClass('admin-only/logs.php')) ?>"
-                                href="<?= e($link('admin-only/logs.php')) ?>"><i
-                                    class="fa-solid fa-clipboard-list me-1"></i>Logs</a>
+                    <li class="nav-item">
+                        <a
+                            class="nav-link settings-toggle<?= $settingsNavActive ? ' active' : '' ?>"
+                            href="#settingsNavMenu"
+                            data-bs-toggle="collapse"
+                            role="button"
+                            aria-expanded="<?= $settingsNavActive ? 'true' : 'false' ?>"
+                            aria-controls="settingsNavMenu"
+                        >
+                            <i class="fa-solid fa-gear me-1"></i>Settings
+                            <i class="fa-solid fa-chevron-down ms-auto small"></i>
+                        </a>
+                        <div class="collapse settings-submenu<?= $settingsNavActive ? ' show' : '' ?>" id="settingsNavMenu">
+                            <div class="nav flex-column gap-1">
+                                <a class="<?= e($navLinkClass(['profile-settings.php', 'account-security.php'])) ?>" href="<?= e($link('profile-settings.php')) ?>">
+                                    <i class="fa-solid fa-user-gear me-1"></i>Profile & Security
+                                </a>
+                                <a class="<?= e($navLinkClass('admin-only/announcements.php')) ?>" href="<?= e($link('admin-only/announcements.php')) ?>">
+                                    <i class="fa-regular fa-newspaper me-1"></i>Announcements
+                                </a>
+                            <?php if ($isAdminUser): ?>
+                                <a class="<?= e($navLinkClass('admin-only/requirements.php')) ?>" href="<?= e($link('admin-only/requirements.php')) ?>">
+                                    <i class="fa-solid fa-list-check me-1"></i>Requirements
+                                </a>
+                                <a class="<?= e($navLinkClass('admin-only/application-periods.php')) ?>" href="<?= e($link('admin-only/application-periods.php')) ?>">
+                                    <i class="fa-solid fa-calendar-days me-1"></i>Application Periods
+                                </a>
+                                <a class="<?= e($navLinkClass('admin-only/staff.php')) ?>" href="<?= e($link('admin-only/staff.php')) ?>">
+                                    <i class="fa-solid fa-user-shield me-1"></i>Staff
+                                </a>
+                                <a class="<?= e($navLinkClass('admin-only/logs.php')) ?>" href="<?= e($link('admin-only/logs.php')) ?>">
+                                    <i class="fa-solid fa-clipboard-list me-1"></i>Logs
+                                </a>
+                            <?php endif; ?>
+                            </div>
+                        </div>
+                    </li>
+                <?php endif; ?>
+                <?php if ($user): ?>
+                    <?php if ($canUseGlobalSearch): ?>
+                        <li class="nav-item d-lg-none">
+                            <a class="<?= e($navLinkClass('shared/global-search.php')) ?>"
+                                href="<?= e($link('shared/global-search.php')) ?>">
+                                <i class="fa-solid fa-magnifying-glass me-1"></i>Global Search
+                            </a>
                         </li>
                     <?php endif; ?>
+                    <li class="nav-item d-lg-none">
+                        <a class="nav-link" href="<?= e($link('logout.php')) ?>">
+                            <i class="fa-solid fa-right-from-bracket me-1"></i>Logout
+                        </a>
+                    </li>
                 <?php endif; ?>
             </ul>
             <div class="d-flex gap-2 app-nav-actions">
@@ -302,5 +307,6 @@ if ($user && in_array((string) ($user['role'] ?? ''), ['admin', 'staff'], true))
                 <?php endif; ?>
             </div>
         </div>
+        <div class="mobile-nav-backdrop d-lg-none" data-mobile-nav-backdrop></div>
     </div>
 </nav>

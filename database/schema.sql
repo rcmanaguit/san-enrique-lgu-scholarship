@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS users (
     school_name VARCHAR(180) NULL,
     school_type ENUM('public','private') NULL,
     course VARCHAR(150) NULL,
-    year_level VARCHAR(30) NULL,
     address TEXT NULL,
     barangay VARCHAR(100) NULL,
     town VARCHAR(120) NOT NULL DEFAULT 'San Enrique',
@@ -48,7 +47,6 @@ CREATE TABLE IF NOT EXISTS requirement_templates (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     requirement_name VARCHAR(180) NOT NULL,
     description VARCHAR(255) NULL,
-    scholarship_type VARCHAR(120) NULL,
     applicant_type ENUM('new','renew') NULL,
     school_type ENUM('public','private') NULL,
     is_required TINYINT(1) NOT NULL DEFAULT 1,
@@ -81,20 +79,18 @@ CREATE TABLE IF NOT EXISTS applications (
     user_id INT UNSIGNED NOT NULL,
     application_period_id INT UNSIGNED NULL,
     qr_token VARCHAR(80) NOT NULL UNIQUE,
-    scholarship_type VARCHAR(120) NOT NULL,
     applicant_type ENUM('new','renew') NOT NULL DEFAULT 'new',
-    semester VARCHAR(50) NOT NULL,
+    semester ENUM('First Semester','Second Semester') NOT NULL,
     school_year VARCHAR(30) NOT NULL,
     school_name VARCHAR(180) NULL,
     school_type ENUM('public','private') NULL,
     course VARCHAR(150) NULL,
-    year_level VARCHAR(30) NULL,
     last_name VARCHAR(100) NULL,
     first_name VARCHAR(100) NULL,
     middle_name VARCHAR(100) NULL,
     age TINYINT UNSIGNED NULL,
-    civil_status VARCHAR(40) NULL,
-    sex VARCHAR(20) NULL,
+    civil_status ENUM('Single','Married','Widowed','Separated') NULL,
+    sex ENUM('Male','Female') NULL,
     birth_date DATE NULL,
     birth_place VARCHAR(180) NULL,
     barangay VARCHAR(100) NULL,
@@ -113,18 +109,17 @@ CREATE TABLE IF NOT EXISTS applications (
     siblings_json LONGTEXT NULL,
     educational_background_json LONGTEXT NULL,
     grants_availed_json LONGTEXT NULL,
-    gwa DECIMAL(4,2) NULL,
-    family_income DECIMAL(12,2) NULL,
-    reason TEXT NULL,
     photo_path VARCHAR(255) NULL,
     status ENUM(
         'draft',
         'submitted',
         'for_review',
+        'for_resubmission',
         'for_interview',
         'approved',
         'for_soa_submission',
         'soa_submitted',
+        'disbursed',
         'rejected',
         'waitlisted'
     ) NOT NULL DEFAULT 'submitted',
@@ -300,7 +295,6 @@ CREATE TABLE IF NOT EXISTS application_wizard_drafts (
 
 CREATE INDEX idx_applications_status ON applications(status);
 CREATE INDEX idx_applications_school_year ON applications(school_year);
-CREATE INDEX idx_applications_scholarship_type ON applications(scholarship_type);
 CREATE INDEX idx_applications_barangay ON applications(barangay);
 CREATE INDEX idx_documents_application_id ON application_documents(application_id);
 CREATE INDEX idx_application_periods_open ON application_periods(is_open, start_date, end_date);
@@ -313,6 +307,33 @@ CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id);
 CREATE INDEX idx_notifications_user_read_created ON notifications(user_id, is_read, created_at);
 CREATE INDEX idx_notifications_created_at ON notifications(created_at);
 CREATE INDEX idx_sms_templates_active ON sms_templates(is_active, template_category);
+
+-- One-time status normalization for legacy records:
+-- Submitted applications should now be treated as For Review in the workflow queue.
+UPDATE applications
+SET status = 'for_review'
+WHERE status = 'submitted';
+
+-- Ensure `disbursed` status exists for existing databases.
+SET @has_disbursed_status := (
+    SELECT CASE
+        WHEN COLUMN_TYPE LIKE '%''disbursed''%' THEN 1
+        ELSE 0
+    END
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'applications'
+      AND COLUMN_NAME = 'status'
+    LIMIT 1
+);
+SET @alter_applications_status_sql := IF(
+    COALESCE(@has_disbursed_status, 0) = 0,
+    "ALTER TABLE applications MODIFY COLUMN status ENUM('draft','submitted','for_review','for_resubmission','for_interview','approved','for_soa_submission','soa_submitted','disbursed','rejected','waitlisted') NOT NULL DEFAULT 'submitted'",
+    'SELECT 1'
+);
+PREPARE stmt_alter_applications_status FROM @alter_applications_status_sql;
+EXECUTE stmt_alter_applications_status;
+DEALLOCATE PREPARE stmt_alter_applications_status;
 
 INSERT INTO users (
     role,
@@ -360,19 +381,18 @@ WHERE NOT EXISTS (
 INSERT INTO requirement_templates (
     requirement_name,
     description,
-    scholarship_type,
     applicant_type,
     school_type,
     is_required,
     is_active,
     sort_order
 ) VALUES
-('Report Card / Previous Semester (Photocopy)', 'Latest available academic performance record', NULL, NULL, NULL, 1, 1, 10),
-('1 pc 2x2 Picture', 'Recent 2x2 ID photo', NULL, NULL, NULL, 1, 1, 20),
-('Barangay Residency', 'Proof of residency in San Enrique', NULL, NULL, NULL, 1, 1, 30),
-('Original Student Copy / Statement of Account (SOA)', 'School-issued statement of account', NULL, NULL, NULL, 1, 1, 40),
-('Certificate of Enrollment', 'Current semester enrollment certificate', 'Academic Scholarship', NULL, NULL, 1, 1, 50),
-('Certificate of Good Moral', 'Issued by the school', NULL, 'new', NULL, 0, 1, 60);
+('Report Card / Previous Semester (Photocopy)', 'Latest available academic performance record', NULL, NULL, 1, 1, 10),
+('1 pc 2x2 Picture', 'Recent 2x2 ID photo', NULL, NULL, 1, 1, 20),
+('Barangay Residency', 'Proof of residency in San Enrique', NULL, NULL, 1, 1, 30),
+('Original Student Copy / Statement of Account (SOA)', 'School-issued statement of account', NULL, NULL, 1, 1, 40),
+('Certificate of Enrollment', 'Current semester enrollment certificate', NULL, NULL, 1, 1, 50),
+('Certificate of Good Moral', 'Issued by the school', 'new', NULL, 0, 1, 60);
 
 INSERT INTO sms_templates (
     template_name,
@@ -426,6 +446,22 @@ INSERT INTO sms_templates (
     'Office Advisory',
     'San Enrique LGU Scholarship Advisory: [Announcement]. For questions, please visit the Mayor''s Office.',
     'General',
+    1,
+    1,
+    1
+),
+(
+    'Application Moved to Interview Stage',
+    'San Enrique LGU Scholarship: Application [Application No] passed document review and is now FOR INTERVIEW. Please wait for the official interview schedule.',
+    'Interview',
+    1,
+    1,
+    1
+),
+(
+    'Document Resubmission Required',
+    'San Enrique LGU Scholarship: Application [Application No] requires document resubmission. Please resubmit: [Missing Documents].',
+    'Requirements',
     1,
     1,
     1

@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes/bootstrap.php';
 
+/** @var mixed $conn */
+$conn = $GLOBALS['conn'] ?? null;
+
 require_login('login.php');
 
 $user = current_user();
@@ -13,7 +16,7 @@ if ($applicationId <= 0) {
     redirect('my-application.php');
 }
 
-$sql = "SELECT id, application_no, qr_token, first_name, last_name, school_year, scholarship_type, status
+$sql = "SELECT id, application_no, qr_token, first_name, last_name, school_year, status
         FROM applications
         WHERE id = ?";
 if (!user_has_role(['admin', 'staff'])) {
@@ -54,7 +57,7 @@ include __DIR__ . '/includes/header.php';
 <div class="card card-soft shadow-sm">
     <div class="card-body text-center p-4">
         <h2 class="h5 mb-1"><?= e((string) $application['application_no']) ?></h2>
-        <p class="text-muted mb-3"><?= e((string) $application['scholarship_type']) ?> | <?= e((string) $application['school_year']) ?></p>
+        <p class="text-muted mb-3"><?= e((string) $application['school_year']) ?></p>
 
         <div class="d-flex justify-content-center">
             <div style="width:350px;height:350px;border:1px solid #c7dbea;padding:10px;background:#fff;display:flex;align-items:center;justify-content:center;">
