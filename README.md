@@ -15,7 +15,7 @@ Plain PHP + MySQL + Bootstrap (no framework, no MVC) capstone project starter.
 - Admin masterlist with PDF/DOCX/XLSX export
 - Data analytics dashboard (application, disbursement, SMS, QR trends)
 - Reporting hub with range filters and exportable datasets
-- System logs (audit logs, SMS logs, QR scan logs)
+- System logs (audit logs, SMS logs)
 - Global live search for admin/staff across major records
 - Live search, live filter, and client-side pagination
 - Peach + Blue/LightBlue theme, modern fonts, and Font Awesome icons
@@ -41,6 +41,27 @@ Plain PHP + MySQL + Bootstrap (no framework, no MVC) capstone project starter.
    - [`database/schema.sql`](/c:/xampp/htdocs/san-enrique-lgu-scholarship/database/schema.sql)
 5. Open:
    - `http://localhost/san-enrique-lgu-scholarship/`
+
+## PHPUnit Tests
+1. Install/update dependencies:
+   - `composer install`
+2. Run tests:
+   - `composer test`
+3. Current coverage includes:
+   - school/course/barangay normalization and validation
+   - QR identifier parsing helper
+   - application status list and approved-phase subset
+   - status badge class mapping
+   - period label formatting and age calculation helpers
+
+## Flood Seed (Testing Data)
+1. Import:
+   - [`database/schema.sql`](/c:/xampp/htdocs/san-enrique-lgu-scholarship/database/schema.sql)
+2. Generate matching placeholder files for seeded `photo_path` and `application_documents.file_path`:
+   - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\seed\create-flood-assets.ps1 -ProjectRoot "C:\wamp64\www\san-enrique-lgu-scholarship"`
+   - Default flood volume is `120` applicants (override with `-SeedCount 150` if needed).
+3. Import:
+   - [`database/seed.sql`](/c:/xampp/htdocs/san-enrique-lgu-scholarship/database/seed.sql)
 
 ## Default Admin Account
 - Mobile: `09123456789`
@@ -94,6 +115,30 @@ Make sure these are writable:
 - `uploads/tmp/`
 - `uploads/photos/`
 - `uploads/documents/`
+
+## Backup Automation (Windows + Linux)
+- Scripts are in `scripts/backup/`
+- Includes:
+  - `backup-nightly.ps1` (DB + uploads backup)
+  - `restore-latest.ps1` (restore drill / recovery)
+  - `register-task.ps1` (Task Scheduler automation)
+  - `backup-nightly.sh` (Linux DB + uploads backup)
+  - `restore-latest.sh` (Linux restore drill / recovery)
+  - `register-cron.sh` (Linux cron automation)
+
+Run backup now:
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\backup\backup-nightly.ps1 -ProjectRoot "C:\wamp64\www\san-enrique-lgu-scholarship" -KeepDays 30`
+
+Register daily 1:00 AM backup:
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\backup\register-task.ps1 -ProjectRoot "C:\wamp64\www\san-enrique-lgu-scholarship" -TaskName "SanEnriqueScholarshipNightlyBackup" -StartTime "01:00" -KeepDays 30`
+
+Run restore drill (DB only):
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\backup\restore-latest.ps1 -ProjectRoot "C:\wamp64\www\san-enrique-lgu-scholarship"`
+
+Run restore drill (DB + uploads):
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\backup\restore-latest.ps1 -ProjectRoot "C:\wamp64\www\san-enrique-lgu-scholarship" -RestoreUploads`
+
+See `scripts/backup/README.md` for full details.
 
 ## Notes
 - QR rendering is server-side via Composer (`endroid/qr-code`).

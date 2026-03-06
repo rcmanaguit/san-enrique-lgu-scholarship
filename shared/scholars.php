@@ -11,7 +11,7 @@ require_role(['admin', 'staff'], '../index.php');
 
 $pageTitle = 'Applicants & Scholars List';
 $rows = [];
-$payoutScholarStatuses = ['waitlisted'];
+$payoutScholarStatuses = ['awaiting_payout'];
 $disbursedScholarStatuses = ['disbursed'];
 $applicantStatuses = array_values(array_filter(application_status_options(), static function (string $status) use ($payoutScholarStatuses, $disbursedScholarStatuses): bool {
     return !in_array($status, $payoutScholarStatuses, true) && !in_array($status, $disbursedScholarStatuses, true);

@@ -58,6 +58,12 @@ $rootPath = dirname(__DIR__);
 load_env_file($rootPath . '/.env');
 load_env_file($rootPath . '/.env.local');
 
+$appTimezone = (string) (getenv('APP_TIMEZONE') ?: 'Asia/Manila');
+if ($appTimezone === '') {
+    $appTimezone = 'Asia/Manila';
+}
+@date_default_timezone_set($appTimezone);
+
 $autoloadPath = __DIR__ . '/../vendor/autoload.php';
 if (file_exists($autoloadPath)) {
     require_once $autoloadPath;

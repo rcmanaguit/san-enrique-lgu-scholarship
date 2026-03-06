@@ -24,6 +24,15 @@ $dbConnected = !$conn->connect_errno;
 
 if ($dbConnected) {
     $conn->set_charset('utf8mb4');
+    $dbTimezone = (string) env_value('DB_TIMEZONE', '+08:00');
+    if ($dbTimezone !== '') {
+        $stmtTz = $conn->prepare("SET time_zone = ?");
+        if ($stmtTz) {
+            $stmtTz->bind_param('s', $dbTimezone);
+            $stmtTz->execute();
+            $stmtTz->close();
+        }
+    }
 }
 
 function db_ready(): bool

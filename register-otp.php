@@ -144,14 +144,19 @@ if (is_post()) {
         $firstName = trim((string) ($data['first_name'] ?? ''));
         $middleName = trim((string) ($data['middle_name'] ?? ''));
         $lastName = trim((string) ($data['last_name'] ?? ''));
+        $email = strtolower(trim((string) ($data['email'] ?? '')));
         $phone = normalize_mobile_number((string) ($data['phone'] ?? ''));
         $passwordHash = trim((string) ($data['password_hash'] ?? ''));
         $schoolName = trim((string) ($data['school_name'] ?? ''));
         $schoolType = trim((string) ($data['school_type'] ?? ''));
         $course = trim((string) ($data['course'] ?? ''));
 
-        if ($firstName === '' || $lastName === '' || $phone === '' || $passwordHash === '') {
+        if ($firstName === '' || $lastName === '' || $email === '' || $phone === '' || $passwordHash === '') {
             set_flash('danger', 'Registration data is incomplete. Please register again.');
+            redirect('register.php');
+        }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            set_flash('danger', 'Email in registration data is invalid. Please register again.');
             redirect('register.php');
         }
 
@@ -159,33 +164,18 @@ if (is_post()) {
             set_flash('danger', 'Mobile number is already registered.');
             redirect('register.php');
         }
-
-        $phoneDigits = preg_replace('/\D+/', '', $phone) ?? '';
-        if ($phoneDigits === '') {
-            set_flash('danger', 'Invalid mobile number in registration data. Please register again.');
-            redirect('register.php');
-        }
-
-        $emailPrefix = 'applicant.' . $phoneDigits;
-        $email = '';
-        for ($suffix = 0; $suffix <= 20; $suffix++) {
-            $candidate = $emailPrefix . ($suffix === 0 ? '' : '.' . $suffix) . '@scholar.example';
-            $stmtEmail = $conn->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
-            if (!$stmtEmail) {
-                continue;
-            }
-            $stmtEmail->bind_param('s', $candidate);
+        $stmtEmail = $conn->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
+        if ($stmtEmail) {
+            $stmtEmail->bind_param('s', $email);
             $stmtEmail->execute();
             $emailExists = $stmtEmail->get_result()->fetch_assoc();
             $stmtEmail->close();
-            if (!$emailExists) {
-                $email = $candidate;
-                break;
+            if ($emailExists) {
+                set_flash('danger', 'Email is already registered.');
+                redirect('register.php');
             }
-        }
-
-        if ($email === '') {
-            set_flash('danger', 'Unable to allocate account email. Please try again.');
+        } else {
+            set_flash('danger', 'Unable to validate email right now. Please try again.');
             redirect('register.php');
         }
 

@@ -20,20 +20,90 @@ $stats = [
     'applicants' => 0,
     'applications' => 0,
     'in_progress' => 0,
-    'approved' => 0,
-    'for_soa_submission' => 0,
-    'rejected_waitlisted' => 0,
+    'interview_passed' => 0,
+    'for_soa' => 0,
+    'awaiting_approval' => 0,
+    'rejected' => 0,
 ];
 $todayApplications = 0;
 $currentSemesterApplications = 0;
 $currentSemesterLabel = 'Current Semester';
-$approvalRate = 0.0;
-$processingRate = 0.0;
 $recentApplications = [];
 $applicantTypeBreakdown = [];
 
 $trendLabels = [];
 $trendData = [];
+$backupStatusText = 'Backup not found';
+$backupStatusBadgeClass = 'text-bg-danger';
+$backupLastTimestampText = 'No backup yet';
+$backupDetailsText = 'Run backup automation to protect records.';
+
+$backupRoot = realpath(__DIR__ . '/../backups');
+if ($backupRoot !== false && is_dir($backupRoot)) {
+    $backupFolders = array_values(array_filter(
+        glob($backupRoot . '/*', GLOB_ONLYDIR) ?: [],
+        static fn($path): bool => is_dir($path)
+    ));
+    rsort($backupFolders, SORT_STRING);
+    $latestBackupPath = $backupFolders[0] ?? '';
+
+    if ($latestBackupPath !== '' && is_dir($latestBackupPath)) {
+        $manifestPath = $latestBackupPath . '/manifest.txt';
+        $timestampRaw = '';
+
+        if (is_file($manifestPath)) {
+            $lines = @file($manifestPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+            foreach ($lines as $line) {
+                $parts = explode('=', (string) $line, 2);
+                if (count($parts) !== 2) {
+                    continue;
+                }
+                $key = trim((string) $parts[0]);
+                $value = trim((string) $parts[1]);
+                if ($key === 'timestamp') {
+                    $timestampRaw = $value;
+                    break;
+                }
+            }
+        }
+
+        if ($timestampRaw === '') {
+            $timestampRaw = basename($latestBackupPath);
+        }
+
+        $backupDate = DateTimeImmutable::createFromFormat('Ymd_His', $timestampRaw) ?: null;
+        if ($backupDate === null) {
+            $mtime = @filemtime($latestBackupPath);
+            if (is_int($mtime) && $mtime > 0) {
+                $backupDate = (new DateTimeImmutable())->setTimestamp($mtime);
+            }
+        }
+
+        if ($backupDate instanceof DateTimeImmutable) {
+            $backupLastTimestampText = $backupDate->format('M d, Y h:i A');
+            $ageSeconds = max(0, time() - $backupDate->getTimestamp());
+            $ageDays = (float) $ageSeconds / 86400;
+
+            if ($ageDays <= 1.5) {
+                $backupStatusText = 'Healthy';
+                $backupStatusBadgeClass = 'text-bg-success';
+                $backupDetailsText = 'Latest backup is recent.';
+            } elseif ($ageDays <= 3) {
+                $backupStatusText = 'Stale';
+                $backupStatusBadgeClass = 'text-bg-warning';
+                $backupDetailsText = 'Backup is older than 24 hours.';
+            } else {
+                $backupStatusText = 'Outdated';
+                $backupStatusBadgeClass = 'text-bg-danger';
+                $backupDetailsText = 'Backup is older than 3 days.';
+            }
+        } else {
+            $backupStatusText = 'Unknown';
+            $backupStatusBadgeClass = 'text-bg-warning';
+            $backupDetailsText = 'Backup exists but timestamp could not be read.';
+        }
+    }
+}
 
 if (db_ready()) {
     $queries = [
@@ -100,16 +170,13 @@ if (db_ready()) {
         }
     }
 
-    $stats['in_progress'] = ($statusTotals['submitted'] ?? 0)
-        + ($statusTotals['for_review'] ?? 0)
+    $stats['in_progress'] = ($statusTotals['under_review'] ?? 0)
+        + ($statusTotals['needs_resubmission'] ?? 0)
         + ($statusTotals['for_interview'] ?? 0);
-    $stats['approved'] = ($statusTotals['approved'] ?? 0)
-        + ($statusTotals['for_soa_submission'] ?? 0)
-        + ($statusTotals['soa_submitted'] ?? 0)
-        + ($statusTotals['waitlisted'] ?? 0)
-        + ($statusTotals['disbursed'] ?? 0);
-    $stats['for_soa_submission'] = (int) ($statusTotals['for_soa_submission'] ?? 0);
-    $stats['rejected_waitlisted'] = (int) ($statusTotals['rejected'] ?? 0);
+    $stats['interview_passed'] = (int) ($statusTotals['interview_passed'] ?? 0);
+    $stats['for_soa'] = (int) ($statusTotals['for_soa'] ?? 0);
+    $stats['awaiting_approval'] = (int) ($statusTotals['awaiting_payout'] ?? 0);
+    $stats['rejected'] = (int) ($statusTotals['rejected'] ?? 0);
 
     $recentSql = "SELECT a.id, a.application_no, a.applicant_type, a.status, a.updated_at, u.first_name, u.last_name
                   FROM applications a
@@ -157,18 +224,21 @@ if (db_ready()) {
     }
 }
 
-if ($stats['applications'] > 0) {
-    $approvalRate = round(($stats['approved'] / $stats['applications']) * 100, 1);
-    $processingRate = round(($stats['in_progress'] / $stats['applications']) * 100, 1);
-}
-
 $statusChartLabels = [];
 $statusChartData = [];
 foreach ($statusTotals as $status => $total) {
     if ($total <= 0) {
         continue;
     }
-    $statusChartLabels[] = ucwords(str_replace('_', ' ', $status));
+    $statusChartLabels[] = match ($status) {
+        'under_review' => 'Under Review',
+        'for_interview' => 'For Interview',
+        'interview_passed' => 'Interview Passed',
+        'for_soa' => 'For SOA Submission',
+        'soa_received' => 'SOA Submitted',
+        'awaiting_payout' => 'Awaiting Approval',
+        default => ucwords(str_replace('_', ' ', $status)),
+    };
     $statusChartData[] = $total;
 }
 if (!$statusChartLabels) {
@@ -219,14 +289,6 @@ include __DIR__ . '/../includes/header.php';
                         <span><?= e($currentSemesterLabel) ?></span>
                         <strong><?= number_format($currentSemesterApplications) ?></strong>
                     </div>
-                    <div class="dashboard-kpi-item">
-                        <span>Approval Rate</span>
-                        <strong><?= number_format($approvalRate, 1) ?>%</strong>
-                    </div>
-                    <div class="dashboard-kpi-item">
-                        <span>Processing Rate</span>
-                        <strong><?= number_format($processingRate, 1) ?>%</strong>
-                    </div>
                 </div>
             </div>
             <div class="col-12 col-xl-4">
@@ -240,6 +302,16 @@ include __DIR__ . '/../includes/header.php';
                     <a href="sms.php" class="btn btn-outline-primary">
                         <i class="fa-solid fa-comments me-1"></i>Open SMS
                     </a>
+                    <div class="card border-0 bg-light-subtle mt-1">
+                        <div class="card-body py-2 px-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="small text-muted text-uppercase">Last Backup</span>
+                                <span class="badge <?= e($backupStatusBadgeClass) ?>"><?= e($backupStatusText) ?></span>
+                            </div>
+                            <div class="small fw-semibold mt-1"><?= e($backupLastTimestampText) ?></div>
+                            <div class="small text-muted"><?= e($backupDetailsText) ?></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -247,59 +319,49 @@ include __DIR__ . '/../includes/header.php';
 </section>
 
 <div class="row g-3 mb-4">
-    <div class="col-6 col-md-4 col-xl-2">
-        <article class="card card-soft dashboard-stat-card tone-blue h-100">
-            <div class="card-body">
-                <span class="dashboard-stat-icon"><i class="fa-solid fa-user-graduate"></i></span>
-                <p class="small mb-1">Applicants</p>
-                <h3><?= number_format($stats['applicants']) ?></h3>
-            </div>
-        </article>
+    <div class="col-6 col-lg-3">
+        <a href="scholars.php" class="text-reset text-decoration-none d-block h-100">
+            <article class="card card-soft dashboard-stat-card tone-blue h-100">
+                <div class="card-body">
+                    <span class="dashboard-stat-icon"><i class="fa-solid fa-user-graduate"></i></span>
+                    <p class="small mb-1">Applicants</p>
+                    <h3><?= number_format($stats['applicants']) ?></h3>
+                </div>
+            </article>
+        </a>
     </div>
-    <div class="col-6 col-md-4 col-xl-2">
-        <article class="card card-soft dashboard-stat-card tone-cyan h-100">
-            <div class="card-body">
-                <span class="dashboard-stat-icon"><i class="fa-solid fa-file-circle-check"></i></span>
-                <p class="small mb-1">Applications</p>
-                <h3><?= number_format($stats['applications']) ?></h3>
-            </div>
-        </article>
+    <div class="col-6 col-lg-3">
+        <a href="applications.php?queue=all" class="text-reset text-decoration-none d-block h-100">
+            <article class="card card-soft dashboard-stat-card tone-cyan h-100">
+                <div class="card-body">
+                    <span class="dashboard-stat-icon"><i class="fa-solid fa-file-circle-check"></i></span>
+                    <p class="small mb-1">Applications</p>
+                    <h3><?= number_format($stats['applications']) ?></h3>
+                </div>
+            </article>
+        </a>
     </div>
-    <div class="col-6 col-md-4 col-xl-2">
-        <article class="card card-soft dashboard-stat-card tone-amber h-100">
-            <div class="card-body">
-                <span class="dashboard-stat-icon"><i class="fa-solid fa-hourglass-half"></i></span>
-                <p class="small mb-1">In Progress</p>
-                <h3><?= number_format($stats['in_progress']) ?></h3>
-            </div>
-        </article>
+    <div class="col-6 col-lg-3">
+        <a href="applications.php?queue=for_review" class="text-reset text-decoration-none d-block h-100">
+            <article class="card card-soft dashboard-stat-card tone-amber h-100">
+                <div class="card-body">
+                    <span class="dashboard-stat-icon"><i class="fa-solid fa-hourglass-half"></i></span>
+                    <p class="small mb-1">In Progress</p>
+                    <h3><?= number_format($stats['in_progress']) ?></h3>
+                </div>
+            </article>
+        </a>
     </div>
-    <div class="col-6 col-md-4 col-xl-2">
-        <article class="card card-soft dashboard-stat-card tone-green h-100">
-            <div class="card-body">
-                <span class="dashboard-stat-icon"><i class="fa-solid fa-circle-check"></i></span>
-                <p class="small mb-1">Approved</p>
-                <h3><?= number_format($stats['approved']) ?></h3>
-            </div>
-        </article>
-    </div>
-    <div class="col-6 col-md-4 col-xl-2">
-        <article class="card card-soft dashboard-stat-card tone-peach h-100">
-            <div class="card-body">
-                <span class="dashboard-stat-icon"><i class="fa-solid fa-file-signature"></i></span>
-                <p class="small mb-1">For SOA</p>
-                <h3><?= number_format($stats['for_soa_submission']) ?></h3>
-            </div>
-        </article>
-    </div>
-    <div class="col-6 col-md-4 col-xl-2">
-        <article class="card card-soft dashboard-stat-card tone-red h-100">
-            <div class="card-body">
-                <span class="dashboard-stat-icon"><i class="fa-solid fa-circle-xmark"></i></span>
-                <p class="small mb-1">Rejected</p>
-                <h3><?= number_format($stats['rejected_waitlisted']) ?></h3>
-            </div>
-        </article>
+    <div class="col-6 col-lg-3">
+        <a href="applications.php?status=rejected" class="text-reset text-decoration-none d-block h-100">
+            <article class="card card-soft dashboard-stat-card tone-red h-100">
+                <div class="card-body">
+                    <span class="dashboard-stat-icon"><i class="fa-solid fa-circle-xmark"></i></span>
+                    <p class="small mb-1">Rejected</p>
+                    <h3><?= number_format($stats['rejected']) ?></h3>
+                </div>
+            </article>
+        </a>
     </div>
 </div>
 

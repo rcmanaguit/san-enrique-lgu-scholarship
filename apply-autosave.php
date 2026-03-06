@@ -52,18 +52,44 @@ if (applicant_has_application_in_period($conn, $userId, $openPeriod)) {
 $wizard = wizard_state();
 
 if ($step === 1) {
+    $periodSemester = trim((string) ($openPeriod['semester'] ?? ''));
+    $periodSchoolYear = trim((string) ($openPeriod['academic_year'] ?? ''));
+    $schoolNameSelection = trim((string) ($_POST['school_name'] ?? ''));
+    $schoolNameOther = trim((string) ($_POST['school_name_other'] ?? ''));
+    $courseSelection = trim((string) ($_POST['course'] ?? ''));
+    $courseOther = trim((string) ($_POST['course_other'] ?? ''));
+    $resolvedSchoolName = $schoolNameSelection;
+    if ($schoolNameSelection === '__other__') {
+        $validatedSchoolOther = validate_typed_academic_text($schoolNameOther, 'School name');
+        $resolvedSchoolName = ($validatedSchoolOther['ok'] ?? false) ? (string) ($validatedSchoolOther['value'] ?? '') : '';
+    }
+
+    $resolvedCourse = $courseSelection;
+    if ($courseSelection === '__other__') {
+        $validatedCourseOther = validate_typed_academic_text($courseOther, 'Course');
+        $resolvedCourse = ($validatedCourseOther['ok'] ?? false) ? (string) ($validatedCourseOther['value'] ?? '') : '';
+    }
+
+    $normalizedSchoolName = normalize_school_name($resolvedSchoolName);
+    $normalizedCourse = normalize_course_name($resolvedCourse);
+    if ($schoolNameSelection !== '__other__' && !is_valid_negros_occidental_school_name($normalizedSchoolName)) {
+        $normalizedSchoolName = '';
+    }
+    if ($courseSelection !== '__other__' && $courseSelection !== '' && !is_valid_scholarship_course($normalizedCourse)) {
+        $normalizedCourse = '';
+    }
     $wizard['step1'] = [
         'applicant_type' => trim((string) ($_POST['applicant_type'] ?? '')),
-        'semester' => trim((string) ($_POST['semester'] ?? '')),
-        'school_year' => trim((string) ($_POST['school_year'] ?? '')),
-        'school_name' => trim((string) ($_POST['school_name'] ?? '')),
+        'semester' => $periodSemester !== '' ? $periodSemester : trim((string) ($_POST['semester'] ?? '')),
+        'school_year' => $periodSchoolYear !== '' ? $periodSchoolYear : trim((string) ($_POST['school_year'] ?? '')),
+        'school_name' => $normalizedSchoolName,
         'school_type' => trim((string) ($_POST['school_type'] ?? '')),
-        'course' => trim((string) ($_POST['course'] ?? '')),
+        'course' => $normalizedCourse,
     ];
 }
 
 if ($step === 2) {
-    $contactNumber = trim((string) ($_POST['contact_number'] ?? ''));
+    $contactNumber = trim((string) ($user['phone'] ?? ''));
     if ($contactNumber !== '' && is_valid_mobile_number($contactNumber)) {
         $contactNumber = normalize_mobile_number($contactNumber);
     }
@@ -75,6 +101,7 @@ if ($step === 2) {
         'last_name' => trim((string) ($_POST['last_name'] ?? '')),
         'first_name' => trim((string) ($_POST['first_name'] ?? '')),
         'middle_name' => trim((string) ($_POST['middle_name'] ?? '')),
+        'suffix' => trim((string) ($_POST['suffix'] ?? '')),
         'age' => $computedAge === null ? '' : (string) $computedAge,
         'civil_status' => trim((string) ($_POST['civil_status'] ?? '')),
         'sex' => trim((string) ($_POST['sex'] ?? '')),
@@ -121,10 +148,18 @@ if ($step === 3) {
         if (!is_array($row)) {
             continue;
         }
+        $educationYear = trim((string) ($row['year'] ?? ''));
+        if ($educationYear !== '') {
+            $educationYear = preg_replace('/\D+/', '', $educationYear) ?? '';
+            if ($educationYear !== '' && strlen($educationYear) > 4) {
+                $educationYear = substr($educationYear, 0, 4);
+            }
+        }
         $entry = [
             'level' => trim((string) ($row['level'] ?? '')),
             'school' => trim((string) ($row['school'] ?? '')),
-            'year' => trim((string) ($row['year'] ?? '')),
+            'course' => trim((string) ($row['course'] ?? '')),
+            'year' => $educationYear,
             'honors' => trim((string) ($row['honors'] ?? '')),
         ];
         if ($honorsNa) {

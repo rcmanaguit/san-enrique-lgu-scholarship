@@ -1,0 +1,105 @@
+flowchart LR
+    %% DFD Level 1 - Scholarship Records Management System
+
+    subgraph EXTERNALS[External Entities]
+        E1[Applicant]
+        E2[Admin/Staff]
+        E3[SMS Gateway]
+    end
+
+    subgraph PROCESSES[System Processes]
+        P1((1.0 Account and Access Management))
+        P2((2.0 Application Intake and Drafting))
+        P3((3.0 Application Review and Status Management))
+        P4((4.0 Document and Requirement Validation))
+        P5((5.0 Disbursement Management))
+        P6((6.0 Notifications and SMS Management))
+        P7((7.0 Reports, Analytics, and Logs))
+        P8((8.0 Announcements and Configuration))
+    end
+
+    subgraph STORES[Data Stores]
+        D1[(D1 Users)]
+        D2[(D2 Applications)]
+        D3[(D3 Application Documents)]
+        D4[(D4 Requirement Templates)]
+        D5[(D5 Application Periods)]
+        D6[(D6 Disbursements)]
+        D7[(D7 Notifications)]
+        D8[(D8 SMS Templates)]
+        D9[(D9 SMS Logs)]
+        D10[(D10 Audit Logs)]
+        D11[(D11 Announcements)]
+        D12[(D12 OTP Codes)]
+        D13[(D13 Application Wizard Drafts)]
+        D14[(D14 Barangays)]
+    end
+
+    E1 -->|register/login data, OTP input| P1
+    P1 -->|auth result, account status| E1
+    P1 <--> D1
+    P1 <--> D12
+    P1 --> D10
+
+    E1 -->|application form, uploads, photo, updates| P2
+    P2 -->|submission/draft status, validation feedback| E1
+    P2 <--> D2
+    P2 <--> D3
+    P2 <--> D4
+    P2 <--> D5
+    P2 <--> D13
+    P2 <--> D14
+    P2 --> D10
+
+    E2 -->|review decisions, status actions| P3
+    P3 -->|updated queue and statuses| E2
+    P3 <--> D2
+    P3 <--> D5
+    P3 --> D7
+    P3 --> D10
+
+    E2 -->|document verification actions| P4
+    P4 -->|verification results| E2
+    P4 <--> D3
+    P4 <--> D4
+    P4 <--> D2
+    P4 --> D10
+
+    E2 -->|payout schedule/release actions| P5
+    P5 -->|disbursement updates| E2
+    P5 <--> D6
+    P5 <--> D2
+    P5 --> D7
+    P5 --> D10
+
+    E1 -->|read notifications| P6
+    E2 -->|compose/send SMS, template actions| P6
+    P6 -->|in-app alerts| E1
+    P6 -->|outbound SMS| E3
+    E3 -->|delivery response| P6
+    P6 <--> D7
+    P6 <--> D8
+    P6 <--> D9
+    P6 --> D10
+
+    E2 -->|report/export requests| P7
+    P7 -->|dashboards, exports, logs view| E2
+    P7 <--> D2
+    P7 <--> D3
+    P7 <--> D6
+    P7 <--> D9
+    P7 <--> D10
+    P7 <--> D7
+    P7 <--> D1
+
+    E2 -->|announcement, period, requirement setup| P8
+    P8 -->|configuration results| E2
+    P8 <--> D11
+    P8 <--> D5
+    P8 <--> D4
+    P8 --> D10
+    P8 --> D7
+
+    P3 -->|status update trigger| P6
+    P5 -->|payout notice trigger| P6
+    P2 -->|submission notice trigger| P6

@@ -82,7 +82,6 @@ if (db_ready()) {
         $timestamps[] = realtime_max_timestamp($conn, 'applications', 'updated_at');
         $timestamps[] = realtime_max_timestamp($conn, 'application_documents', 'uploaded_at');
         $timestamps[] = realtime_max_timestamp($conn, 'disbursements', 'created_at');
-        $timestamps[] = realtime_max_timestamp($conn, 'qr_scan_logs', 'created_at');
         $timestamps[] = realtime_max_timestamp($conn, 'sms_logs', 'created_at');
         $timestamps[] = realtime_max_timestamp($conn, 'audit_logs', 'created_at');
     } elseif ($isLoggedIn && $userRole === 'applicant' && $userId > 0) {
@@ -126,4 +125,3 @@ echo json_encode([
     'change_token' => $changeToken,
     'server_time' => date('c'),
 ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-

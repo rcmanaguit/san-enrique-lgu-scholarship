@@ -15,6 +15,7 @@ $filter = trim((string) ($_GET['filter'] ?? 'all'));
 if (!in_array($filter, ['all', 'unread'], true)) {
     $filter = 'all';
 }
+$bodyClass = 'applicant-notifications-page';
 
 if (is_post()) {
     if (!verify_csrf($_POST['csrf_token'] ?? null)) {
@@ -66,9 +67,14 @@ if ($hasNotificationFeature) {
 include __DIR__ . '/includes/header.php';
 ?>
 
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <h1 class="h4 m-0"><i class="fa-regular fa-bell me-2 text-primary"></i>Notifications</h1>
-    <div class="d-flex gap-2 flex-wrap">
+<div class="card card-soft applicant-hero mb-3">
+    <div class="card-body d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <p class="text-muted small mb-1">Updates Center</p>
+            <h1 class="h4 m-0"><i class="fa-regular fa-bell me-2 text-primary"></i>Notifications</h1>
+            <p class="small text-muted mb-0 mt-1">View alerts for application progress and important announcements.</p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap applicant-hero-actions">
         <a href="notifications.php?filter=all" class="btn btn-sm <?= $filter === 'all' ? 'btn-primary' : 'btn-outline-primary' ?>">
             All
         </a>
@@ -78,6 +84,7 @@ include __DIR__ . '/includes/header.php';
         <a href="<?= user_has_role(['admin', 'staff']) ? 'shared/dashboard.php' : 'dashboard.php' ?>" class="btn btn-sm btn-outline-secondary">
             <i class="fa-solid fa-arrow-left me-1"></i>Dashboard
         </a>
+        </div>
     </div>
 </div>
 
@@ -95,7 +102,7 @@ include __DIR__ . '/includes/header.php';
         </div>
     </div>
 <?php else: ?>
-    <div class="card card-soft shadow-sm mb-3">
+    <div class="card card-soft shadow-sm mb-3 applicant-notification-summary">
         <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div class="small text-muted">
                 Unread: <strong><?= (int) $unreadCount ?></strong>
@@ -129,7 +136,7 @@ include __DIR__ . '/includes/header.php';
                     && !str_starts_with(strtolower($relatedUrl), 'https://')
                     && !str_starts_with($relatedUrl, '//');
                 ?>
-                <article class="card card-soft shadow-sm">
+                <article class="card card-soft shadow-sm applicant-notification-item<?= $isRead ? ' is-read' : ' is-unread' ?>">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
                             <div>

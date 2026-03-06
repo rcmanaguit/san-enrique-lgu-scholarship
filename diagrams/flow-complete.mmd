@@ -1,0 +1,97 @@
+flowchart TD
+    A([Start: Public Website]) --> B{User Action}
+
+    B -->|View public info| C[Read announcements and advisories]
+    C --> B
+
+    B -->|Create account| D[Register account details]
+    D --> E[Send OTP]
+    E --> F{OTP valid?}
+    F -->|No| D
+    F -->|Yes| G[Create applicant account]
+    G --> H[Login]
+
+    B -->|Login| H[Login]
+    H --> I{Credentials and account status valid?}
+    I -->|No| H
+    I -->|Yes| J{Role}
+
+    J -->|Applicant| K[Applicant Dashboard]
+    J -->|Admin/Staff| L[Admin/Staff Dashboard]
+
+    K --> M{Application period open?}
+    M -->|No| N[Wait for open period]
+    N --> O[Check announcements/notifications]
+    O --> M
+    M -->|Yes| P{Already applied in current period?}
+    P -->|Yes| Q[Open My Application]
+    P -->|No| R[Start application wizard]
+
+    R --> S[Step 1: Personal/School info]
+    S --> T[Step 2: Family and contact info]
+    T --> U[Step 3: Education/Siblings/Grants]
+    U --> V[Step 4: Upload required documents]
+    V --> W[Step 5: Upload/Capture 2x2 photo]
+    W --> X[Step 6: Review and final submit]
+    X --> Y{All required fields/files valid?}
+    Y -->|No| R
+    Y -->|Yes| Z[Save application record]
+
+    Z --> ZA[Set status: under_review]
+    ZA --> ZB[Save uploaded documents metadata]
+    ZB --> ZC[Create in-app notification]
+    ZC --> ZD[Send submission SMS]
+    ZD --> Q
+
+    Q --> ZE[Applicant tracks status timeline]
+    ZE --> ZF{Status final?}
+    ZF -->|No| ZE
+    ZF -->|Yes: disbursed| ZG([End: Applicant Approved and Disbursed])
+    ZF -->|Yes: rejected| ZH([End: Applicant Not Approved])
+
+    L --> AA[Open applications queue]
+    AA --> AB[Search/filter records]
+    AB --> AC[Open application details]
+    AC --> AD[Review profile, docs, and notes]
+    AD --> AE{Valid documents/info?}
+    AE -->|No| AF[Set status: needs_resubmission or rejected]
+    AE -->|Yes| AG[Proceed status workflow]
+
+    AG --> AH{Current status}
+    AH -->|under_review| AI[for_interview or rejected]
+    AH -->|needs_resubmission| AJ[under_review or rejected]
+    AH -->|for_interview| AK[interview_passed or rejected]
+    AH -->|interview_passed| AL[for_soa]
+    AH -->|for_soa| AM[soa_received]
+    AH -->|soa_received| AN[awaiting_payout or disbursed]
+    AH -->|awaiting_payout| AO[disbursed]
+
+    AI --> AP[Save status update]
+    AJ --> AP
+    AK --> AP
+    AL --> AP
+    AM --> AP
+    AN --> AP
+    AO --> AP
+    AF --> AP
+
+    AP --> AQ[Add review notes/deadlines]
+    AQ --> AR[Write audit log]
+    AR --> AS[Create applicant notification]
+    AS --> AT[Send SMS update]
+
+    AT --> AU{Disbursement needed?}
+    AU -->|No| AV[Return to queue]
+    AU -->|Yes| AW[Create/Update disbursement record]
+    AW --> AX[Mark payout scheduled/released]
+    AX --> AV
+    AV --> AA
+
+    AP --> ZE
+
+    L --> BA[Manage requirements templates]
+    L --> BB[Manage application periods]
+    L --> BC[Manage announcements]
+    L --> BD[Manage SMS templates and broadcasts]
+    L --> BE[View reports, analytics, and exports]
+    L --> BF[View logs: audit/SMS/QR]

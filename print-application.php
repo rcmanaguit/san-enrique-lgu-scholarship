@@ -8,41 +8,104 @@ $conn = $GLOBALS['conn'] ?? null;
 
 require_login('login.php');
 
-$applicationId = (int) ($_GET['id'] ?? 0);
 $user = current_user();
+$isDraftPreview = isset($_GET['draft']) && (string) $_GET['draft'] === '1';
+$isEmbedPreview = isset($_GET['embed']) && (string) $_GET['embed'] === '1';
+$applicationId = (int) ($_GET['id'] ?? 0);
+$application = null;
+$documents = [];
 
-if ($applicationId <= 0) {
+if ($isDraftPreview) {
+    require_role(['applicant'], 'index.php');
+    $wizard = wizard_state();
+    if (!(bool) ($wizard['step1_done'] ?? false) || !(bool) ($wizard['step2_done'] ?? false) || !(bool) ($wizard['step3_done'] ?? false)) {
+        set_flash('warning', 'Please complete Steps 1 to 3 first.');
+        redirect('apply.php?step=1');
+    }
+
+    $step1 = is_array($wizard['step1'] ?? null) ? $wizard['step1'] : [];
+    $step2 = is_array($wizard['step2'] ?? null) ? $wizard['step2'] : [];
+    $step3 = is_array($wizard['step3'] ?? null) ? $wizard['step3'] : [];
+    $application = [
+        'id' => 0,
+        'application_no' => 'DRAFT-PREVIEW',
+        'qr_token' => 'draft-' . (string) ((int) ($user['id'] ?? 0)),
+        'applicant_type' => (string) ($step1['applicant_type'] ?? ''),
+        'semester' => (string) ($step1['semester'] ?? ''),
+        'school_year' => (string) ($step1['school_year'] ?? ''),
+        'school_name' => (string) ($step1['school_name'] ?? ''),
+        'school_type' => (string) ($step1['school_type'] ?? ''),
+        'course' => (string) ($step1['course'] ?? ''),
+        'last_name' => (string) ($step2['last_name'] ?? ''),
+        'first_name' => (string) ($step2['first_name'] ?? ''),
+        'middle_name' => (string) ($step2['middle_name'] ?? ''),
+        'suffix' => (string) ($step2['suffix'] ?? ''),
+        'age' => (string) ($step2['age'] ?? ''),
+        'civil_status' => (string) ($step2['civil_status'] ?? ''),
+        'sex' => (string) ($step2['sex'] ?? ''),
+        'birth_date' => (string) ($step2['birth_date'] ?? ''),
+        'birth_place' => (string) ($step2['birth_place'] ?? ''),
+        'barangay' => (string) ($step2['barangay'] ?? ''),
+        'town' => (string) ($step2['town'] ?? san_enrique_town()),
+        'province' => (string) ($step2['province'] ?? san_enrique_province()),
+        'address' => (string) ($step2['address'] ?? ''),
+        'contact_number' => (string) ($step2['contact_number'] ?? ''),
+        'mother_name' => (string) ($step3['mother_name'] ?? ''),
+        'mother_age' => (string) ($step3['mother_age'] ?? ''),
+        'mother_occupation' => (string) ($step3['mother_occupation'] ?? ''),
+        'mother_monthly_income' => (string) ($step3['mother_monthly_income'] ?? ''),
+        'father_name' => (string) ($step3['father_name'] ?? ''),
+        'father_age' => (string) ($step3['father_age'] ?? ''),
+        'father_occupation' => (string) ($step3['father_occupation'] ?? ''),
+        'father_monthly_income' => (string) ($step3['father_monthly_income'] ?? ''),
+        'siblings_json' => array_json((array) ($step3['siblings'] ?? [])),
+        'educational_background_json' => array_json((array) ($step3['education'] ?? [])),
+        'grants_availed_json' => array_json((array) ($step3['grants'] ?? [])),
+        'photo_path' => (string) ($wizard['photo_path'] ?? ''),
+        'email' => (string) ($user['email'] ?? ''),
+    ];
+    $documents = array_values(array_map(static function ($doc): array {
+        return [
+            'requirement_name' => (string) (($doc['requirement_name'] ?? '') ?: 'Requirement'),
+            'file_path' => (string) ($doc['file_path'] ?? ''),
+        ];
+    }, (array) ($wizard['documents'] ?? [])));
+}
+
+if (!$isDraftPreview && $applicationId <= 0) {
     set_flash('warning', 'Invalid application reference.');
     redirect('my-application.php');
 }
 
-$sql = "SELECT a.*, u.email
-        FROM applications a
-        INNER JOIN users u ON u.id = a.user_id
-        WHERE a.id = ?";
-if (!user_has_role(['admin', 'staff'])) {
-    $sql .= " AND a.user_id = " . (int) $user['id'];
+if (!$isDraftPreview) {
+    $sql = "SELECT a.*, u.email
+            FROM applications a
+            INNER JOIN users u ON u.id = a.user_id
+            WHERE a.id = ?";
+    if (!user_has_role(['admin', 'staff'])) {
+        $sql .= " AND a.user_id = " . (int) $user['id'];
+    }
+    $sql .= " LIMIT 1";
+
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param('i', $applicationId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $application = $result ? $result->fetch_assoc() : null;
+    $stmt->close();
+
+    if (!$application) {
+        set_flash('danger', 'Application not found.');
+        redirect(user_has_role(['admin', 'staff']) ? 'shared/applications.php' : 'my-application.php');
+    }
+
+    $stmtDocs = $conn->prepare("SELECT requirement_name, file_path FROM application_documents WHERE application_id = ? ORDER BY id ASC");
+    $stmtDocs->bind_param('i', $applicationId);
+    $stmtDocs->execute();
+    $docsResult = $stmtDocs->get_result();
+    $documents = $docsResult instanceof mysqli_result ? $docsResult->fetch_all(MYSQLI_ASSOC) : [];
+    $stmtDocs->close();
 }
-$sql .= " LIMIT 1";
-
-$stmt = $conn->prepare($sql);
-$stmt->bind_param('i', $applicationId);
-$stmt->execute();
-$result = $stmt->get_result();
-$application = $result ? $result->fetch_assoc() : null;
-$stmt->close();
-
-if (!$application) {
-    set_flash('danger', 'Application not found.');
-    redirect(user_has_role(['admin', 'staff']) ? 'shared/applications.php' : 'my-application.php');
-}
-
-$stmtDocs = $conn->prepare("SELECT requirement_name, file_path FROM application_documents WHERE application_id = ? ORDER BY id ASC");
-$stmtDocs->bind_param('i', $applicationId);
-$stmtDocs->execute();
-$docsResult = $stmtDocs->get_result();
-$documents = $docsResult instanceof mysqli_result ? $docsResult->fetch_all(MYSQLI_ASSOC) : [];
-$stmtDocs->close();
 
 $siblings = json_array((string) ($application['siblings_json'] ?? ''));
 $education = json_array((string) ($application['educational_background_json'] ?? ''));
@@ -85,7 +148,7 @@ $fullAddress = implode(', ', $addressParts);
 
 $hideNavbar = true;
 $hideFooter = true;
-$bodyClass = 'bg-light print-preview-page';
+$bodyClass = 'bg-light print-preview-page' . ($isEmbedPreview ? ' print-preview-embed' : '');
 $extraHead = <<<HTML
 <style>
 :root {
@@ -95,9 +158,6 @@ $extraHead = <<<HTML
     --paper-width: calc(var(--print-page-width) - (var(--print-margin) * 2));
     --paper-height: calc(var(--print-page-height) - (var(--print-margin) * 2));
     --preview-scale: 1;
-}
-body.print-mode-with-margins {
-    --print-margin: 0.25in;
 }
 @page {
     size: 8.5in 13in;
@@ -119,6 +179,58 @@ body.print-mode-with-margins {
     background:
         linear-gradient(180deg, #f7fbff 0%, #f2f7fc 100%);
     overflow: auto;
+    height: calc(100vh - 170px);
+    height: calc(100dvh - 170px);
+    touch-action: pan-x pan-y;
+    overscroll-behavior: contain;
+    position: relative;
+}
+.print-preview-embed .preview-surface {
+    height: calc(100vh - 12px);
+    height: calc(100dvh - 12px);
+}
+.print-preview-embed .app-main {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+}
+.print-preview-embed .container {
+    max-width: 100% !important;
+    padding-left: 0.35rem !important;
+    padding-right: 0.35rem !important;
+}
+.preview-fab-zoom {
+    position: sticky;
+    left: calc(100% - 56px);
+    bottom: 12px;
+    z-index: 25;
+    display: inline-flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-top: -96px;
+}
+.preview-fab-zoom .btn {
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+    box-shadow: 0 8px 18px rgba(18, 55, 79, 0.22);
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.print-toolbar-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.print-toolbar .btn {
+    font-size: 0.84rem;
+}
+.print-toolbar .btn-group .btn {
+    min-width: 34px;
+    min-height: 34px;
+    padding: 0.32rem 0.52rem;
 }
 .paper-scale-wrap {
     width: calc(var(--paper-width) * var(--preview-scale));
@@ -128,7 +240,7 @@ body.print-mode-with-margins {
 .application-paper {
     width: var(--paper-width);
     min-height: var(--paper-height);
-    height: var(--paper-height);
+    height: auto;
     margin: 0;
     background: #fff;
     border: 1px solid #b7c9d8;
@@ -136,7 +248,7 @@ body.print-mode-with-margins {
     color: #1d2d35;
     font-size: 11px;
     box-sizing: border-box;
-    overflow: hidden;
+    overflow: visible;
     transform: scale(var(--preview-scale));
     transform-origin: top left;
     box-shadow: 0 14px 30px rgba(24, 74, 111, 0.18);
@@ -183,8 +295,8 @@ body.print-mode-with-margins {
     justify-content: center;
 }
 .photo-box {
-    width: 1.65in;
-    height: 1.65in;
+    width: 2in;
+    height: 2in;
     border: 1px solid #6d7d87;
     text-align: center;
     overflow: hidden;
@@ -245,27 +357,49 @@ body.print-mode-with-margins {
     }
     .preview-surface {
         padding: 0.45rem;
+        height: calc(100vh - 210px);
+        height: calc(100dvh - 210px);
+    }
+    .print-preview-embed .preview-surface {
+        height: calc(100vh - 10px);
+        height: calc(100dvh - 10px);
     }
 }
 @media (max-width: 575.98px) {
-    .print-toolbar .btn,
-    .print-toolbar .btn-group {
-        width: 100%;
+    .print-toolbar {
+        padding: 0.55rem !important;
     }
-    .print-toolbar .btn-group .btn {
-        flex: 1 1 auto;
-    }
-    .print-toolbar .d-flex {
+    .print-toolbar-controls {
         width: 100%;
-        flex-wrap: wrap;
+        overflow-x: auto;
+        white-space: nowrap;
+        flex-wrap: nowrap;
+        padding-bottom: 0.2rem;
+    }
+    .print-toolbar-controls .btn,
+    .print-toolbar-controls .btn-group {
+        flex: 0 0 auto;
+    }
+    .print-toolbar .btn {
+        font-size: 0.78rem;
+        padding: 0.3rem 0.46rem;
     }
     .preview-meta {
         font-size: 0.76rem;
+    }
+    .preview-surface {
+        height: calc(100vh - 250px);
+        height: calc(100dvh - 250px);
+    }
+    .print-preview-embed .preview-surface {
+        height: calc(100vh - 8px);
+        height: calc(100dvh - 8px);
     }
 }
 @media print {
     .print-toolbar { display: none !important; }
     .preview-meta { display: none !important; }
+    .preview-fab-zoom { display: none !important; }
     .preview-surface {
         border: none !important;
         padding: 0 !important;
@@ -299,41 +433,40 @@ $pageTitle = 'Printable Application Form';
 include __DIR__ . '/includes/header.php';
 ?>
 
-<div class="print-toolbar d-flex justify-content-between align-items-center flex-wrap gap-2 bg-white border rounded p-2 mb-2">
-    <div class="small text-wrap">
-        Application No: <strong><?= e((string) $application['application_no']) ?></strong>
-    </div>
-    <div class="d-flex gap-2 align-items-center">
-        <div class="btn-group btn-group-sm" role="group" aria-label="Preview zoom controls">
-            <button type="button" class="btn btn-outline-secondary" id="zoomOutBtn" title="Zoom out">
-                <i class="fa-solid fa-magnifying-glass-minus"></i>
-            </button>
-            <button type="button" class="btn btn-outline-secondary" id="fitWidthBtn" title="Fit to screen">
-                Fit
-            </button>
-            <button type="button" class="btn btn-outline-secondary" id="zoomResetBtn" title="Reset zoom">
-                100%
-            </button>
-            <button type="button" class="btn btn-outline-secondary" id="zoomInBtn" title="Zoom in">
-                <i class="fa-solid fa-magnifying-glass-plus"></i>
+<?php if (!$isEmbedPreview): ?>
+    <div class="print-toolbar d-flex justify-content-between align-items-center flex-wrap gap-2 bg-white border rounded p-2 mb-2">
+        <div class="small text-wrap">
+            Application No: <strong><?= e((string) $application['application_no']) ?></strong>
+        </div>
+        <div class="print-toolbar-controls">
+            <div class="btn-group btn-group-sm" role="group" aria-label="Preview zoom controls">
+                <button type="button" class="btn btn-outline-secondary" id="zoomOutBtn" title="Zoom out">
+                    <i class="fa-solid fa-magnifying-glass-minus"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="fitWidthBtn" title="Fit to screen">
+                    Fit
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="zoomResetBtn" title="Reset zoom">
+                    100%
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="zoomInBtn" title="Zoom in">
+                    <i class="fa-solid fa-magnifying-glass-plus"></i>
+                </button>
+            </div>
+            <span class="badge text-bg-light" id="previewScaleLabel">100%</span>
+            <a href="<?= $isDraftPreview ? 'apply.php?step=6' : (user_has_role(['admin', 'staff']) ? 'shared/applications.php' : 'my-application.php') ?>" class="btn btn-outline-secondary btn-sm">
+                <i class="fa-solid fa-arrow-left me-1"></i>Back
+            </a>
+            <button type="button" class="btn btn-primary btn-sm" id="printNowBtn">
+                <i class="fa-solid fa-print me-1"></i>Print / Save PDF
             </button>
         </div>
-        <span class="badge text-bg-light" id="previewScaleLabel">100%</span>
-        <button type="button" class="btn btn-outline-secondary btn-sm" id="marginModeBtn">
-            Margins: Off
-        </button>
-        <a href="<?= user_has_role(['admin', 'staff']) ? 'shared/applications.php' : 'my-application.php' ?>" class="btn btn-outline-secondary btn-sm">
-            <i class="fa-solid fa-arrow-left me-1"></i>Back
-        </a>
-        <button type="button" class="btn btn-primary btn-sm" id="printNowBtn">
-            <i class="fa-solid fa-print me-1"></i>Print / Save PDF
-        </button>
     </div>
-</div>
 
-<p class="preview-meta mb-2">
-    Mobile tip: use <strong>Fit</strong> for full-page preview, then zoom in for details before printing.
-</p>
+    <p class="preview-meta mb-2">
+        Mobile tip: use <strong>Fit</strong> for full-page preview, then zoom in for details before printing.
+    </p>
+<?php endif; ?>
 
 <div class="preview-surface" id="previewSurface">
 <div class="paper-scale-wrap" id="paperScaleWrap">
@@ -396,13 +529,16 @@ include __DIR__ . '/includes/header.php';
             <td><?= e($naValue($application['first_name'] ?? '')) ?></td>
             <td><strong>CIVIL STATUS</strong></td>
             <td><?= e($naValue($application['civil_status'] ?? '')) ?></td>
-            <td colspan="2">&nbsp;</td>
+            <td><strong>EMAIL</strong></td>
+            <td><?= e($naValue($application['email'] ?? '')) ?></td>
         </tr>
         <tr>
             <td><strong>MIDDLE NAME</strong></td>
             <td><?= e($naValue($application['middle_name'] ?? '')) ?></td>
+            <td><strong>SUFFIX</strong></td>
+            <td><?= e($naValue($application['suffix'] ?? '')) ?></td>
             <td><strong>SEX</strong></td>
-            <td colspan="3"><?= e($naValue($application['sex'] ?? '')) ?></td>
+            <td><?= e($naValue($application['sex'] ?? '')) ?></td>
         </tr>
         <tr>
             <td><strong>DATE OF BIRTH</strong></td>
@@ -541,13 +677,24 @@ include __DIR__ . '/includes/header.php';
                 <ul style="margin:3px 0 0 16px;padding:0;">
                     <?php if ($documents): ?>
                         <?php foreach ($documents as $doc): ?>
-                            <li><?= e((string) $doc['requirement_name']) ?></li>
+                            <?php
+                            $docName = (string) ($doc['requirement_name'] ?? '');
+                            $isSoaDoc = stripos($docName, 'soa') !== false
+                                || stripos($docName, 'student copy') !== false
+                                || stripos($docName, 'statement of account') !== false;
+                            ?>
+                            <li>
+                                <?= e($docName) ?>
+                                <?php if ($isSoaDoc): ?>
+                                    <span class="small-note">(Submit later upon LGU notice)</span>
+                                <?php endif; ?>
+                            </li>
                         <?php endforeach; ?>
                     <?php else: ?>
                         <li>Report Card / Previous Semester (Photocopy)</li>
                         <li>1 pc 2x2 Picture</li>
                         <li>Barangay Residency</li>
-                        <li>Original Student's Copy / Statement of Account (SOA)</li>
+                        <li>Original Student's Copy / Statement of Account (SOA) <span class="small-note">(Submit later upon LGU notice)</span></li>
                     <?php endif; ?>
                 </ul>
             </td>
@@ -556,31 +703,56 @@ include __DIR__ . '/includes/header.php';
 </div>
 </div>
 </div>
+<div class="preview-fab-zoom d-lg-none" aria-label="Mobile zoom controls">
+    <button type="button" class="btn btn-primary btn-sm" id="fabZoomInBtn" title="Zoom in">
+        <i class="fa-solid fa-plus"></i>
+    </button>
+    <button type="button" class="btn btn-outline-primary btn-sm" id="fabZoomOutBtn" title="Zoom out">
+        <i class="fa-solid fa-minus"></i>
+    </button>
+</div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const surface = document.getElementById('previewSurface');
     const paper = document.getElementById('applicationPaper');
+    const scaleWrap = document.getElementById('paperScaleWrap');
     const zoomOutBtn = document.getElementById('zoomOutBtn');
     const zoomInBtn = document.getElementById('zoomInBtn');
     const zoomResetBtn = document.getElementById('zoomResetBtn');
     const fitWidthBtn = document.getElementById('fitWidthBtn');
+    const fabZoomInBtn = document.getElementById('fabZoomInBtn');
+    const fabZoomOutBtn = document.getElementById('fabZoomOutBtn');
     const scaleLabel = document.getElementById('previewScaleLabel');
-    const marginModeBtn = document.getElementById('marginModeBtn');
     const printNowBtn = document.getElementById('printNowBtn');
     if (!surface || !paper) {
         return;
     }
 
     const minScale = 0.55;
-    const maxScale = 1.25;
+    const maxScale = 2.2;
     const step = 0.05;
     let scale = 1;
     let fitMode = window.innerWidth < 992;
+    let isPanning = false;
+    let panStartX = 0;
+    let panStartY = 0;
+    let panScrollLeft = 0;
+    let panScrollTop = 0;
+
+    const syncScaledSurfaceSize = function () {
+        if (!scaleWrap || !paper) {
+            return;
+        }
+        scaleWrap.style.width = (paper.offsetWidth * scale) + 'px';
+        scaleWrap.style.minHeight = (paper.offsetHeight * scale) + 'px';
+    };
 
     const setScale = function (nextScale) {
         scale = Math.max(minScale, Math.min(maxScale, nextScale));
         document.documentElement.style.setProperty('--preview-scale', String(scale));
+        surface.style.touchAction = scale > 1 ? 'none' : 'pan-x pan-y';
+        syncScaledSurfaceSize();
         if (scaleLabel) {
             scaleLabel.textContent = Math.round(scale * 100) + '%';
         }
@@ -590,27 +762,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (zoomInBtn) {
             zoomInBtn.disabled = scale >= maxScale - 0.001;
         }
-    };
-
-    let marginsEnabled = false;
-    let printPageStyle = null;
-    const syncMarginModeUi = function () {
-        document.body.classList.toggle('print-mode-with-margins', marginsEnabled);
-        if (marginModeBtn) {
-            marginModeBtn.textContent = marginsEnabled ? 'Margins: On' : 'Margins: Off';
-        }
-    };
-    const applyPrintPageRule = function () {
-        if (printPageStyle && printPageStyle.parentNode) {
-            printPageStyle.parentNode.removeChild(printPageStyle);
-            printPageStyle = null;
-        }
-        printPageStyle = document.createElement('style');
-        printPageStyle.setAttribute('data-print-page-rule', '1');
-        printPageStyle.textContent = marginsEnabled
-            ? '@media print { @page { size: 8.5in 13in; margin: 0.25in; } }'
-            : '@media print { @page { size: 8.5in 13in; margin: 0; } }';
-        document.head.appendChild(printPageStyle);
     };
 
     const fitToWidth = function () {
@@ -625,9 +776,108 @@ document.addEventListener('DOMContentLoaded', function () {
     } else {
         setScale(1);
     }
+    syncScaledSurfaceSize();
 
-    syncMarginModeUi();
-    applyPrintPageRule();
+    // Pinch-to-zoom support for touch devices.
+    let pinchStartDistance = 0;
+    let pinchStartScale = 1;
+    const touchDistance = function (a, b) {
+        const dx = a.clientX - b.clientX;
+        const dy = a.clientY - b.clientY;
+        return Math.sqrt((dx * dx) + (dy * dy));
+    };
+    const touchMidpoint = function (a, b) {
+        return { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 };
+    };
+
+    surface.addEventListener('touchstart', function (event) {
+        if (event.touches.length === 2) {
+            pinchStartDistance = touchDistance(event.touches[0], event.touches[1]);
+            pinchStartScale = scale;
+        }
+    }, { passive: true });
+
+    surface.addEventListener('touchmove', function (event) {
+        if (event.touches.length !== 2 || pinchStartDistance <= 0) {
+            return;
+        }
+        event.preventDefault();
+        fitMode = false;
+        const currentDistance = touchDistance(event.touches[0], event.touches[1]);
+        const oldScale = scale;
+        const nextScale = pinchStartScale * (currentDistance / pinchStartDistance);
+        const mid = touchMidpoint(event.touches[0], event.touches[1]);
+        const rect = surface.getBoundingClientRect();
+        const focusX = (mid.x - rect.left) + surface.scrollLeft;
+        const focusY = (mid.y - rect.top) + surface.scrollTop;
+
+        setScale(nextScale);
+        const ratio = oldScale > 0 ? (scale / oldScale) : 1;
+        surface.scrollLeft = (focusX * ratio) - (mid.x - rect.left);
+        surface.scrollTop = (focusY * ratio) - (mid.y - rect.top);
+    }, { passive: false });
+
+    surface.addEventListener('touchend', function (event) {
+        if (event.touches.length < 2) {
+            pinchStartDistance = 0;
+        }
+    }, { passive: true });
+
+    const startPan = function (clientX, clientY) {
+        if (scale <= 1) {
+            return;
+        }
+        isPanning = true;
+        panStartX = clientX;
+        panStartY = clientY;
+        panScrollLeft = surface.scrollLeft;
+        panScrollTop = surface.scrollTop;
+    };
+
+    const movePan = function (clientX, clientY) {
+        if (!isPanning || scale <= 1) {
+            return;
+        }
+        const dx = clientX - panStartX;
+        const dy = clientY - panStartY;
+        surface.scrollLeft = panScrollLeft - dx;
+        surface.scrollTop = panScrollTop - dy;
+    };
+
+    const endPan = function () {
+        isPanning = false;
+    };
+
+    surface.addEventListener('touchstart', function (event) {
+        if (event.touches.length === 1 && pinchStartDistance === 0) {
+            startPan(event.touches[0].clientX, event.touches[0].clientY);
+        }
+    }, { passive: true });
+
+    surface.addEventListener('touchmove', function (event) {
+        if (event.touches.length === 1 && isPanning) {
+            event.preventDefault();
+            movePan(event.touches[0].clientX, event.touches[0].clientY);
+        }
+    }, { passive: false });
+
+    surface.addEventListener('touchend', function () {
+        if (pinchStartDistance === 0) {
+            endPan();
+        }
+    }, { passive: true });
+
+    surface.addEventListener('mousedown', function (event) {
+        if (scale <= 1) {
+            return;
+        }
+        event.preventDefault();
+        startPan(event.clientX, event.clientY);
+    });
+    window.addEventListener('mousemove', function (event) {
+        movePan(event.clientX, event.clientY);
+    });
+    window.addEventListener('mouseup', endPan);
 
     if (zoomOutBtn) {
         zoomOutBtn.addEventListener('click', function () {
@@ -635,8 +885,20 @@ document.addEventListener('DOMContentLoaded', function () {
             setScale(scale - step);
         });
     }
+    if (fabZoomOutBtn) {
+        fabZoomOutBtn.addEventListener('click', function () {
+            fitMode = false;
+            setScale(scale - step);
+        });
+    }
     if (zoomInBtn) {
         zoomInBtn.addEventListener('click', function () {
+            fitMode = false;
+            setScale(scale + step);
+        });
+    }
+    if (fabZoomInBtn) {
+        fabZoomInBtn.addEventListener('click', function () {
             fitMode = false;
             setScale(scale + step);
         });
@@ -653,25 +915,14 @@ document.addEventListener('DOMContentLoaded', function () {
             fitToWidth();
         });
     }
-    if (marginModeBtn) {
-        marginModeBtn.addEventListener('click', function () {
-            marginsEnabled = !marginsEnabled;
-            syncMarginModeUi();
-            applyPrintPageRule();
-            if (fitMode) {
-                fitToWidth();
-            }
-        });
-    }
     if (printNowBtn) {
         printNowBtn.addEventListener('click', function () {
-            applyPrintPageRule();
             window.print();
         });
     }
-    window.addEventListener('beforeprint', applyPrintPageRule);
 
     window.addEventListener('resize', function () {
+        syncScaledSurfaceSize();
         if (fitMode) {
             fitToWidth();
         }

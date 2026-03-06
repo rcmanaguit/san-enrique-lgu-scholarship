@@ -19,6 +19,8 @@
 *.log
 *.tmp
 *.temp
+/backups/*
+!/backups/.gitkeep
 
 # OS/editor files
 .DS_Store

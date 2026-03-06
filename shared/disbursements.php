@@ -102,9 +102,9 @@ if (is_post() && db_ready()) {
 
             if ($hasScheduleChange) {
                 $updatedSchedule = $formatPayoutSchedule($newDate, $hasDisbursementTime ? $newTime : null);
-                $message = 'San Enrique LGU Scholarship: Payout Schedule for application '
-                    . $current['application_no'] . ' was updated to '
+                $message = 'San Enrique LGU Scholarship: You have been approved. Payout schedule is '
                     . $updatedSchedule
+                    . ' for application ' . $current['application_no']
                     . '. Ref No: ' . $current['reference_no'] . '.';
                 sms_send((string) ($current['phone'] ?? ''), $message, (int) ($current['user_id'] ?? 0), 'status_update');
                 create_notification(
@@ -173,17 +173,21 @@ if (is_post() && db_ready()) {
                 redirect('disbursements.php');
             }
 
-            $where = ["a.status IN ('soa_submitted', 'waitlisted')"];
+            $where = ["a.status IN ('soa_received', 'awaiting_payout')"];
             if ($hasSchoolTypeColumn && $selectedSchoolTypes) {
                 $escapedSchoolTypes = array_map(
-                    fn($value) => "'" . $conn->real_escape_string((string) $value) . "'",
+                    static function ($value) use ($conn): string {
+                        return "'" . $conn->real_escape_string((string) $value) . "'";
+                    },
                     $selectedSchoolTypes
                 );
                 $where[] = 'a.school_type IN (' . implode(', ', $escapedSchoolTypes) . ')';
             }
             if ($hasBarangayColumn && $selectedBarangays) {
                 $escapedBarangays = array_map(
-                    fn($value) => "'" . $conn->real_escape_string((string) $value) . "'",
+                    static function ($value) use ($conn): string {
+                        return "'" . $conn->real_escape_string((string) $value) . "'";
+                    },
                     $selectedBarangays
                 );
                 $where[] = 'a.barangay IN (' . implode(', ', $escapedBarangays) . ')';
@@ -272,9 +276,9 @@ if (is_post() && db_ready()) {
                 $applicationNo = (string) ($target['application_no'] ?? '');
                 $userId = (int) ($target['user_id'] ?? 0);
                 $phone = (string) ($target['phone'] ?? '');
-                $message = 'San Enrique LGU Scholarship: Payout Schedule for application '
-                    . $applicationNo
-                    . ' is scheduled on ' . $scheduleLabel
+                $message = 'San Enrique LGU Scholarship: You have been approved. Payout schedule is '
+                    . $scheduleLabel
+                    . ' for application ' . $applicationNo
                     . '. Ref No: ' . $referenceNo . '.';
 
                 sms_send($phone, $message, $userId, 'status_update');
@@ -368,8 +372,9 @@ if (is_post() && db_ready()) {
 
                 if ($applicant) {
                     $scheduledPayout = $formatPayoutSchedule($date, $hasDisbursementTime ? $time : null);
-                    $message = 'San Enrique LGU Scholarship: Payout Schedule for application ' . $applicant['application_no']
-                        . ' is scheduled on ' . $scheduledPayout
+                    $message = 'San Enrique LGU Scholarship: You have been approved. Payout schedule is '
+                        . $scheduledPayout
+                        . ' for application ' . $applicant['application_no']
                         . '. Ref No: ' . $referenceNo . '.';
                     sms_send((string) ($applicant['phone'] ?? ''), $message, (int) ($applicant['user_id'] ?? 0), 'status_update');
                     create_notification(
@@ -412,7 +417,7 @@ if (db_ready()) {
     $sql = "SELECT a.id, u.first_name, u.last_name, a.applicant_type
             FROM applications a
             INNER JOIN users u ON u.id = a.user_id
-            WHERE a.status IN ('soa_submitted', 'waitlisted')
+            WHERE a.status IN ('soa_received', 'awaiting_payout')
             ORDER BY a.updated_at DESC";
     $result = $conn->query($sql);
     if ($result instanceof mysqli_result) {

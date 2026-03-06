@@ -159,64 +159,6 @@ $searchDisbursements = static function (mysqli $conn, string $like, int $limit) 
     return $items;
 };
 
-$searchQrScans = static function (mysqli $conn, string $like, int $limit): array {
-    $items = [];
-    if (!table_exists($conn, 'qr_scan_logs')) {
-        return $items;
-    }
-
-    $stmt = $conn->prepare(
-        "SELECT l.id, l.purpose, l.scan_status, l.scanned_qr_token, l.scanned_application_no, l.notes, l.created_at,
-                a.application_no, a.first_name, a.last_name
-         FROM qr_scan_logs l
-         LEFT JOIN applications a ON a.id = l.application_id
-         WHERE l.scanned_qr_token LIKE ?
-            OR l.scanned_application_no LIKE ?
-            OR l.notes LIKE ?
-            OR l.purpose LIKE ?
-            OR a.application_no LIKE ?
-            OR a.first_name LIKE ?
-            OR a.last_name LIKE ?
-         ORDER BY l.created_at DESC, l.id DESC
-         LIMIT ?"
-    );
-    if (!$stmt) {
-        return $items;
-    }
-
-    $stmt->bind_param('sssssssi', $like, $like, $like, $like, $like, $like, $like, $limit);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $rows = $result instanceof mysqli_result ? $result->fetch_all(MYSQLI_ASSOC) : [];
-    $stmt->close();
-
-    foreach ($rows as $row) {
-        $applicationNo = trim((string) ($row['application_no'] ?? ''));
-        if ($applicationNo === '') {
-            $applicationNo = trim((string) ($row['scanned_application_no'] ?? 'Unknown Application'));
-        }
-        $applicantName = trim((string) ($row['last_name'] ?? '') . ', ' . (string) ($row['first_name'] ?? ''), ', ');
-        $meta = qr_scan_purpose_label((string) ($row['purpose'] ?? 'general_verification'))
-            . ' | '
-            . strtoupper((string) ($row['scan_status'] ?? 'invalid'));
-        if (!empty($row['created_at'])) {
-            $meta .= ' | ' . date('M d, Y h:i A', strtotime((string) $row['created_at']));
-        }
-        if (!empty($row['notes'])) {
-            $meta .= ' | ' . excerpt((string) $row['notes'], 70);
-        }
-
-        $items[] = [
-            'title' => $applicationNo !== '' ? $applicationNo : 'QR Scan',
-            'subtitle' => $applicantName !== '' ? $applicantName : '-',
-            'meta' => $meta,
-            'url' => 'verify-qr.php',
-        ];
-    }
-
-    return $items;
-};
-
 $searchAnnouncements = static function (mysqli $conn, string $like, int $limit, bool $isAdmin): array {
     $items = [];
     $whereActive = $isAdmin ? '' : ' AND a.is_active = 1 ';
@@ -334,7 +276,6 @@ $searchPeriods = static function (mysqli $conn, string $like, int $limit): array
 
 $pushSection('applications', 'Applications', $searchApplications($conn, $like, $perSection));
 $pushSection('disbursements', 'Disbursements', $searchDisbursements($conn, $like, $perSection));
-$pushSection('qr_scans', 'QR Scans', $searchQrScans($conn, $like, $perSection));
 $pushSection('announcements', 'Announcements', $searchAnnouncements($conn, $like, $perSection, $isAdmin));
 
 if ($isAdmin) {

@@ -8,13 +8,14 @@ if ($currentPath === '') {
     $currentPath = 'index.php';
 }
 
-if (!isset($onAdminPage)) {
+$incomingOnAdminPage = $GLOBALS['onAdminPage'] ?? null;
+if ($incomingOnAdminPage === null) {
     $pathForRoleCheck = '/' . $currentPath;
     $onAdminPage = str_contains($pathForRoleCheck, '/shared/')
         || str_contains($pathForRoleCheck, '/admin-only/')
         || str_contains($pathForRoleCheck, '/staff-only/');
 } else {
-    $onAdminPage = (bool) $onAdminPage;
+    $onAdminPage = (bool) $incomingOnAdminPage;
 }
 
 $normalizePath = static function (string $path): string {
@@ -199,6 +200,10 @@ if ($user && in_array((string) ($user['role'] ?? ''), ['admin', 'staff'], true))
                             href="<?= e($link('my-application.php')) ?>"><i class="fa-solid fa-folder-open me-1"></i>My
                             Application & Status</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="<?= e($navLinkClass('my-qr.php')) ?>"
+                            href="<?= e($link('my-qr.php')) ?>"><i class="fa-solid fa-qrcode me-1"></i>My QR</a>
+                    </li>
                 <?php endif; ?>
                 <?php if ($user && in_array($user['role'], ['admin', 'staff'], true)): ?>
                     <li class="nav-item">
@@ -210,6 +215,11 @@ if ($user && in_array((string) ($user['role'] ?? ''), ['admin', 'staff'], true))
                         <a class="<?= e($navLinkClass('shared/applications.php')) ?>"
                             href="<?= e($link('shared/applications.php')) ?>"><i
                                 class="fa-solid fa-folder-tree me-1"></i>Application Queue</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="<?= e($navLinkClass('shared/verify-qr.php')) ?>"
+                            href="<?= e($link('shared/verify-qr.php')) ?>"><i
+                                class="fa-solid fa-qrcode me-1"></i>Scan QR</a>
                     </li>
                     <li class="nav-item">
                         <a class="<?= e($navLinkClass(['shared/scholars.php', 'shared/applicants-scholars.php', 'shared/masterlist.php'])) ?>"

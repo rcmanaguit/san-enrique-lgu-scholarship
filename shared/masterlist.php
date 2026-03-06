@@ -230,10 +230,10 @@ include __DIR__ . '/../includes/header.php';
                             </td>
                             <td>
                                 <span class="badge <?= status_badge_class((string) $row['status']) ?>"><?= e(strtoupper((string) $row['status'])) ?></span>
-                                <?php if ((string) $row['status'] === 'for_soa_submission' && !empty($row['soa_submission_deadline'])): ?>
+                                <?php if ((string) $row['status'] === 'for_soa' && !empty($row['soa_submission_deadline'])): ?>
                                     <div class="small text-muted">SOA deadline: <?= date('M d, Y', strtotime((string) $row['soa_submission_deadline'])) ?></div>
                                 <?php endif; ?>
-                                <?php if ((string) $row['status'] === 'soa_submitted' && !empty($row['soa_submitted_at'])): ?>
+                                <?php if ((string) $row['status'] === 'soa_received' && !empty($row['soa_submitted_at'])): ?>
                                     <div class="small text-muted">SOA received: <?= date('M d, Y', strtotime((string) $row['soa_submitted_at'])) ?></div>
                                 <?php endif; ?>
                             </td>

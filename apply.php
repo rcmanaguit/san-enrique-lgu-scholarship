@@ -79,11 +79,28 @@ $persistWizard = static function (array $state, int $currentStep) use ($conn, $u
     wizard_save_persistent_draft($conn, (int) ($user['id'] ?? 0), $state, $currentStep);
 };
 
+$isDeferredRequirementForInitialApplication = static function (array $req): bool {
+    $name = strtolower(trim((string) ($req['requirement_name'] ?? '')));
+    if ($name === '') {
+        return false;
+    }
+
+    return str_contains($name, 'soa') || str_contains($name, 'student copy') || str_contains($name, 'statement of account');
+};
+
+$isPhotoHandledInStepFive = static function (array $req): bool {
+    $name = strtolower(trim((string) ($req['requirement_name'] ?? '')));
+    if ($name === '') {
+        return false;
+    }
+
+    return str_contains($name, '2x2') && (str_contains($name, 'picture') || str_contains($name, 'photo'));
+};
+
 $getRequirements = static function (array $state) use ($conn): array {
     $step1 = $state['step1'] ?? [];
     $requirements = active_requirements(
         $conn,
-        (string) ($step1['scholarship_type'] ?? ''),
         (string) ($step1['applicant_type'] ?? ''),
         (string) ($step1['school_type'] ?? '')
     );
@@ -93,14 +110,63 @@ $getRequirements = static function (array $state) use ($conn): array {
             ['id' => -1001, 'requirement_name' => 'Report Card / Previous Semester (Photocopy)', 'description' => '', 'is_required' => 1],
             ['id' => -1002, 'requirement_name' => '1 pc 2x2 Picture', 'description' => '', 'is_required' => 1],
             ['id' => -1003, 'requirement_name' => 'Barangay Residency', 'description' => '', 'is_required' => 1],
-            ['id' => -1004, 'requirement_name' => 'Original Student Copy / Statement of Account (SOA)', 'description' => '', 'is_required' => 1],
+            ['id' => -1004, 'requirement_name' => 'Original Student Copy / Statement of Account (SOA)', 'description' => '', 'is_required' => 0],
         ];
     }
 
     return $requirements;
 };
 
+$getStepFourRequirements = static function (array $state) use ($getRequirements, $isPhotoHandledInStepFive, $isDeferredRequirementForInitialApplication): array {
+    $requirements = $getRequirements($state);
+    return array_values(array_filter($requirements, static function (array $req) use ($isPhotoHandledInStepFive, $isDeferredRequirementForInitialApplication): bool {
+        return !$isPhotoHandledInStepFive($req) && !$isDeferredRequirementForInitialApplication($req);
+    }));
+};
+
 if (is_post()) {
+    $contentLength = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
+    if ($contentLength > 0 && empty($_POST) && empty($_FILES)) {
+        $toBytes = static function (string $value): int {
+            $raw = trim($value);
+            if ($raw === '') {
+                return 0;
+            }
+            $unit = strtolower(substr($raw, -1));
+            $number = (float) $raw;
+            if ($unit === 'g') {
+                return (int) ($number * 1024 * 1024 * 1024);
+            }
+            if ($unit === 'm') {
+                return (int) ($number * 1024 * 1024);
+            }
+            if ($unit === 'k') {
+                return (int) ($number * 1024);
+            }
+            return (int) $number;
+        };
+        $formatBytes = static function (int $bytes): string {
+            if ($bytes >= 1024 * 1024 * 1024) {
+                return rtrim(rtrim(number_format($bytes / (1024 * 1024 * 1024), 2, '.', ''), '0'), '.') . ' GB';
+            }
+            if ($bytes >= 1024 * 1024) {
+                return rtrim(rtrim(number_format($bytes / (1024 * 1024), 2, '.', ''), '0'), '.') . ' MB';
+            }
+            if ($bytes >= 1024) {
+                return rtrim(rtrim(number_format($bytes / 1024, 2, '.', ''), '0'), '.') . ' KB';
+            }
+            return $bytes . ' bytes';
+        };
+
+        $postMax = $toBytes((string) ini_get('post_max_size'));
+        $uploadMax = $toBytes((string) ini_get('upload_max_filesize'));
+        $limit = $postMax > 0 && $uploadMax > 0 ? min($postMax, $uploadMax) : max($postMax, $uploadMax);
+        $limitText = $limit > 0 ? $formatBytes($limit) : 'server limit';
+
+        set_flash('danger', 'Upload failed because the file is too large. Maximum allowed size is ' . $limitText . '.');
+        redirect('apply.php?step=' . $step);
+    }
+
     if (!verify_csrf($_POST['csrf_token'] ?? null)) {
         set_flash('danger', 'Invalid request token.');
         redirect('apply.php?step=' . $step);
@@ -111,26 +177,60 @@ if (is_post()) {
 
     if ($action === 'save_step1') {
         $semesterOptions = ['First Semester', 'Second Semester'];
+        $periodSemester = trim((string) ($openPeriod['semester'] ?? ''));
+        $periodSchoolYear = trim((string) ($openPeriod['academic_year'] ?? ''));
+        $schoolNameSelection = trim((string) ($_POST['school_name'] ?? ''));
+        $schoolNameOther = trim((string) ($_POST['school_name_other'] ?? ''));
+        $courseSelection = trim((string) ($_POST['course'] ?? ''));
+        $courseOther = trim((string) ($_POST['course_other'] ?? ''));
+        $resolvedSchoolName = $schoolNameSelection;
+        if ($schoolNameSelection === '__other__') {
+            $validatedSchoolOther = validate_typed_academic_text($schoolNameOther, 'School name');
+            if (!($validatedSchoolOther['ok'] ?? false)) {
+                set_flash('danger', (string) ($validatedSchoolOther['error'] ?? 'Invalid school name.'));
+                redirect('apply.php?step=1');
+            }
+            $resolvedSchoolName = (string) ($validatedSchoolOther['value'] ?? '');
+        }
+
+        $resolvedCourse = $courseSelection;
+        if ($courseSelection === '__other__') {
+            $validatedCourseOther = validate_typed_academic_text($courseOther, 'Course');
+            if (!($validatedCourseOther['ok'] ?? false)) {
+                set_flash('danger', (string) ($validatedCourseOther['error'] ?? 'Invalid course.'));
+                redirect('apply.php?step=1');
+            }
+            $resolvedCourse = (string) ($validatedCourseOther['value'] ?? '');
+        }
         $data = [
-            'scholarship_type' => trim((string) ($_POST['scholarship_type'] ?? '')),
             'applicant_type' => trim((string) ($_POST['applicant_type'] ?? '')),
-            'semester' => trim((string) ($_POST['semester'] ?? '')),
-            'school_year' => trim((string) ($_POST['school_year'] ?? '')),
-            'school_name' => trim((string) ($_POST['school_name'] ?? '')),
+            'semester' => $periodSemester !== '' ? $periodSemester : trim((string) ($_POST['semester'] ?? '')),
+            'school_year' => $periodSchoolYear !== '' ? $periodSchoolYear : trim((string) ($_POST['school_year'] ?? '')),
+            'school_name' => normalize_school_name($resolvedSchoolName),
             'school_type' => trim((string) ($_POST['school_type'] ?? '')),
-            'course' => trim((string) ($_POST['course'] ?? '')),
-            'year_level' => trim((string) ($_POST['year_level'] ?? '')),
-            'gwa' => trim((string) ($_POST['gwa'] ?? '')),
-            'family_income' => trim((string) ($_POST['family_income'] ?? '')),
-            'reason' => trim((string) ($_POST['reason'] ?? '')),
+            'course' => normalize_course_name($resolvedCourse),
+            // Kept for database compatibility; no longer shown on online form.
+            'scholarship_type' => '',
+            'year_level' => '',
+            'gwa' => '',
+            'family_income' => '',
+            'reason' => '',
         ];
 
-        $required = ['scholarship_type', 'applicant_type', 'semester', 'school_year', 'school_name', 'school_type'];
+        $required = ['applicant_type', 'semester', 'school_year', 'school_name', 'school_type', 'course'];
         foreach ($required as $field) {
             if ($data[$field] === '') {
                 set_flash('danger', 'Please complete all required fields in Step 1.');
                 redirect('apply.php?step=1');
             }
+        }
+        if ($schoolNameSelection !== '__other__' && !is_valid_negros_occidental_school_name($data['school_name'])) {
+            set_flash('danger', 'Please select a school from the list or choose Other and type your school name.');
+            redirect('apply.php?step=1');
+        }
+        if ($courseSelection !== '__other__' && $courseSelection !== '' && !is_valid_scholarship_course($data['course'])) {
+            set_flash('danger', 'Please select a course from the list or choose Other and type your course.');
+            redirect('apply.php?step=1');
         }
         if (!in_array($data['semester'], $semesterOptions, true)) {
             set_flash('danger', 'Semester must be First Semester or Second Semester only.');
@@ -147,25 +247,43 @@ if (is_post()) {
         $birthDate = trim((string) ($_POST['birth_date'] ?? ''));
         $computedAge = calculate_age_from_birth_date($birthDate);
         $barangay = normalize_barangay((string) ($_POST['barangay'] ?? ''));
+        $civilStatus = trim((string) ($_POST['civil_status'] ?? ''));
+        $sex = trim((string) ($_POST['sex'] ?? ''));
+        $suffix = trim((string) ($_POST['suffix'] ?? ''));
+        $allowedCivilStatuses = ['', 'Single', 'Married', 'Widowed', 'Separated'];
+        $allowedSexes = ['', 'Male', 'Female'];
 
         $data = [
             'last_name' => trim((string) ($_POST['last_name'] ?? '')),
             'first_name' => trim((string) ($_POST['first_name'] ?? '')),
             'middle_name' => trim((string) ($_POST['middle_name'] ?? '')),
+            'suffix' => $suffix,
             'age' => $computedAge === null ? '' : (string) $computedAge,
-            'civil_status' => trim((string) ($_POST['civil_status'] ?? '')),
-            'sex' => trim((string) ($_POST['sex'] ?? '')),
+            'civil_status' => $civilStatus,
+            'sex' => $sex,
             'birth_date' => $birthDate,
             'birth_place' => trim((string) ($_POST['birth_place'] ?? '')),
             'barangay' => $barangay,
             'town' => san_enrique_town(),
             'province' => san_enrique_province(),
             'address' => trim((string) ($_POST['address'] ?? '')),
-            'contact_number' => trim((string) ($_POST['contact_number'] ?? '')),
+            'contact_number' => trim((string) ($user['phone'] ?? '')),
         ];
 
         if ($data['last_name'] === '' || $data['first_name'] === '' || $data['contact_number'] === '' || $data['barangay'] === '') {
             set_flash('danger', 'Last name, first name, contact number, and barangay are required.');
+            redirect('apply.php?step=2');
+        }
+        if (!in_array($data['civil_status'], $allowedCivilStatuses, true)) {
+            set_flash('danger', 'Please select a valid civil status.');
+            redirect('apply.php?step=2');
+        }
+        if (!in_array($data['sex'], $allowedSexes, true)) {
+            set_flash('danger', 'Please select a valid sex.');
+            redirect('apply.php?step=2');
+        }
+        if ($data['suffix'] !== '' && (!preg_match("/^[A-Za-z0-9 .'-]{1,20}$/", $data['suffix']) || strlen($data['suffix']) > 20)) {
+            set_flash('danger', 'Suffix must be up to 20 characters and can only contain letters, numbers, spaces, apostrophes, dots, and hyphens.');
             redirect('apply.php?step=2');
         }
 
@@ -220,10 +338,18 @@ if (is_post()) {
             if (!is_array($row)) {
                 continue;
             }
+            $educationYear = trim((string) ($row['year'] ?? ''));
+            if ($educationYear !== '') {
+                $educationYear = preg_replace('/\D+/', '', $educationYear) ?? '';
+                if ($educationYear !== '' && strlen($educationYear) > 4) {
+                    $educationYear = substr($educationYear, 0, 4);
+                }
+            }
             $entry = [
                 'level' => trim((string) ($row['level'] ?? '')),
                 'school' => trim((string) ($row['school'] ?? '')),
-                'year' => trim((string) ($row['year'] ?? '')),
+                'course' => trim((string) ($row['course'] ?? '')),
+                'year' => $educationYear,
                 'honors' => trim((string) ($row['honors'] ?? '')),
             ];
             if (implode('', $entry) !== '') {
@@ -270,30 +396,14 @@ if (is_post()) {
     }
 
     if ($action === 'save_step4') {
-        $requirements = $getRequirements($wizard);
+        $requirements = $getStepFourRequirements($wizard);
         $errors = [];
         foreach ($requirements as $req) {
             $reqId = (string) $req['id'];
             $field = 'req_' . $reqId;
-            $captureField = 'req_capture_' . $reqId;
             $existing = $wizard['documents'][$reqId] ?? null;
-
-            $capturedBase64 = trim((string) ($_POST[$captureField] ?? ''));
-            $storedFromCapture = '';
-            if ($capturedBase64 !== '') {
-                try {
-                    $storedFromCapture = save_base64_image($capturedBase64, __DIR__ . '/uploads/tmp');
-                } catch (Throwable $e) {
-                    $errors[] = $req['requirement_name'] . ': captured photo failed. Please retake.';
-                }
-            }
-
-            $uploaded = null;
-            if ($storedFromCapture === '') {
-                $uploaded = upload_any_file($field, __DIR__ . '/uploads/tmp');
-            }
-
-            if ($storedFromCapture !== '' || $uploaded) {
+            $uploaded = upload_any_file($field, __DIR__ . '/uploads/tmp');
+            if ($uploaded) {
                 if ($existing && !empty($existing['file_path'])) {
                     $oldAbsolute = __DIR__ . '/' . ltrim((string) $existing['file_path'], '/');
                     if (file_exists($oldAbsolute)) {
@@ -301,11 +411,9 @@ if (is_post()) {
                     }
                 }
 
-                $filePath = $storedFromCapture !== '' ? $storedFromCapture : (string) $uploaded['file_path'];
-                $fileExt = $storedFromCapture !== '' ? 'jpg' : (string) $uploaded['ext'];
-                $originalName = $storedFromCapture !== ''
-                    ? ('captured_' . preg_replace('/[^a-z0-9]+/i', '_', (string) $req['requirement_name']) . '.jpg')
-                    : (string) $uploaded['original_name'];
+                $filePath = (string) $uploaded['file_path'];
+                $fileExt = (string) $uploaded['ext'];
+                $originalName = (string) $uploaded['original_name'];
                 $relative = str_replace(str_replace('\\', '/', __DIR__) . '/', '', str_replace('\\', '/', $filePath));
                 $wizard['documents'][$reqId] = [
                     'requirement_template_id' => (int) $req['id'],
@@ -345,7 +453,7 @@ if (is_post()) {
             redirect('my-application.php');
         }
 
-        $requirements = $getRequirements($wizard);
+        $requirements = $getStepFourRequirements($wizard);
         $missing = [];
         foreach ($requirements as $req) {
             $required = (int) ($req['is_required'] ?? 1) === 1;
@@ -376,29 +484,14 @@ if (is_post()) {
             redirect('apply-photo.php');
         }
 
-        $accountPassword = (string) ($_POST['account_password'] ?? '');
-        $confirmAccountPassword = (string) ($_POST['confirm_account_password'] ?? '');
-        if ($accountPassword === '' || $confirmAccountPassword === '') {
-            set_flash('danger', 'Please enter and confirm your account password before submitting.');
-            redirect('apply.php?step=6');
-        }
-        if ($accountPassword !== $confirmAccountPassword) {
-            set_flash('danger', 'Account password and confirm password do not match.');
-            redirect('apply.php?step=6');
-        }
-
-        $stmtPassword = $conn->prepare("SELECT password_hash FROM users WHERE id = ? LIMIT 1");
-        $stmtPassword->bind_param('i', $user['id']);
-        $stmtPassword->execute();
-        $storedPasswordHash = (string) (($stmtPassword->get_result()->fetch_assoc()['password_hash'] ?? ''));
-        $stmtPassword->close();
-
-        if (!password_verify($accountPassword, $storedPasswordHash)) {
-            set_flash('danger', 'Account password is incorrect.');
+        $agreedToTerms = isset($_POST['agree_terms']) && (string) $_POST['agree_terms'] === '1';
+        if (!$agreedToTerms) {
+            set_flash('danger', 'Please confirm the submission declaration before submitting your application.');
             redirect('apply.php?step=6');
         }
 
         $step1 = $wizard['step1'];
+        $step1['school_name'] = normalize_school_name((string) ($step1['school_name'] ?? ''));
         $step2 = $wizard['step2'];
         $step3 = $wizard['step3'];
         $step2['contact_number'] = normalize_mobile_number((string) ($step2['contact_number'] ?? ''));
@@ -406,6 +499,7 @@ if (is_post()) {
         $step2['town'] = san_enrique_town();
         $step2['province'] = san_enrique_province();
         $step2['age'] = (string) (calculate_age_from_birth_date((string) ($step2['birth_date'] ?? '')) ?? '');
+        $step2['suffix'] = trim((string) ($step2['suffix'] ?? ''));
 
         if (!is_valid_mobile_number((string) ($step2['contact_number'] ?? ''))) {
             set_flash('danger', 'Please provide a valid contact mobile number.');
@@ -417,6 +511,10 @@ if (is_post()) {
         }
         if (trim((string) ($step2['birth_date'] ?? '')) !== '' && trim((string) ($step2['age'] ?? '')) === '') {
             set_flash('danger', 'Birthdate is invalid. Please review your personal information.');
+            redirect('apply.php?step=2');
+        }
+        if ($step2['suffix'] !== '' && (!preg_match("/^[A-Za-z0-9 .'-]{1,20}$/", $step2['suffix']) || strlen($step2['suffix']) > 20)) {
+            set_flash('danger', 'Suffix must be up to 20 characters and can only contain letters, numbers, spaces, apostrophes, dots, and hyphens.');
             redirect('apply.php?step=2');
         }
 
@@ -443,29 +541,27 @@ if (is_post()) {
             $grantsJson = array_json($step3['grants'] ?? []);
 
             $insertSql = "INSERT INTO applications (
-                application_no, user_id, " . $periodColumnSql . "qr_token, scholarship_type, applicant_type, semester, school_year,
-                school_name, school_type, course, year_level, last_name, first_name, middle_name,
+                application_no, user_id, " . $periodColumnSql . "qr_token, applicant_type, semester, school_year,
+                school_name, school_type, course, last_name, first_name, middle_name, suffix,
                 age, civil_status, sex, birth_date, birth_place, barangay, town, province, address, contact_number,
                 mother_name, mother_age, mother_occupation, mother_monthly_income,
                 father_name, father_age, father_occupation, father_monthly_income,
-                siblings_json, educational_background_json, grants_availed_json, gwa, family_income,
-                reason, photo_path, status, submitted_at
+                siblings_json, educational_background_json, grants_availed_json, photo_path, status, submitted_at
             ) VALUES (
                 " . $esc($applicationNo) . ",
                 " . (int) $user['id'] . ",
                 " . $periodValueSql . "
                 " . $esc($qrToken) . ",
-                " . $esc((string) $step1['scholarship_type']) . ",
                 " . $esc((string) $step1['applicant_type']) . ",
                 " . $esc((string) $step1['semester']) . ",
                 " . $esc((string) $step1['school_year']) . ",
                 " . $esc((string) $step1['school_name']) . ",
                 " . $esc((string) $step1['school_type']) . ",
                 " . $nullable($step1['course'] ?? '') . ",
-                " . $nullable($step1['year_level'] ?? '') . ",
                 " . $esc((string) $step2['last_name']) . ",
                 " . $esc((string) $step2['first_name']) . ",
                 " . $nullable($step2['middle_name'] ?? '') . ",
+                " . $nullable($step2['suffix'] ?? '') . ",
                 " . $nullable($step2['age'] ?? '') . ",
                 " . $nullable($step2['civil_status'] ?? '') . ",
                 " . $nullable($step2['sex'] ?? '') . ",
@@ -487,11 +583,8 @@ if (is_post()) {
                 " . $esc($siblingsJson) . ",
                 " . $esc($educationJson) . ",
                 " . $esc($grantsJson) . ",
-                " . $nullable($step1['gwa'] ?? '') . ",
-                " . $nullable($step1['family_income'] ?? '') . ",
-                " . $nullable($step1['reason'] ?? '') . ",
                 NULL,
-                'submitted',
+                'under_review',
                 " . $esc($submittedAt) . "
             )";
 
@@ -536,19 +629,19 @@ if (is_post()) {
 
             $stmtUser = $conn->prepare(
                 "UPDATE users
-                 SET first_name = ?, middle_name = ?, last_name = ?, phone = ?, school_name = ?, school_type = ?, course = ?, year_level = ?, barangay = ?, town = ?, province = ?, address = ?
+                 SET first_name = ?, middle_name = ?, suffix = ?, last_name = ?, phone = ?, school_name = ?, school_type = ?, course = ?, barangay = ?, town = ?, province = ?, address = ?
                  WHERE id = ?"
             );
             $stmtUser->bind_param(
                 'ssssssssssssi',
                 $step2['first_name'],
                 $step2['middle_name'],
+                $step2['suffix'],
                 $step2['last_name'],
                 $step2['contact_number'],
                 $step1['school_name'],
                 $step1['school_type'],
                 $step1['course'],
-                $step1['year_level'],
                 $step2['barangay'],
                 $step2['town'],
                 $step2['province'],
@@ -572,7 +665,6 @@ if (is_post()) {
                 'Application submitted successfully.',
                 [
                     'application_no' => $applicationNo,
-                    'scholarship_type' => (string) ($step1['scholarship_type'] ?? ''),
                     'school_year' => (string) ($step1['school_year'] ?? ''),
                 ]
             );
@@ -621,13 +713,36 @@ $wizard = wizard_state();
 $step1 = $wizard['step1'];
 $step2 = $wizard['step2'];
 $step3 = $wizard['step3'];
-$requirements = $getRequirements($wizard);
+$step1['semester'] = trim((string) ($openPeriod['semester'] ?? ($step1['semester'] ?? '')));
+$step1['school_year'] = trim((string) ($openPeriod['academic_year'] ?? ($step1['school_year'] ?? '')));
+$schoolNameOptions = negros_occidental_colleges_universities();
+$currentSchoolName = trim((string) ($step1['school_name'] ?? ''));
+$selectedSchoolName = '';
+if ($currentSchoolName !== '') {
+    $selectedSchoolName = is_valid_negros_occidental_school_name($currentSchoolName) ? $currentSchoolName : '__other__';
+}
+$otherSchoolName = $selectedSchoolName === '__other__' ? (string) ($step1['school_name'] ?? '') : '';
+$isOtherSchoolSelected = $selectedSchoolName === '__other__';
+$courseOptions = scholarship_course_options();
+$currentCourse = trim((string) ($step1['course'] ?? ''));
+$selectedCourse = '';
+if ($currentCourse !== '') {
+    $selectedCourse = is_valid_scholarship_course($currentCourse) ? $currentCourse : '__other__';
+}
+$otherCourse = $selectedCourse === '__other__' ? (string) ($step1['course'] ?? '') : '';
+$isOtherCourseSelected = $selectedCourse === '__other__';
+$requirements = $getStepFourRequirements($wizard);
 $barangayOptions = san_enrique_barangays();
 $reviewIssues = [];
 
 if (trim((string) ($step2['birth_date'] ?? '')) !== '' && trim((string) ($step2['age'] ?? '')) === '') {
     $step2['age'] = (string) (calculate_age_from_birth_date((string) ($step2['birth_date'] ?? '')) ?? '');
 }
+$step2['last_name'] = trim((string) ($step2['last_name'] ?? '')) !== '' ? (string) $step2['last_name'] : (string) ($user['last_name'] ?? '');
+$step2['first_name'] = trim((string) ($step2['first_name'] ?? '')) !== '' ? (string) $step2['first_name'] : (string) ($user['first_name'] ?? '');
+$step2['middle_name'] = trim((string) ($step2['middle_name'] ?? '')) !== '' ? (string) $step2['middle_name'] : (string) ($user['middle_name'] ?? '');
+$step2['suffix'] = trim((string) ($step2['suffix'] ?? '')) !== '' ? (string) $step2['suffix'] : (string) ($user['suffix'] ?? '');
+$step2['contact_number'] = trim((string) ($step2['contact_number'] ?? '')) !== '' ? (string) $step2['contact_number'] : (string) ($user['phone'] ?? '');
 $step2['town'] = trim((string) ($step2['town'] ?? '')) !== '' ? (string) $step2['town'] : san_enrique_town();
 $step2['province'] = trim((string) ($step2['province'] ?? '')) !== '' ? (string) $step2['province'] : san_enrique_province();
 $step2['barangay'] = normalize_barangay((string) ($step2['barangay'] ?? ''));
@@ -655,6 +770,7 @@ if (empty($wizard['photo_path'])) {
 $stepLabels = [1 => 'Program', 2 => 'Personal', 3 => 'Family', 4 => 'Requirements', 5 => '2x2 Photo', 6 => 'Review'];
 
 $extraJs = ['assets/js/apply-wizard.js', 'assets/js/capture-utils.js', 'assets/js/capture-ui.js'];
+$bodyClass = 'apply-page';
 
 include __DIR__ . '/includes/header.php';
 ?>
@@ -708,7 +824,7 @@ include __DIR__ . '/includes/header.php';
 <?php if ($step === 1): ?>
     <div class="card card-soft shadow-sm">
         <div class="card-body p-4">
-            <h2 class="h5 mb-3">Step 1: Scholarship Program Information</h2>
+            <h2 class="h5 mb-3">Step 1: Program Information</h2>
             <p class="small text-muted mb-3" id="autosaveStatus">Auto-save is enabled for this step.</p>
             <form method="post" class="row g-3" id="applyStep1Form" data-autosave-step="1">
                 <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
@@ -723,30 +839,30 @@ include __DIR__ . '/includes/header.php';
                     </select>
                 </div>
                 <div class="col-12 col-md-4">
-                    <label class="form-label">Scholarship Type *</label>
-                    <select name="scholarship_type" class="form-select" required>
-                        <option value="">Select</option>
-                        <?php foreach (['Academic Scholarship', 'Financial Assistance', 'Special Grant'] as $type): ?>
-                            <option value="<?= e($type) ?>" <?= ($step1['scholarship_type'] ?? '') === $type ? 'selected' : '' ?>><?= e($type) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-12 col-md-4">
                     <label class="form-label">Semester *</label>
-                    <select name="semester" class="form-select" required>
-                        <option value="">Select</option>
-                        <?php foreach (['First Semester', 'Second Semester'] as $sem): ?>
-                            <option value="<?= e($sem) ?>" <?= ($step1['semester'] ?? '') === $sem ? 'selected' : '' ?>><?= e($sem) ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <input type="text" name="semester" class="form-control" value="<?= e((string) ($step1['semester'] ?? '')) ?>" readonly required>
+                    <div class="form-text">Auto-filled from active application period.</div>
                 </div>
                 <div class="col-12 col-md-4">
                     <label class="form-label">School Year *</label>
-                    <input type="text" name="school_year" class="form-control" placeholder="2026-2027" value="<?= e((string) ($step1['school_year'] ?? '')) ?>" required>
+                    <input type="text" name="school_year" class="form-control" value="<?= e((string) ($step1['school_year'] ?? '')) ?>" readonly required>
+                    <div class="form-text">Auto-filled from active application period.</div>
                 </div>
                 <div class="col-12 col-md-5">
                     <label class="form-label">School Name *</label>
-                    <input type="text" name="school_name" class="form-control" value="<?= e((string) ($step1['school_name'] ?? '')) ?>" required>
+                    <select name="school_name" id="applySchoolNameSelect" class="form-select" required>
+                        <option value="">Select School</option>
+                        <?php foreach ($schoolNameOptions as $schoolOption): ?>
+                            <option value="<?= e($schoolOption) ?>" <?= $selectedSchoolName === $schoolOption ? 'selected' : '' ?>>
+                                <?= e($schoolOption) ?>
+                            </option>
+                        <?php endforeach; ?>
+                        <option value="__other__" <?= $selectedSchoolName === '__other__' ? 'selected' : '' ?>>Other (Type School Name)</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-4<?= $isOtherSchoolSelected ? '' : ' d-none' ?>" id="applyOtherSchoolWrapper">
+                    <label class="form-label">Other School Name</label>
+                    <input type="text" name="school_name_other" id="applyOtherSchoolInput" class="form-control" value="<?= e($otherSchoolName) ?>" placeholder="Type if not listed" <?= $isOtherSchoolSelected ? 'required' : '' ?>>
                 </div>
                 <div class="col-12 col-md-3">
                     <label class="form-label">School Type *</label>
@@ -757,24 +873,20 @@ include __DIR__ . '/includes/header.php';
                     </select>
                 </div>
                 <div class="col-12 col-md-6">
-                    <label class="form-label">Course</label>
-                    <input type="text" name="course" class="form-control" value="<?= e((string) ($step1['course'] ?? '')) ?>">
+                    <label class="form-label">Course *</label>
+                    <select name="course" id="applyCourseSelect" class="form-select" required>
+                        <option value="">Select Course</option>
+                        <?php foreach ($courseOptions as $courseOption): ?>
+                            <option value="<?= e($courseOption) ?>" <?= $selectedCourse === $courseOption ? 'selected' : '' ?>>
+                                <?= e($courseOption) ?>
+                            </option>
+                        <?php endforeach; ?>
+                        <option value="__other__" <?= $selectedCourse === '__other__' ? 'selected' : '' ?>>Other (Type Course)</option>
+                    </select>
                 </div>
-                <div class="col-12 col-md-3">
-                    <label class="form-label">Year Level</label>
-                    <input type="text" name="year_level" class="form-control" value="<?= e((string) ($step1['year_level'] ?? '')) ?>">
-                </div>
-                <div class="col-12 col-md-3">
-                    <label class="form-label">GWA</label>
-                    <input type="number" step="0.01" name="gwa" class="form-control" value="<?= e((string) ($step1['gwa'] ?? '')) ?>">
-                </div>
-                <div class="col-12 col-md-4">
-                    <label class="form-label">Estimated Family Income (Monthly)</label>
-                    <input type="number" step="0.01" name="family_income" class="form-control" value="<?= e((string) ($step1['family_income'] ?? '')) ?>">
-                </div>
-                <div class="col-12">
-                    <label class="form-label">Reason for Application</label>
-                    <textarea name="reason" rows="3" class="form-control"><?= e((string) ($step1['reason'] ?? '')) ?></textarea>
+                <div class="col-12 col-md-6<?= $isOtherCourseSelected ? '' : ' d-none' ?>" id="applyOtherCourseWrapper">
+                    <label class="form-label">Other Course</label>
+                    <input type="text" name="course_other" id="applyOtherCourseInput" class="form-control" value="<?= e($otherCourse) ?>" placeholder="Type if not listed" <?= $isOtherCourseSelected ? 'required' : '' ?>>
                 </div>
 
                 <div class="col-12 wizard-actions wizard-actions-end">
@@ -794,17 +906,22 @@ include __DIR__ . '/includes/header.php';
                 <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                 <input type="hidden" name="action" value="save_step2">
 
-                <div class="col-12 col-md-4">
+                <div class="col-12 col-md-3">
                     <label class="form-label">Last Name *</label>
                     <input type="text" name="last_name" class="form-control" value="<?= e((string) ($step2['last_name'] ?? '')) ?>" required>
                 </div>
-                <div class="col-12 col-md-4">
+                <div class="col-12 col-md-3">
                     <label class="form-label">First Name *</label>
                     <input type="text" name="first_name" class="form-control" value="<?= e((string) ($step2['first_name'] ?? '')) ?>" required>
                 </div>
-                <div class="col-12 col-md-4">
+                <div class="col-12 col-md-3">
                     <label class="form-label">Middle Name</label>
                     <input type="text" name="middle_name" class="form-control" value="<?= e((string) ($step2['middle_name'] ?? '')) ?>">
+                </div>
+                <div class="col-12 col-md-3">
+                    <label class="form-label">Suffix</label>
+                    <input type="text" name="suffix" class="form-control" value="<?= e((string) ($step2['suffix'] ?? '')) ?>" maxlength="20" placeholder="e.g., Jr., Sr., III">
+                    <div class="form-text">Leave blank if not applicable.</div>
                 </div>
                 <div class="col-6 col-md-4">
                     <label class="form-label">Date of Birth</label>
@@ -817,15 +934,32 @@ include __DIR__ . '/includes/header.php';
                 </div>
                 <div class="col-6 col-md-3">
                     <label class="form-label">Civil Status</label>
-                    <input type="text" name="civil_status" class="form-control" value="<?= e((string) ($step2['civil_status'] ?? '')) ?>">
+                    <?php $selectedCivilStatus = (string) ($step2['civil_status'] ?? ''); ?>
+                    <select name="civil_status" class="form-select">
+                        <option value="">Select</option>
+                        <?php foreach (['Single', 'Married', 'Widowed', 'Separated'] as $civilStatusOption): ?>
+                            <option value="<?= e($civilStatusOption) ?>" <?= $selectedCivilStatus === $civilStatusOption ? 'selected' : '' ?>><?= e($civilStatusOption) ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <div class="col-6 col-md-3">
                     <label class="form-label">Sex</label>
-                    <input type="text" name="sex" class="form-control" value="<?= e((string) ($step2['sex'] ?? '')) ?>">
+                    <?php $selectedSex = (string) ($step2['sex'] ?? ''); ?>
+                    <select name="sex" class="form-select">
+                        <option value="">Select</option>
+                        <?php foreach (['Male', 'Female'] as $sexOption): ?>
+                            <option value="<?= e($sexOption) ?>" <?= $selectedSex === $sexOption ? 'selected' : '' ?>><?= e($sexOption) ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <div class="col-12 col-md-6">
                     <label class="form-label">Place of Birth</label>
                     <input type="text" name="birth_place" class="form-control" value="<?= e((string) ($step2['birth_place'] ?? '')) ?>">
+                </div>
+                <div class="col-12 col-md-6">
+                    <label class="form-label">Address (House No. / Street / Purok)</label>
+                    <textarea name="address" class="form-control" rows="2" placeholder="Address (House No. / Street / Purok)"><?= e((string) ($step2['address'] ?? '')) ?></textarea>
+                    <div class="form-text">Enter your address details (House No. / Street / Purok).</div>
                 </div>
                 <div class="col-12 col-md-6">
                     <label class="form-label">Barangay *</label>
@@ -846,17 +980,13 @@ include __DIR__ . '/includes/header.php';
                 </div>
                 <div class="col-12 col-md-6">
                     <label class="form-label">Contact Number *</label>
-                    <input type="text" name="contact_number" class="form-control" placeholder="09XXXXXXXXX" value="<?= e((string) ($step2['contact_number'] ?? '')) ?>" required>
-                </div>
-                <div class="col-12 col-md-6">
-                    <label class="form-label">House No. / Street / Purok</label>
-                    <textarea name="address" class="form-control" rows="2" placeholder="House No. / Street / Purok"><?= e((string) ($step2['address'] ?? '')) ?></textarea>
-                    <div class="form-text">Enter House No. / Street / Purok only.</div>
+                    <input type="text" name="contact_number" class="form-control" value="<?= e((string) ($step2['contact_number'] ?? '')) ?>" readonly required>
+                    <div class="form-text">Auto-filled from your registered mobile number.</div>
                 </div>
 
                 <div class="col-12 wizard-actions">
-                    <a href="apply.php?step=1" class="btn btn-outline-secondary"><i class="fa-solid fa-arrow-left me-1"></i>Previous</a>
-                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-arrow-right me-1"></i>Next Step</button>
+                    <a href="apply.php?step=1" class="btn btn-outline-secondary wizard-btn-prev"><i class="fa-solid fa-arrow-left me-1"></i>Previous</a>
+                    <button type="submit" class="btn btn-primary wizard-btn-next"><i class="fa-solid fa-arrow-right me-1"></i>Next Step</button>
                 </div>
             </form>
         </div>
@@ -873,12 +1003,32 @@ include __DIR__ . '/includes/header.php';
     $siblingsNa = !empty($step3['siblings_na']);
     $grantsNa = !empty($step3['grants_na']);
 
-    $defaultEducationRows = [
-        ['level' => 'Elementary', 'school' => '', 'year' => '', 'honors' => ''],
-        ['level' => 'High School', 'school' => '', 'year' => '', 'honors' => ''],
-        ['level' => 'College', 'school' => '', 'year' => '', 'honors' => ''],
-        ['level' => 'Course', 'school' => '', 'year' => '', 'honors' => ''],
-    ];
+    $educationByLevel = [];
+    foreach ($educationPrefill as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $key = strtolower(trim((string) ($row['level'] ?? '')));
+        if ($key !== '') {
+            $educationByLevel[$key] = $row;
+        }
+    }
+    $eduElementary = $educationByLevel['elementary'] ?? ['level' => 'Elementary', 'school' => '', 'year' => '', 'honors' => '', 'course' => ''];
+    $eduHighSchool = $educationByLevel['high school'] ?? ['level' => 'High School', 'school' => '', 'year' => '', 'honors' => '', 'course' => ''];
+    $eduCollege = $educationByLevel['college'] ?? ['level' => 'College', 'school' => '', 'year' => '', 'honors' => '', 'course' => ''];
+    $collegeYearLevelValue = trim((string) ($eduCollege['year'] ?? ''));
+    $collegeYearLevelOptions = ['1', '2', '3', '4'];
+    if (!in_array($collegeYearLevelValue, $collegeYearLevelOptions, true)) {
+        $collegeYearLevelValue = '';
+    }
+    $collegeDefaultSchool = trim((string) ($step1['school_name'] ?? ''));
+    $collegeDefaultCourse = trim((string) ($step1['course'] ?? ''));
+    if (trim((string) ($eduCollege['school'] ?? '')) === '' && $collegeDefaultSchool !== '') {
+        $eduCollege['school'] = $collegeDefaultSchool;
+    }
+    if (trim((string) ($eduCollege['course'] ?? '')) === '' && $collegeDefaultCourse !== '') {
+        $eduCollege['course'] = $collegeDefaultCourse;
+    }
     ?>
     <p class="small text-muted mb-3" id="autosaveStatus">Auto-save is enabled for this step.</p>
     <form method="post" id="applyStep3Form" data-autosave-step="3">
@@ -921,11 +1071,18 @@ include __DIR__ . '/includes/header.php';
 
         <div class="card card-soft shadow-sm mb-3">
             <div class="card-body p-4">
-                <h3 class="h6">Members of the Family (Siblings)</h3>
-                <div class="form-check mb-2">
+                <?php $siblingsRows = !empty($siblingsPrefill) ? array_values($siblingsPrefill) : [['name' => '', 'age' => '', 'education' => '', 'occupation' => '', 'income' => '']]; ?>
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                    <h3 class="h6 mb-0">Members of the Family (Siblings)</h3>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="addSiblingRowBtn">
+                        <i class="fa-solid fa-plus me-1"></i>Add Sibling
+                    </button>
+                </div>
+                <div class="form-check mb-1">
                     <input class="form-check-input js-na-toggle" type="checkbox" id="siblingsNaToggle" name="siblings_na" value="1" data-target="#siblingsFields" <?= $siblingsNa ? 'checked' : '' ?>>
                     <label class="form-check-label small" for="siblingsNaToggle">Not Applicable</label>
                 </div>
+                <div class="small text-muted mb-2">Add only siblings with relevant information. Leave this section as Not Applicable if none.</div>
                 <div class="table-responsive" id="siblingsFields">
                     <table class="table table-sm align-middle wizard-stack-table">
                         <thead>
@@ -935,19 +1092,24 @@ include __DIR__ . '/includes/header.php';
                                 <th>Highest Educational Attainment</th>
                                 <th>Occupation</th>
                                 <th>Monthly Income</th>
+                                <th class="text-center">Action</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <?php for ($i = 0; $i < 5; $i++): ?>
-                                <?php $row = $siblingsPrefill[$i] ?? ['name' => '', 'age' => '', 'education' => '', 'occupation' => '', 'income' => '']; ?>
+                        <tbody id="siblingsTableBody" data-next-index="<?= (int) count($siblingsRows) ?>">
+                            <?php foreach ($siblingsRows as $i => $row): ?>
                                 <tr>
-                                    <td data-label="Name"><input type="text" class="form-control form-control-sm" name="siblings[<?= $i ?>][name]" value="<?= e((string) ($row['name'] ?? '')) ?>"></td>
-                                    <td data-label="Age"><input type="number" class="form-control form-control-sm" name="siblings[<?= $i ?>][age]" value="<?= e((string) ($row['age'] ?? '')) ?>"></td>
-                                    <td data-label="Highest Educational Attainment"><input type="text" class="form-control form-control-sm" name="siblings[<?= $i ?>][education]" value="<?= e((string) ($row['education'] ?? '')) ?>"></td>
-                                    <td data-label="Occupation"><input type="text" class="form-control form-control-sm" name="siblings[<?= $i ?>][occupation]" value="<?= e((string) ($row['occupation'] ?? '')) ?>"></td>
-                                    <td data-label="Monthly Income"><input type="number" step="0.01" class="form-control form-control-sm" name="siblings[<?= $i ?>][income]" value="<?= e((string) ($row['income'] ?? '')) ?>"></td>
+                                    <td data-label="Name"><div class="wizard-inline-field-label">Name</div><input type="text" class="form-control form-control-sm" name="siblings[<?= (int) $i ?>][name]" value="<?= e((string) ($row['name'] ?? '')) ?>" placeholder="Full name"></td>
+                                    <td data-label="Age"><div class="wizard-inline-field-label">Age</div><input type="number" class="form-control form-control-sm" name="siblings[<?= (int) $i ?>][age]" value="<?= e((string) ($row['age'] ?? '')) ?>" min="0"></td>
+                                    <td data-label="Highest Educational Attainment"><div class="wizard-inline-field-label">Highest Educational Attainment</div><input type="text" class="form-control form-control-sm" name="siblings[<?= (int) $i ?>][education]" value="<?= e((string) ($row['education'] ?? '')) ?>" placeholder="e.g., College"></td>
+                                    <td data-label="Occupation"><div class="wizard-inline-field-label">Occupation</div><input type="text" class="form-control form-control-sm" name="siblings[<?= (int) $i ?>][occupation]" value="<?= e((string) ($row['occupation'] ?? '')) ?>" placeholder="e.g., Student"></td>
+                                    <td data-label="Monthly Income"><div class="wizard-inline-field-label">Monthly Income</div><input type="number" step="0.01" class="form-control form-control-sm" name="siblings[<?= (int) $i ?>][income]" value="<?= e((string) ($row['income'] ?? '')) ?>" min="0"></td>
+                                    <td data-label="Action" class="text-end">
+                                        <button type="button" class="btn btn-sm btn-outline-danger js-remove-sibling-row" aria-label="Remove sibling row">
+                                            <i class="fa-solid fa-trash-can"></i>
+                                        </button>
+                                    </td>
                                 </tr>
-                            <?php endfor; ?>
+                            <?php endforeach; ?>
                         </tbody>
                     </table>
                 </div>
@@ -956,32 +1118,90 @@ include __DIR__ . '/includes/header.php';
 
         <div class="card card-soft shadow-sm mb-3">
             <div class="card-body p-4">
-                <h3 class="h6">Educational Background</h3>
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle wizard-stack-table">
-                        <thead>
-                            <tr>
-                                <th>Level</th>
-                                <th>School</th>
-                                <th>Year</th>
-                                <th>Honors/Awards</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php for ($i = 0; $i < 4; $i++): ?>
-                                <?php $row = $educationPrefill[$i] ?? $defaultEducationRows[$i]; ?>
-                                <tr>
-                                    <td data-label="Level"><input type="text" class="form-control form-control-sm" name="education[<?= $i ?>][level]" value="<?= e((string) ($row['level'] ?? '')) ?>"></td>
-                                    <td data-label="School"><input type="text" class="form-control form-control-sm" name="education[<?= $i ?>][school]" value="<?= e((string) ($row['school'] ?? '')) ?>"></td>
-                                    <td data-label="Year"><input type="text" class="form-control form-control-sm" name="education[<?= $i ?>][year]" value="<?= e((string) ($row['year'] ?? '')) ?>"></td>
-                                    <td data-label="Honors/Awards"><input type="text" class="form-control form-control-sm" name="education[<?= $i ?>][honors]" value="<?= e((string) ($row['honors'] ?? '')) ?>"></td>
-                                </tr>
-                            <?php endfor; ?>
-                        </tbody>
-                    </table>
+                <?php $grantsRows = !empty($grantsPrefill) ? array_values($grantsPrefill) : [['program' => '', 'period' => '']]; ?>
+                <h3 class="h6 mb-3">Educational Background</h3>
+                <div class="row g-3">
+                    <div class="col-12 col-lg-4">
+                        <div class="card card-soft h-100">
+                            <div class="card-body p-3">
+                                <h4 class="h6 mb-3">Elementary</h4>
+                                <input type="hidden" name="education[0][level]" value="Elementary">
+                                <div class="mb-2">
+                                    <label class="form-label mb-1">School Name</label>
+                                    <input type="text" class="form-control form-control-sm" name="education[0][school]" value="<?= e((string) ($eduElementary['school'] ?? '')) ?>">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label mb-1">Year Graduated</label>
+                                    <input type="number" class="form-control form-control-sm" name="education[0][year]" value="<?= e((string) ($eduElementary['year'] ?? '')) ?>" min="1900" max="2100" step="1" inputmode="numeric" placeholder="YYYY">
+                                </div>
+                                <div>
+                                    <label class="form-label mb-1">Honors/Awards</label>
+                                    <input type="text" class="form-control form-control-sm" name="education[0][honors]" value="<?= e((string) ($eduElementary['honors'] ?? '')) ?>">
+                                    <div class="form-text">Leave blank if none.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-4">
+                        <div class="card card-soft h-100">
+                            <div class="card-body p-3">
+                                <h4 class="h6 mb-3">High School</h4>
+                                <input type="hidden" name="education[1][level]" value="High School">
+                                <div class="mb-2">
+                                    <label class="form-label mb-1">School Name</label>
+                                    <input type="text" class="form-control form-control-sm" name="education[1][school]" value="<?= e((string) ($eduHighSchool['school'] ?? '')) ?>">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label mb-1">Year Graduated</label>
+                                    <input type="number" class="form-control form-control-sm" name="education[1][year]" value="<?= e((string) ($eduHighSchool['year'] ?? '')) ?>" min="1900" max="2100" step="1" inputmode="numeric" placeholder="YYYY">
+                                </div>
+                                <div>
+                                    <label class="form-label mb-1">Honors/Awards</label>
+                                    <input type="text" class="form-control form-control-sm" name="education[1][honors]" value="<?= e((string) ($eduHighSchool['honors'] ?? '')) ?>">
+                                    <div class="form-text">Leave blank if none.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-4">
+                        <div class="card card-soft h-100">
+                            <div class="card-body p-3">
+                                <h4 class="h6 mb-3">College</h4>
+                                <input type="hidden" name="education[2][level]" value="College">
+                                <div class="mb-2">
+                                    <label class="form-label mb-1">School Name (College)</label>
+                                    <input type="text" class="form-control form-control-sm" name="education[2][school]" value="<?= e((string) ($eduCollege['school'] ?? '')) ?>">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label mb-1">Course</label>
+                                    <input type="text" class="form-control form-control-sm" name="education[2][course]" value="<?= e((string) ($eduCollege['course'] ?? '')) ?>">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label mb-1">Year Level</label>
+                                    <select class="form-select form-select-sm" name="education[2][year]">
+                                        <option value="">Select Year Level</option>
+                                        <option value="1" <?= $collegeYearLevelValue === '1' ? 'selected' : '' ?>>1st Year</option>
+                                        <option value="2" <?= $collegeYearLevelValue === '2' ? 'selected' : '' ?>>2nd Year</option>
+                                        <option value="3" <?= $collegeYearLevelValue === '3' ? 'selected' : '' ?>>3rd Year</option>
+                                        <option value="4" <?= $collegeYearLevelValue === '4' ? 'selected' : '' ?>>4th Year</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="form-label mb-1">Honors/Awards</label>
+                                    <input type="text" class="form-control form-control-sm" name="education[2][honors]" value="<?= e((string) ($eduCollege['honors'] ?? '')) ?>">
+                                    <div class="form-text">Leave blank if none.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <h3 class="h6 mt-4">Scholarship Grants Availed</h3>
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-4 mb-2">
+                    <h3 class="h6 mb-0">Scholarship Grants Availed</h3>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="addGrantsRowBtn">
+                        <i class="fa-solid fa-plus me-1"></i>Add Row
+                    </button>
+                </div>
                 <div class="form-check mb-2">
                     <input class="form-check-input js-na-toggle" type="checkbox" id="grantsNaToggle" name="grants_na" value="1" data-target="#grantsFields" <?= $grantsNa ? 'checked' : '' ?>>
                     <label class="form-check-label small" for="grantsNaToggle">Not Applicable</label>
@@ -992,16 +1212,21 @@ include __DIR__ . '/includes/header.php';
                             <tr>
                                 <th>Scholarship Program</th>
                                 <th>Year/Period</th>
+                                <th class="text-center">Action</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <?php for ($i = 0; $i < 3; $i++): ?>
-                                <?php $row = $grantsPrefill[$i] ?? ['program' => '', 'period' => '']; ?>
+                        <tbody id="grantsTableBody" data-next-index="<?= (int) count($grantsRows) ?>">
+                            <?php foreach ($grantsRows as $i => $row): ?>
                                 <tr>
-                                    <td data-label="Scholarship Program"><input type="text" class="form-control form-control-sm" name="grants[<?= $i ?>][program]" value="<?= e((string) ($row['program'] ?? '')) ?>"></td>
-                                    <td data-label="Year/Period"><input type="text" class="form-control form-control-sm" name="grants[<?= $i ?>][period]" value="<?= e((string) ($row['period'] ?? '')) ?>"></td>
+                                    <td data-label="Scholarship Program"><div class="wizard-inline-field-label">Scholarship Program</div><input type="text" class="form-control form-control-sm" name="grants[<?= (int) $i ?>][program]" value="<?= e((string) ($row['program'] ?? '')) ?>" placeholder="Program name"></td>
+                                    <td data-label="Year/Period"><div class="wizard-inline-field-label">Year/Period</div><input type="text" class="form-control form-control-sm" name="grants[<?= (int) $i ?>][period]" value="<?= e((string) ($row['period'] ?? '')) ?>" placeholder="e.g., 2024-2025"></td>
+                                    <td data-label="Action" class="text-end">
+                                        <button type="button" class="btn btn-sm btn-outline-danger js-remove-grants-row" aria-label="Remove grants row">
+                                            <i class="fa-solid fa-trash-can"></i>
+                                        </button>
+                                    </td>
                                 </tr>
-                            <?php endfor; ?>
+                            <?php endforeach; ?>
                         </tbody>
                     </table>
                 </div>
@@ -1009,8 +1234,8 @@ include __DIR__ . '/includes/header.php';
         </div>
 
         <div class="wizard-actions mb-3">
-            <a href="apply.php?step=2" class="btn btn-outline-secondary"><i class="fa-solid fa-arrow-left me-1"></i>Previous</a>
-            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-arrow-right me-1"></i>Next Step</button>
+            <a href="apply.php?step=2" class="btn btn-outline-secondary wizard-btn-prev"><i class="fa-solid fa-arrow-left me-1"></i>Previous</a>
+            <button type="submit" class="btn btn-primary wizard-btn-next"><i class="fa-solid fa-arrow-right me-1"></i>Next Step</button>
         </div>
     </form>
 <?php endif; ?>
@@ -1019,8 +1244,8 @@ include __DIR__ . '/includes/header.php';
     <div class="card card-soft shadow-sm">
         <div class="card-body p-4">
             <h2 class="h5 mb-3">Step 4: Dynamic Requirements Upload</h2>
-            <p class="small text-muted">Requirements are based on selected scholarship type, applicant type, and school type.</p>
-            <form method="post" enctype="multipart/form-data" class="row g-3">
+            <p class="small text-muted">Upload the required documents listed below. Please make sure the uploaded files are clear and readable.</p>
+            <form method="post" enctype="multipart/form-data" class="row g-3" id="applyStep4Form">
                 <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                 <input type="hidden" name="action" value="save_step4">
 
@@ -1051,28 +1276,7 @@ include __DIR__ . '/includes/header.php';
                                 <?php endif; ?>
                             </div>
                             <input type="file" name="<?= e($field) ?>" class="form-control mt-2" accept=".pdf,.jpg,.jpeg,.png">
-                            <input type="hidden" name="req_capture_<?= e($reqId) ?>" id="reqCaptureInput<?= e($reqId) ?>">
-                            <div class="d-flex flex-wrap gap-2 mt-2">
-                                <button
-                                    type="button"
-                                    class="btn btn-sm btn-outline-primary"
-                                    data-doc-capture-open
-                                    data-doc-capture-id="<?= e($reqId) ?>"
-                                    data-doc-capture-name="<?= e((string) $req['requirement_name']) ?>"
-                                >
-                                    <i class="fa-solid fa-camera me-1"></i>Capture Photo
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn btn-sm btn-outline-danger d-none"
-                                    id="reqCaptureClearBtn<?= e($reqId) ?>"
-                                    data-doc-capture-clear
-                                    data-doc-capture-id="<?= e($reqId) ?>"
-                                >
-                                    <i class="fa-solid fa-trash-can me-1"></i>Clear Capture
-                                </button>
-                            </div>
-                            <div class="small text-muted mt-1" id="reqCaptureStatus<?= e($reqId) ?>">Upload PDF/image or capture a clear photo.</div>
+                            <div class="small text-muted mt-1">Upload PDF/image file.</div>
                             <?php if ($existing): ?>
                                 <div class="small mt-2 text-muted">Current: <?= e((string) ($existing['original_name'] ?? basename((string) $existing['file_path']))) ?></div>
                             <?php endif; ?>
@@ -1081,74 +1285,67 @@ include __DIR__ . '/includes/header.php';
                 <?php endforeach; ?>
 
                 <div class="col-12 wizard-actions">
-                    <a href="apply.php?step=3" class="btn btn-outline-secondary"><i class="fa-solid fa-arrow-left me-1"></i>Previous</a>
-                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-arrow-right me-1"></i>Next Step</button>
+                    <a href="apply.php?step=3" class="btn btn-outline-secondary wizard-btn-prev" id="step4PrevBtn"><i class="fa-solid fa-arrow-left me-1"></i>Previous</a>
+                    <button type="submit" class="btn btn-primary wizard-btn-next" id="step4NextBtn">
+                        <span class="step4-next-label"><i class="fa-solid fa-arrow-right me-1"></i>Next Step</span>
+                        <span class="step4-loading-label d-none"><span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Uploading files...</span>
+                    </button>
+                </div>
+                <div class="col-12">
+                    <p class="small text-muted mb-0 d-none" id="step4UploadingNote">Please wait. Do not close or refresh this page while uploading.</p>
                 </div>
             </form>
         </div>
     </div>
 
-    <div class="modal fade" id="docCaptureModal" tabindex="-1" aria-labelledby="docCaptureModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2 class="modal-title h6 m-0" id="docCaptureModalLabel">Capture Requirement Photo</h2>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="small text-muted mb-2" id="docCaptureRequirementText"></p>
-                    <div class="camera-stage mb-2">
-                        <video id="docCaptureVideo" autoplay playsinline muted></video>
-                        <canvas id="docCaptureCanvas" class="d-none"></canvas>
-                        <div id="docCaptureGuides" class="camera-guides" aria-hidden="true"></div>
-                    </div>
-                    <div class="small text-muted mb-2">Align the document inside the guide box, keep steady, and ensure text is readable.</div>
-                    <div class="alert alert-secondary py-2 px-3 small mb-0" id="docCaptureAlert">Ready to capture.</div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="docCaptureRetakeBtn">
-                        <i class="fa-solid fa-rotate-right me-1"></i>Retake
-                    </button>
-                    <button type="button" class="btn btn-primary btn-sm" id="docCaptureUseBtn" disabled>
-                        <i class="fa-solid fa-check me-1"></i>Use This Capture
-                    </button>
-                    <button type="button" class="btn btn-outline-primary btn-sm" id="docCaptureTakeBtn">
-                        <i class="fa-solid fa-camera me-1"></i>Capture
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            if (!window.SE_CAPTURE_UI || typeof window.SE_CAPTURE_UI.initDocumentCaptureModal !== 'function') {
+            const form = document.getElementById('applyStep4Form');
+            const nextBtn = document.getElementById('step4NextBtn');
+            const prevBtn = document.getElementById('step4PrevBtn');
+            const uploadingNote = document.getElementById('step4UploadingNote');
+            if (!form || !nextBtn) {
                 return;
             }
-            window.SE_CAPTURE_UI.initDocumentCaptureModal({
-                modalId: 'docCaptureModal',
-                requirementTextId: 'docCaptureRequirementText',
-                videoId: 'docCaptureVideo',
-                canvasId: 'docCaptureCanvas',
-                takeBtnId: 'docCaptureTakeBtn',
-                retakeBtnId: 'docCaptureRetakeBtn',
-                useBtnId: 'docCaptureUseBtn',
-                alertId: 'docCaptureAlert',
-                openSelector: '[data-doc-capture-open]',
-                clearSelector: '[data-doc-capture-clear]',
-                hiddenInputPrefix: 'reqCaptureInput',
-                statusPrefix: 'reqCaptureStatus',
-                clearBtnPrefix: 'reqCaptureClearBtn',
-                fileInputNamePrefix: 'req_',
-                blurThreshold: 16
+
+            let isSubmitting = false;
+            form.addEventListener('submit', function () {
+                if (isSubmitting) {
+                    return;
+                }
+                isSubmitting = true;
+                nextBtn.disabled = true;
+
+                const nextLabel = nextBtn.querySelector('.step4-next-label');
+                const loadingLabel = nextBtn.querySelector('.step4-loading-label');
+                if (nextLabel) {
+                    nextLabel.classList.add('d-none');
+                }
+                if (loadingLabel) {
+                    loadingLabel.classList.remove('d-none');
+                }
+                if (uploadingNote) {
+                    uploadingNote.classList.remove('d-none');
+                }
+                if (prevBtn) {
+                    prevBtn.classList.add('disabled');
+                    prevBtn.setAttribute('aria-disabled', 'true');
+                }
             });
         });
     </script>
+
 <?php endif; ?>
 
 <?php if ($step === 6): ?>
     <div class="card card-soft shadow-sm wizard-review">
         <div class="card-body p-4">
-            <h2 class="h5 mb-3">Step 6: Review and Preview Before Submit</h2>
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                <h2 class="h5 mb-0">Step 6: Review and Preview Before Submit</h2>
+                <button type="button" class="btn btn-outline-primary btn-sm" id="openPrintablePreviewBtn">
+                    <i class="fa-solid fa-print me-1"></i>Preview Printable Form
+                </button>
+            </div>
             <p class="small text-muted mb-3">Review your details carefully before final submission. You can still go back and edit any step.</p>
             <?php if ($reviewIssues): ?>
                 <div class="alert alert-warning">
@@ -1177,16 +1374,16 @@ include __DIR__ . '/includes/header.php';
                                     <span class="review-kv-value"><?= e((string) ($step1['applicant_type'] ?? '')) ?></span>
                                 </div>
                                 <div class="review-kv-row">
-                                    <span class="review-kv-label">Scholarship</span>
-                                    <span class="review-kv-value"><?= e((string) ($step1['scholarship_type'] ?? '')) ?></span>
-                                </div>
-                                <div class="review-kv-row">
                                     <span class="review-kv-label">Semester / School Year</span>
                                     <span class="review-kv-value"><?= e((string) ($step1['semester'] ?? '')) ?> / <?= e((string) ($step1['school_year'] ?? '')) ?></span>
                                 </div>
                                 <div class="review-kv-row">
                                     <span class="review-kv-label">School</span>
                                     <span class="review-kv-value"><?= e((string) ($step1['school_name'] ?? '')) ?> (<?= e((string) ($step1['school_type'] ?? '')) ?>)</span>
+                                </div>
+                                <div class="review-kv-row">
+                                    <span class="review-kv-label">Course</span>
+                                    <span class="review-kv-value"><?= e((string) ($step1['course'] ?? '')) ?></span>
                                 </div>
                             </div>
                         </div>
@@ -1222,7 +1419,7 @@ include __DIR__ . '/includes/header.php';
                     }
                     ?>
                     <div class="review-text-list">
-                        <p class="mb-1"><strong>Applicant:</strong> <?= e((string) ($step2['last_name'] ?? '')) ?>, <?= e((string) ($step2['first_name'] ?? '')) ?> <?= e((string) ($step2['middle_name'] ?? '')) ?></p>
+                        <p class="mb-1"><strong>Applicant:</strong> <?= e((string) ($step2['last_name'] ?? '')) ?>, <?= e((string) ($step2['first_name'] ?? '')) ?> <?= e(trim((string) (($step2['middle_name'] ?? '') . ' ' . ($step2['suffix'] ?? '')))) ?></p>
                         <p class="mb-1"><strong>Contact:</strong> <?= e((string) ($step2['contact_number'] ?? '')) ?></p>
                         <p class="mb-1"><strong>Address:</strong> <?= e(trim((string) (($step2['address'] ?? '') . ', ' . ($step2['barangay'] ?? '') . ', ' . ($step2['town'] ?? san_enrique_town()) . ', ' . ($step2['province'] ?? san_enrique_province())), ', ')) ?></p>
                         <p class="mb-0"><strong>Parents:</strong> <?= e($motherReview) ?> / <?= e($fatherReview) ?></p>
@@ -1235,7 +1432,27 @@ include __DIR__ . '/includes/header.php';
                     <h3 class="h6">Requirements <a class="small ms-2" href="apply.php?step=4">Edit</a></h3>
                     <ul class="mb-0 small requirements-list">
                         <?php foreach ($wizard['documents'] as $doc): ?>
-                            <li><?= e((string) ($doc['requirement_name'] ?? 'Requirement')) ?> - <span class="text-muted"><?= e((string) ($doc['original_name'] ?? basename((string) ($doc['file_path'] ?? '')))) ?></span></li>
+                            <?php
+                            $docPath = trim((string) ($doc['file_path'] ?? ''));
+                            $isPreviewableDoc = $docPath !== '' && (
+                                str_starts_with($docPath, 'uploads/documents/')
+                                || str_starts_with($docPath, 'uploads/tmp/')
+                                || str_starts_with($docPath, '/uploads/documents/')
+                                || str_starts_with($docPath, '/uploads/tmp/')
+                            );
+                            ?>
+                            <li>
+                                <?= e((string) ($doc['requirement_name'] ?? 'Requirement')) ?> -
+                                <span class="text-muted"><?= e((string) ($doc['original_name'] ?? basename((string) ($doc['file_path'] ?? '')))) ?></span>
+                                <?php if ($isPreviewableDoc): ?>
+                                    <button
+                                        type="button"
+                                        class="btn btn-link btn-sm p-0 ms-2 align-baseline js-open-doc-preview"
+                                        data-preview-title="<?= e((string) ($doc['requirement_name'] ?? 'Requirement')) ?>"
+                                        data-preview-src="<?= e((string) ltrim($docPath, '/')) ?>"
+                                    >Preview</button>
+                                <?php endif; ?>
+                            </li>
                         <?php endforeach; ?>
                     </ul>
                 </div>
@@ -1244,27 +1461,17 @@ include __DIR__ . '/includes/header.php';
             <form method="post" class="row g-3 wizard-review-submit">
                 <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                 <input type="hidden" name="action" value="final_submit">
-                <div class="col-12 col-md-6">
-                    <label class="form-label">Account Password *</label>
-                    <div class="input-group">
-                        <input type="password" name="account_password" id="applyAccountPassword" class="form-control" required>
-                        <button class="btn btn-outline-secondary" type="button" data-password-toggle data-target="#applyAccountPassword" aria-label="Show password">
-                            <i class="fa-regular fa-eye"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="col-12 col-md-6">
-                    <label class="form-label">Confirm Password *</label>
-                    <div class="input-group">
-                        <input type="password" name="confirm_account_password" id="applyConfirmAccountPassword" class="form-control" required>
-                        <button class="btn btn-outline-secondary" type="button" data-password-toggle data-target="#applyConfirmAccountPassword" aria-label="Show password">
-                            <i class="fa-regular fa-eye"></i>
-                        </button>
+                <div class="col-12">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="1" id="agreeTermsCheck" name="agree_terms" required>
+                        <label class="form-check-label" for="agreeTermsCheck">
+                            By submitting this application, I confirm that the information and uploaded documents are true and correct, and I consent to their processing for scholarship evaluation.
+                        </label>
                     </div>
                 </div>
                 <div class="col-12 wizard-actions">
-                    <a href="apply-photo.php" class="btn btn-outline-secondary"><i class="fa-solid fa-arrow-left me-1"></i>Previous</a>
-                    <button type="submit" class="btn btn-primary" <?= $reviewIssues ? 'disabled' : '' ?>>
+                    <a href="apply-photo.php" class="btn btn-outline-secondary wizard-btn-prev"><i class="fa-solid fa-arrow-left me-1"></i>Previous</a>
+                    <button type="submit" class="btn btn-primary wizard-btn-next" <?= $reviewIssues ? 'disabled' : '' ?>>
                         <i class="fa-solid fa-paper-plane me-1"></i>Submit Final Application
                     </button>
                 </div>
@@ -1272,6 +1479,64 @@ include __DIR__ . '/includes/header.php';
             <p class="small text-muted mt-3 mb-0 review-note">After submitting, you can print/download the exact legal-size application form with QR code.</p>
         </div>
     </div>
+
+    <div class="modal fade" id="reviewPreviewModal" tabindex="-1" aria-labelledby="reviewPreviewModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-fullscreen">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h6 m-0" id="reviewPreviewModalLabel">Preview</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <iframe
+                        id="reviewPreviewFrame"
+                        src="about:blank"
+                        title="Preview"
+                        style="border:0;width:100%;height:100%;background:#fff;"
+                    ></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const modalEl = document.getElementById('reviewPreviewModal');
+            const titleEl = document.getElementById('reviewPreviewModalLabel');
+            const frameEl = document.getElementById('reviewPreviewFrame');
+            const printableBtn = document.getElementById('openPrintablePreviewBtn');
+            if (!modalEl || !titleEl || !frameEl || typeof bootstrap === 'undefined') {
+                return;
+            }
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+            const openPreview = function (title, src) {
+                titleEl.textContent = title;
+                frameEl.src = src;
+                modal.show();
+            };
+
+            if (printableBtn) {
+                printableBtn.addEventListener('click', function () {
+                    openPreview('Printable Form Preview', 'print-application.php?draft=1&embed=1');
+                });
+            }
+
+            document.querySelectorAll('.js-open-doc-preview').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    const src = btn.getAttribute('data-preview-src') || '';
+                    const title = btn.getAttribute('data-preview-title') || 'Document Preview';
+                    if (!src) {
+                        return;
+                    }
+                    openPreview(title, 'preview-document.php?file=' + encodeURIComponent(src));
+                });
+            });
+
+            modalEl.addEventListener('hidden.bs.modal', function () {
+                frameEl.src = 'about:blank';
+            });
+        });
+    </script>
 <?php endif; ?>
 
 <?php if (in_array($step, [1, 2, 3], true)): ?>
@@ -1279,6 +1544,39 @@ include __DIR__ . '/includes/header.php';
         document.addEventListener('DOMContentLoaded', function () {
             if (!window.SE_APPLY_WIZARD) {
                 return;
+            }
+
+            if (<?= (int) $step ?> === 1) {
+                const schoolSelect = document.getElementById('applySchoolNameSelect');
+                const otherWrapper = document.getElementById('applyOtherSchoolWrapper');
+                const otherInput = document.getElementById('applyOtherSchoolInput');
+                const courseSelect = document.getElementById('applyCourseSelect');
+                const otherCourseWrapper = document.getElementById('applyOtherCourseWrapper');
+                const otherCourseInput = document.getElementById('applyOtherCourseInput');
+                if (schoolSelect && otherWrapper && otherInput) {
+                    const syncOtherSchoolVisibility = function () {
+                        const showOther = schoolSelect.value === '__other__';
+                        otherWrapper.classList.toggle('d-none', !showOther);
+                        otherInput.required = showOther;
+                        if (!showOther) {
+                            otherInput.value = '';
+                        }
+                    };
+                    schoolSelect.addEventListener('change', syncOtherSchoolVisibility);
+                    syncOtherSchoolVisibility();
+                }
+                if (courseSelect && otherCourseWrapper && otherCourseInput) {
+                    const syncOtherCourseVisibility = function () {
+                        const showOther = courseSelect.value === '__other__';
+                        otherCourseWrapper.classList.toggle('d-none', !showOther);
+                        otherCourseInput.required = showOther;
+                        if (!showOther) {
+                            otherCourseInput.value = '';
+                        }
+                    };
+                    courseSelect.addEventListener('change', syncOtherCourseVisibility);
+                    syncOtherCourseVisibility();
+                }
             }
 
             if (<?= (int) $step ?> === 2 && typeof window.SE_APPLY_WIZARD.initBirthdateAgeSync === 'function') {
@@ -1293,6 +1591,153 @@ include __DIR__ . '/includes/header.php';
                     toggleSelector: '.js-na-toggle[data-target]',
                     honorsToggleId: 'honorsNaToggle',
                     honorsInputSelector: '.js-honors-input'
+                });
+
+                const siblingsBody = document.getElementById('siblingsTableBody');
+                const addSiblingBtn = document.getElementById('addSiblingRowBtn');
+                const siblingsNaToggle = document.getElementById('siblingsNaToggle');
+                const grantsBody = document.getElementById('grantsTableBody');
+                const addGrantsBtn = document.getElementById('addGrantsRowBtn');
+                const grantsNaToggle = document.getElementById('grantsNaToggle');
+                if (siblingsBody && addSiblingBtn) {
+                    const maxRows = 10;
+                    const syncAddButtonState = function () {
+                        addSiblingBtn.disabled = !!(siblingsNaToggle && siblingsNaToggle.checked);
+                    };
+                    const getNextIndex = function () {
+                        const current = Number(siblingsBody.getAttribute('data-next-index') || '0');
+                        siblingsBody.setAttribute('data-next-index', String(current + 1));
+                        return current;
+                    };
+                    const buildRow = function (index) {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td data-label="Name"><div class="wizard-inline-field-label">Name</div><input type="text" class="form-control form-control-sm" name="siblings[${index}][name]" placeholder="Full name"></td>
+                            <td data-label="Age"><div class="wizard-inline-field-label">Age</div><input type="number" class="form-control form-control-sm" name="siblings[${index}][age]" min="0"></td>
+                            <td data-label="Highest Educational Attainment"><div class="wizard-inline-field-label">Highest Educational Attainment</div><input type="text" class="form-control form-control-sm" name="siblings[${index}][education]" placeholder="e.g., College"></td>
+                            <td data-label="Occupation"><div class="wizard-inline-field-label">Occupation</div><input type="text" class="form-control form-control-sm" name="siblings[${index}][occupation]" placeholder="e.g., Student"></td>
+                            <td data-label="Monthly Income"><div class="wizard-inline-field-label">Monthly Income</div><input type="number" step="0.01" class="form-control form-control-sm" name="siblings[${index}][income]" min="0"></td>
+                            <td data-label="Action" class="text-end">
+                                <button type="button" class="btn btn-sm btn-outline-danger js-remove-sibling-row" aria-label="Remove sibling row">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </td>
+                        `;
+                        return tr;
+                    };
+                    const removeRow = function (button) {
+                        const row = button.closest('tr');
+                        if (!row) {
+                            return;
+                        }
+                        if (siblingsBody.querySelectorAll('tr').length <= 1) {
+                            row.querySelectorAll('input').forEach(function (input) {
+                                input.value = '';
+                            });
+                            return;
+                        }
+                        row.remove();
+                    };
+
+                    addSiblingBtn.addEventListener('click', function () {
+                        const currentRows = siblingsBody.querySelectorAll('tr').length;
+                        if (currentRows >= maxRows) {
+                            return;
+                        }
+                        siblingsBody.appendChild(buildRow(getNextIndex()));
+                    });
+
+                    siblingsBody.addEventListener('click', function (event) {
+                        const target = event.target;
+                        if (!(target instanceof HTMLElement)) {
+                            return;
+                        }
+                        const removeBtn = target.closest('.js-remove-sibling-row');
+                        if (!removeBtn) {
+                            return;
+                        }
+                        removeRow(removeBtn);
+                    });
+
+                    if (siblingsNaToggle) {
+                        siblingsNaToggle.addEventListener('change', syncAddButtonState);
+                    }
+                    syncAddButtonState();
+                }
+
+                const initDynamicRows = function (config) {
+                    if (!config.body || !config.addBtn) {
+                        return;
+                    }
+                    const maxRows = config.maxRows || 10;
+                    const getNextIndex = function () {
+                        const current = Number(config.body.getAttribute('data-next-index') || '0');
+                        config.body.setAttribute('data-next-index', String(current + 1));
+                        return current;
+                    };
+                    const buildRow = function (index) {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = config.rowHtml(index);
+                        return tr;
+                    };
+                    const syncState = function () {
+                        const disabledByToggle = !!(config.naToggle && config.naToggle.checked);
+                        config.addBtn.disabled = disabledByToggle;
+                    };
+                    config.addBtn.addEventListener('click', function () {
+                        if (config.addBtn.disabled) {
+                            return;
+                        }
+                        const currentRows = config.body.querySelectorAll('tr').length;
+                        if (currentRows >= maxRows) {
+                            return;
+                        }
+                        config.body.appendChild(buildRow(getNextIndex()));
+                    });
+                    config.body.addEventListener('click', function (event) {
+                        const target = event.target;
+                        if (!(target instanceof HTMLElement)) {
+                            return;
+                        }
+                        const removeBtn = target.closest(config.removeSelector);
+                        if (!removeBtn) {
+                            return;
+                        }
+                        const row = removeBtn.closest('tr');
+                        if (!row) {
+                            return;
+                        }
+                        if (config.body.querySelectorAll('tr').length <= 1) {
+                            row.querySelectorAll('input').forEach(function (input) {
+                                input.value = '';
+                            });
+                            return;
+                        }
+                        row.remove();
+                    });
+                    if (config.naToggle) {
+                        config.naToggle.addEventListener('change', syncState);
+                    }
+                    syncState();
+                };
+
+                initDynamicRows({
+                    body: grantsBody,
+                    addBtn: addGrantsBtn,
+                    naToggle: grantsNaToggle,
+                    removeSelector: '.js-remove-grants-row',
+                    maxRows: 8,
+                    rowHtml: function (index) {
+                        return `
+                            <td data-label="Scholarship Program"><div class="wizard-inline-field-label">Scholarship Program</div><input type="text" class="form-control form-control-sm" name="grants[${index}][program]" placeholder="Program name"></td>
+                            <td data-label="Year/Period"><div class="wizard-inline-field-label">Year/Period</div><input type="text" class="form-control form-control-sm" name="grants[${index}][period]" placeholder="e.g., 2024-2025"></td>
+                            <td data-label="Action" class="text-end">
+                                <button type="button" class="btn btn-sm btn-outline-danger js-remove-grants-row" aria-label="Remove grants row">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </td>
+                        `;
+                    }
                 });
             }
 

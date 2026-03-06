@@ -1,0 +1,24 @@
+flowchart TD
+    A[System event occurs] --> B{Event type}
+    B -->|Application submitted| C[Build applicant confirmation message]
+    B -->|Status updated| D[Build status message from template]
+    B -->|Interview/SOA/Payout advisory| E[Build schedule/advisory message]
+    B -->|Manual office advisory| F[Admin composes custom SMS]
+
+    C --> G[Create notifications row]
+    D --> G
+    E --> G
+    F --> H[Select recipients by filters]
+    H --> I[Send single or bulk SMS]
+    I --> J[Write sms_logs]
+
+    G --> K{SMS required?}
+    K -->|No| L[In-app notification only]
+    K -->|Yes| M[sms_send()]
+    M --> N{Provider enabled/available?}
+    N -->|Yes| O[Send to provider API]
+    N -->|No| P[Fallback/dev mode handling]
+    O --> Q[Write sms_logs delivery status]
+    P --> Q
+    Q --> R[Applicant sees update in notifications.php / my-application.php]
+    L --> R

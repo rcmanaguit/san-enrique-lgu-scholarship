@@ -1,0 +1,31 @@
+flowchart TD
+    A([Start: Public Website]) --> B{User Type}
+    B -->|Guest| C[Register]
+    C --> D[OTP Verification]
+    D --> E[Login]
+    B -->|Existing User| E
+
+    E --> F{Role}
+    F -->|Applicant| G[Open Applicant Dashboard]
+    F -->|Admin/Staff| H[Open Admin/Staff Dashboard]
+
+    G --> I{Application Period Open?}
+    I -->|No| J[Wait / Check Announcements]
+    J --> I
+    I -->|Yes| K[Submit Application + Documents + Photo]
+    K --> L[Application Under Review]
+    L --> M[Receive Notification / SMS]
+    M --> N[Track Status]
+
+    H --> O[Review Application]
+    O --> P[Verify Documents]
+    P --> Q[Update Status]
+    Q --> R{For Payout?}
+    R -->|No| S[Send Update to Applicant]
+    R -->|Yes| T[Create Disbursement]
+    T --> S
+    S --> N
+
+    N --> U{Final Decision}
+    U -->|Approved| V([End: Disbursed])
+    U -->|Not Approved| W([End: Rejected])

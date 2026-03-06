@@ -1,0 +1,38 @@
+flowchart TD
+    A[Admin/Staff opens shared/applications.php or shared/verify-qr.php] --> B[Search/filter applicant]
+    B --> C[Open application details]
+    C --> D[Review profile, requirements, notes, QR history]
+    D --> E{Need status update?}
+    E -->|No| F[Keep current status]
+    E -->|Yes| G[Apply allowed transition]
+
+    G --> H{Current status}
+    H -->|draft| H1[under_review]
+    H -->|under_review| H2[for_interview or rejected]
+    H -->|needs_resubmission| H3[under_review or rejected]
+    H -->|for_interview| H4[interview_passed or rejected]
+    H -->|interview_passed| H5[for_soa]
+    H -->|for_soa| H6[soa_received]
+    H -->|soa_received| H7[awaiting_payout or disbursed]
+    H -->|awaiting_payout| H8[disbursed]
+    H -->|disbursed/rejected| H9[End state]
+
+    H1 --> I[Update applications.status]
+    H2 --> I
+    H3 --> I
+    H4 --> I
+    H5 --> I
+    H6 --> I
+    H7 --> I
+    H8 --> I
+    H9 --> I
+
+    I --> J[Save review notes and optional SOA deadline]
+    J --> K[Insert audit_logs]
+    K --> L[Create notifications for applicant]
+    L --> M[Optional SMS status update via template]
+
+    M --> N{Status is disbursed?}
+    N -->|No| O[Finish]
+    N -->|Yes| P[Create/confirm disbursement record]
+    P --> O

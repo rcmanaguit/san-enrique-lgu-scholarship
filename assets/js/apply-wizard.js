@@ -57,7 +57,7 @@
             }
 
             var disabled = !!toggle.checked;
-            var fields = target.querySelectorAll("input, select, textarea");
+            var fields = target.querySelectorAll("input, select, textarea, button");
             fields.forEach(function (field) {
                 if (!(field instanceof HTMLElement)) {
                     return;

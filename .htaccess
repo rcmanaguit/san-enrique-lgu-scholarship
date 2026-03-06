@@ -3,6 +3,14 @@
 Options -Indexes
 AddDefaultCharset UTF-8
 
+<IfModule mod_php.c>
+php_value upload_max_filesize 32M
+php_value post_max_size 40M
+php_value max_file_uploads 30
+php_value max_input_time 300
+php_value max_execution_time 300
+</IfModule>
+
 <IfModule mod_rewrite.c>
 RewriteEngine On
 

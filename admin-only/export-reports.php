@@ -215,69 +215,6 @@ if ($dataset === 'status_summary') {
     ];
     $title = 'San Enrique LGU Scholarship - SMS Logs' . $rangeSuffix;
     $filenameBase = 'san_enrique_lgu_scholarship_sms_logs_' . date('Ymd_His');
-} elseif ($dataset === 'qr_scan_summary') {
-    if (!table_exists($conn, 'qr_scan_logs')) {
-        $rows = [];
-    } else {
-        $sql = "SELECT purpose, scan_status, COUNT(*) AS total
-                FROM qr_scan_logs
-                {$logRangeWhere}
-                GROUP BY purpose, scan_status
-                ORDER BY total DESC, purpose ASC";
-        $result = $conn->query($sql);
-        $rows = $result instanceof mysqli_result ? $result->fetch_all(MYSQLI_ASSOC) : [];
-        foreach ($rows as &$row) {
-            $row['purpose'] = qr_scan_purpose_label((string) ($row['purpose'] ?? ''));
-        }
-        unset($row);
-    }
-
-    $columns = [
-        'purpose' => 'Scan Purpose',
-        'scan_status' => 'Scan Status',
-        'total' => 'Total Scans',
-    ];
-    $title = 'San Enrique LGU Scholarship - QR Scan Summary' . $rangeSuffix;
-    $filenameBase = 'san_enrique_lgu_scholarship_qr_scan_summary_' . date('Ymd_His');
-} elseif ($dataset === 'qr_scan_logs') {
-    if (!table_exists($conn, 'qr_scan_logs')) {
-        $rows = [];
-    } else {
-        $sql = "SELECT
-                    l.created_at,
-                    COALESCE(a.application_no, l.scanned_application_no, '-') AS application_no,
-                    COALESCE(CONCAT(a.last_name, ', ', a.first_name), '-') AS applicant_name,
-                    l.purpose,
-                    l.scan_status,
-                    COALESCE(CONCAT(su.first_name, ' ', su.last_name), '-') AS scanned_by,
-                    l.scanned_qr_token,
-                    l.notes
-                FROM qr_scan_logs l
-                LEFT JOIN applications a ON a.id = l.application_id
-                LEFT JOIN users su ON su.id = l.scanned_by_user_id
-                {$logRangeWhere}
-                ORDER BY l.id DESC
-                LIMIT 1000";
-        $result = $conn->query($sql);
-        $rows = $result instanceof mysqli_result ? $result->fetch_all(MYSQLI_ASSOC) : [];
-        foreach ($rows as &$row) {
-            $row['purpose'] = qr_scan_purpose_label((string) ($row['purpose'] ?? ''));
-        }
-        unset($row);
-    }
-
-    $columns = [
-        'created_at' => 'Date/Time',
-        'application_no' => 'Application No',
-        'applicant_name' => 'Applicant',
-        'purpose' => 'Purpose',
-        'scan_status' => 'Scan Status',
-        'scanned_by' => 'Scanned By',
-        'scanned_qr_token' => 'Scanned QR Token',
-        'notes' => 'Notes',
-    ];
-    $title = 'San Enrique LGU Scholarship - QR Scan Logs' . $rangeSuffix;
-    $filenameBase = 'san_enrique_lgu_scholarship_qr_scan_logs_' . date('Ymd_His');
 } elseif ($dataset === 'audit_logs') {
     if (!table_exists($conn, 'audit_logs')) {
         $rows = [];

@@ -186,6 +186,7 @@ body.desktop-sidebar-enabled.desktop-sidebar-collapsed .nav-sidebar-toggle i {
 }
 
 .nav-top-icon {
+    width: 38px;
     min-width: 38px;
     height: 38px;
     padding: 0;
@@ -193,10 +194,18 @@ body.desktop-sidebar-enabled.desktop-sidebar-collapsed .nav-sidebar-toggle i {
     align-items: center;
     justify-content: center;
     position: relative;
+    overflow: visible;
+    flex: 0 0 38px;
 }
 
-.nav-top-icon i {
+.nav-top-icon > i {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     font-size: 0.95rem;
+    line-height: 1;
+    pointer-events: none;
 }
 
 .nav-top-icon.active,
@@ -209,10 +218,22 @@ body.desktop-sidebar-enabled.desktop-sidebar-collapsed .nav-sidebar-toggle i {
 
 .nav-top-icon-badge {
     position: absolute;
-    top: -6px;
-    right: -6px;
-    font-size: 0.62rem;
-    line-height: 1.1;
+    top: 0;
+    right: 0;
+    transform: translate(50%, -50%);
+    min-width: 1.2rem;
+    height: 1.2rem;
+    padding: 0 0.28rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.64rem;
+    line-height: 1;
+    font-weight: 700;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 8px rgba(17, 67, 101, 0.22);
+    pointer-events: none;
+    z-index: 2;
 }
 
 .navbar-global-search {
@@ -841,6 +862,113 @@ body.desktop-sidebar-enabled.desktop-sidebar-collapsed .nav-sidebar-toggle i {
     top: 6px;
 }
 
+.applicant-hero {
+    background: linear-gradient(145deg, #ffffff 0%, #f6fbff 100%);
+    border: 1px solid rgba(45, 143, 213, 0.2);
+}
+
+.applicant-hero-actions .btn {
+    min-height: 38px;
+}
+
+.applicant-status-card .card-body,
+.applicant-kpi-card .card-body {
+    padding: 1rem;
+}
+
+.applicant-status-badge {
+    font-size: 0.78rem;
+    letter-spacing: 0.02em;
+}
+
+.applicant-timeline-card .status-point:last-child {
+    margin-bottom: 0;
+}
+
+.applicant-progress-card {
+    border: 1px solid rgba(45, 143, 213, 0.22);
+}
+
+.applicant-next-action {
+    border: 1px dashed rgba(45, 143, 213, 0.28);
+    border-radius: 10px;
+    background: rgba(120, 194, 255, 0.08);
+    padding: 0.5rem 0.62rem;
+}
+
+.applicant-flow-badge {
+    font-weight: 600;
+}
+
+.applicant-history-table td {
+    vertical-align: top;
+}
+
+.applicant-review-note {
+    border-left: 3px solid rgba(45, 143, 213, 0.28);
+    padding-left: 0.48rem;
+}
+
+.applicant-app-link {
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.applicant-app-link:hover,
+.applicant-app-link:focus-visible {
+    text-decoration: underline;
+}
+
+.applicant-history-row.js-open-application-modal-row {
+    cursor: pointer;
+}
+
+.applicant-history-row.js-open-application-modal-row:focus-visible {
+    outline: 2px solid rgba(45, 143, 213, 0.42);
+    outline-offset: -2px;
+}
+
+.applicant-actions-group {
+    display: inline-flex;
+    gap: 0.35rem;
+}
+
+.applicant-actions-group > .btn {
+    border-radius: 8px !important;
+}
+
+.applicant-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    min-width: 88px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.applicant-cell-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--se-muted);
+    margin-bottom: 0.14rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.applicant-notification-summary .card-body {
+    background: linear-gradient(180deg, #ffffff 0%, #f9fcff 100%);
+}
+
+.applicant-notification-item.is-unread {
+    border: 1px solid rgba(45, 143, 213, 0.28);
+    background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+}
+
+.applicant-notification-item.is-read {
+    border: 1px solid rgba(45, 143, 213, 0.15);
+}
+
 .wizard-step-pill {
     min-width: 36px;
     min-height: 36px;
@@ -908,6 +1036,22 @@ body.desktop-sidebar-enabled.desktop-sidebar-collapsed .nav-sidebar-toggle i {
 
 .wizard-actions .btn {
     min-width: 150px;
+    min-height: 42px;
+}
+
+.wizard-actions .wizard-btn-prev {
+    margin-right: auto;
+}
+
+.wizard-actions .wizard-btn-next {
+    margin-left: auto;
+}
+
+.wizard-inline-field-label {
+    font-size: 0.74rem;
+    color: var(--se-muted);
+    font-weight: 700;
+    margin-bottom: 0.2rem;
 }
 
 .wizard-stack-table tr td[data-label]::before {
@@ -1126,7 +1270,13 @@ body.desktop-sidebar-enabled.desktop-sidebar-collapsed .nav-sidebar-toggle i {
 }
 
 .camera-stage video,
-.camera-stage canvas,
+.camera-stage canvas {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+}
+
 .photo-source {
     width: 100%;
     height: 100%;
@@ -1184,6 +1334,32 @@ body.desktop-sidebar-enabled.desktop-sidebar-collapsed .nav-sidebar-toggle i {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.55rem;
+}
+
+.photo-camera-controls {
+    grid-template-columns: 1fr;
+    align-items: center;
+}
+
+.photo-camera-controls #captureBtn {
+    justify-self: center;
+}
+
+.photo-capture-circle {
+    width: 76px;
+    height: 76px;
+    border-radius: 999px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-inline: auto;
+    font-size: 1.35rem;
+    box-shadow: 0 10px 24px rgba(24, 77, 114, 0.24);
+}
+
+.photo-capture-circle i {
+    margin: 0;
 }
 
 .photo-advanced {
@@ -1252,6 +1428,8 @@ body.photo-camera-overlay-open {
     border-radius: 0 !important;
     background: linear-gradient(180deg, rgba(16, 44, 63, 0.98), rgba(11, 31, 47, 0.98));
     overflow-y: auto;
+    justify-content: center;
+    align-items: center;
 }
 
 .photo-panel-overlay .form-label,
@@ -1272,10 +1450,24 @@ body.photo-camera-overlay-open {
 .photo-panel-overlay .camera-stage,
 #cameraPanel:fullscreen .camera-stage,
 #cameraPanel:-webkit-full-screen .camera-stage {
-    flex: 1 1 auto;
-    min-height: min(72vh, 680px);
+    flex: 0 0 auto;
+    width: min(92vmin, 760px);
+    height: min(92vmin, 760px);
+    aspect-ratio: 1 / 1;
+    min-height: 0;
+    margin-inline: auto;
     border-color: rgba(255, 255, 255, 0.38);
     background: #000;
+}
+
+.photo-panel-overlay > .d-flex,
+#cameraPanel:fullscreen > .d-flex,
+#cameraPanel:-webkit-full-screen > .d-flex,
+.photo-panel-overlay .camera-control-grid,
+#cameraPanel:fullscreen .camera-control-grid,
+#cameraPanel:-webkit-full-screen .camera-control-grid {
+    width: min(92vmin, 760px);
+    margin-inline: auto;
 }
 
 .photo-panel-overlay .camera-placeholder,
@@ -1777,7 +1969,7 @@ body.photo-camera-overlay-open {
         row-gap: 0.3rem;
     }
 
-    .wizard-actions .btn {
+    .wizard-actions:not(.wizard-actions-end) .btn {
         flex: 1 1 calc(50% - 0.3rem);
         min-width: 0;
     }
@@ -1852,16 +2044,156 @@ body.photo-camera-overlay-open {
         margin-right: auto;
     }
 
+    .apply-page,
+    .apply-page .app-main,
+    .apply-page .app-main > .container {
+        overflow-x: hidden;
+    }
+
+    .apply-page .table-responsive {
+        overflow-x: hidden;
+    }
+
+    .apply-page .table-responsive > .table,
     .apply-page .table-responsive > .wizard-stack-table {
-        min-width: 0;
+        min-width: 0 !important;
+        width: 100%;
+    }
+
+    .apply-page .wizard-stack-table td[data-label]::before {
+        display: none;
     }
 
     .apply-page .wizard-progress {
         justify-content: center;
     }
+
+    .applicant-dashboard-page,
+    .applicant-dashboard-page .app-main,
+    .applicant-dashboard-page .app-main > .container,
+    .applicant-my-application-page,
+    .applicant-my-application-page .app-main,
+    .applicant-my-application-page .app-main > .container,
+    .applicant-notifications-page,
+    .applicant-notifications-page .app-main,
+    .applicant-notifications-page .app-main > .container {
+        overflow-x: hidden;
+    }
+
+    .applicant-dashboard-page .table-responsive,
+    .applicant-my-application-page .table-responsive,
+    .applicant-notifications-page .table-responsive {
+        overflow-x: hidden;
+    }
+
+    .applicant-dashboard-page .table-responsive > .table,
+    .applicant-my-application-page .table-responsive > .table,
+    .applicant-notifications-page .table-responsive > .table {
+        min-width: 0 !important;
+        width: 100%;
+    }
+
+    .applicant-hero .card-body {
+        padding: 0.85rem;
+    }
+
+    .applicant-hero-actions {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.45rem !important;
+    }
+
+    .applicant-hero-actions .btn {
+        width: 100%;
+        min-width: 0;
+        white-space: normal;
+        line-height: 1.25;
+    }
+
+    .applicant-my-application-page .applicant-history-table,
+    .applicant-my-application-page .applicant-history-table thead,
+    .applicant-my-application-page .applicant-history-table tbody,
+    .applicant-my-application-page .applicant-history-table th,
+    .applicant-my-application-page .applicant-history-table td,
+    .applicant-my-application-page .applicant-history-table tr {
+        display: block;
+        width: 100%;
+    }
+
+    .applicant-my-application-page .applicant-history-table thead {
+        display: none;
+    }
+
+    .applicant-my-application-page .applicant-history-row {
+        border: 1px solid rgba(45, 143, 213, 0.2);
+        border-radius: 12px;
+        margin: 0.65rem 0.55rem;
+        padding: 0.65rem;
+        background: #fff;
+    }
+
+    .applicant-my-application-page .applicant-history-table td {
+        border: 0;
+        padding: 0.22rem 0;
+    }
+
+    .applicant-my-application-page .applicant-history-table td.text-end {
+        text-align: left !important;
+    }
+
+    .applicant-my-application-page .applicant-history-table .btn-group {
+        width: 100%;
+        display: flex;
+        gap: 0.42rem;
+    }
+
+    .applicant-my-application-page .applicant-history-table .btn-group .btn {
+        flex: 1 1 0;
+        border-radius: 10px !important;
+        min-width: 0;
+    }
+
+    .applicant-my-application-page .applicant-action-btn {
+        white-space: normal;
+        line-height: 1.2;
+    }
+
+    .applicant-my-application-page #applicationDetailsModal .modal-footer .btn {
+        min-width: 0;
+    }
 }
 
 @media (max-width: 576px) {
+    .photo-camera-controls {
+        grid-template-columns: 1fr;
+    }
+
+    .photo-camera-controls #captureBtn {
+        grid-column: 1 / -1;
+    }
+
+    .photo-capture-circle {
+        width: 88px;
+        height: 88px;
+        font-size: 1.5rem;
+    }
+
+    .app-body #applyStep3Form .table-responsive,
+    .app-body #applyStep3Form .table-responsive > .table,
+    .app-body #applyStep3Form .table-responsive > .wizard-stack-table {
+        overflow-x: hidden !important;
+        min-width: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    .app-body #applyStep3Form .wizard-stack-table tr,
+    .app-body #applyStep3Form .wizard-stack-table td,
+    .app-body #applyStep3Form .wizard-stack-table .form-control {
+        max-width: 100%;
+    }
+
     .photo-simple-steps {
         margin-left: 0.8rem;
     }
@@ -1907,8 +2239,21 @@ body.photo-camera-overlay-open {
     }
 
     .nav-top-icon {
+        width: 34px;
         min-width: 34px;
         height: 34px;
+        flex: 0 0 34px;
+    }
+
+    .nav-top-icon-badge {
+        min-width: 1.08rem;
+        height: 1.08rem;
+        font-size: 0.58rem;
+        padding: 0 0.24rem;
+        border-width: 1.5px;
+        top: 0;
+        right: 0;
+        transform: translate(45%, -45%);
     }
 
     .wizard-step-label {
@@ -2032,8 +2377,21 @@ body.photo-camera-overlay-open {
         font-size: 0.78rem;
     }
 
-    .wizard-actions .btn {
-        flex: 1 1 100%;
+    .wizard-actions:not(.wizard-actions-end) {
+        flex-wrap: nowrap;
+    }
+
+    .wizard-actions:not(.wizard-actions-end) .btn {
+        flex: 0 0 calc(50% - 0.25rem);
+        min-width: 0;
+    }
+
+    .wizard-actions:not(.wizard-actions-end) .wizard-btn-prev {
+        text-align: left;
+    }
+
+    .wizard-actions:not(.wizard-actions-end) .wizard-btn-next {
+        text-align: right;
     }
 
     .wizard-progress {
@@ -2119,6 +2477,64 @@ body.photo-camera-overlay-open {
 
     .photo-simple-steps li {
         margin-bottom: 0.24rem;
+    }
+
+    .applicant-hero .card-body {
+        padding: 0.72rem;
+    }
+
+    .applicant-hero h1.h4 {
+        font-size: 1.02rem;
+    }
+
+    .applicant-hero .small {
+        font-size: 0.76rem;
+    }
+
+    .applicant-hero-actions .btn {
+        min-height: 36px;
+        font-size: 0.78rem;
+        padding: 0.35rem 0.48rem;
+    }
+
+    .applicant-status-card .card-body,
+    .applicant-kpi-card .card-body,
+    .applicant-progress-card .card-body,
+    .applicant-notification-item .card-body,
+    .applicant-notification-summary .card-body {
+        padding: 0.72rem;
+    }
+
+    .applicant-next-action {
+        padding: 0.45rem 0.5rem;
+        font-size: 0.8rem;
+    }
+
+    .applicant-flow-badge {
+        font-size: 0.67rem;
+        padding: 0.34em 0.5em;
+    }
+
+    .applicant-my-application-page .applicant-history-row {
+        margin: 0.55rem 0.42rem;
+        padding: 0.55rem;
+    }
+
+    .applicant-my-application-page .applicant-history-table td {
+        padding: 0.18rem 0;
+    }
+
+    .applicant-my-application-page .applicant-cell-label {
+        font-size: 0.66rem;
+    }
+
+    .applicant-my-application-page .applicant-history-table .btn-group .btn {
+        min-height: 34px;
+        font-size: 0.8rem;
+    }
+
+    .applicant-action-btn {
+        min-width: 0;
     }
 }
 

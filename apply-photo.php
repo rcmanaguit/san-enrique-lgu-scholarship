@@ -159,7 +159,7 @@ include __DIR__ . '/includes/header.php';
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 <div class="card card-soft shadow-sm">
     <div class="card-body p-4">
-        <p class="small text-muted mb-2">Follow these steps: choose source, crop square, then apply. Blur check is automatic.</p>
+        <p class="small text-muted mb-2">Choose a source, crop to square, then apply photo before proceeding.</p>
         <ol class="photo-simple-steps small text-muted mb-3">
             <li>Choose <strong>Upload Photo</strong> or <strong>Use Camera</strong>.</li>
             <li>Keep face centered in guide box.</li>
@@ -177,7 +177,7 @@ include __DIR__ . '/includes/header.php';
                         <i class="fa-solid fa-upload me-1"></i>Upload Photo
                     </button>
                     <button type="button" class="btn btn-outline-primary" data-photo-mode="camera" aria-pressed="false">
-                        <i class="fa-solid fa-camera me-1"></i>Use Camera
+                        <i class="fa-solid fa-camera me-1"></i>Camera
                     </button>
                 </div>
                 <div class="photo-status photo-status-info mb-3" id="photoStatusWrap">
@@ -191,13 +191,18 @@ include __DIR__ . '/includes/header.php';
                     <div id="uploadPanel" class="photo-panel">
                         <label class="form-label">Choose Image</label>
                         <div class="photo-upload-drop">
-                            <input type="file" name="photo_upload" id="photoInput" class="form-control" accept="image/*" capture="user">
+                            <input type="file" name="photo_upload" id="photoInput" class="form-control" accept="image/*">
                         </div>
                         <div class="photo-file-name mt-2" id="photoFileName">No file selected yet.</div>
                     </div>
 
                     <div id="cameraPanel" class="photo-panel d-none">
-                        <label class="form-label">Camera Capture</label>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label mb-0">Camera Capture</label>
+                            <button type="button" id="toggleFullscreenBtn" class="btn btn-outline-primary btn-sm">
+                                <i class="fa-solid fa-expand me-1"></i>Full Screen
+                            </button>
+                        </div>
                         <div class="camera-stage">
                             <video id="cameraVideo" class="d-none" autoplay playsinline muted></video>
                             <canvas id="cameraCanvas" class="d-none"></canvas>
@@ -206,15 +211,9 @@ include __DIR__ . '/includes/header.php';
                             </div>
                             <div id="cameraGuides" class="camera-guides d-none" aria-hidden="true"></div>
                         </div>
-                        <div class="camera-control-grid mt-2">
-                            <button type="button" id="startCameraBtn" class="btn btn-outline-primary btn-sm">
-                                <i class="fa-solid fa-video me-1"></i>Start Camera
-                            </button>
-                            <button type="button" id="captureBtn" class="btn btn-primary btn-sm" disabled>
-                                <i class="fa-solid fa-camera me-1"></i>Capture Photo
-                            </button>
-                            <button type="button" id="retakeBtn" class="btn btn-outline-warning btn-sm" disabled>
-                                <i class="fa-solid fa-rotate-right me-1"></i>Retake Photo
+                        <div class="camera-control-grid photo-camera-controls mt-2">
+                            <button type="button" id="captureBtn" class="btn btn-primary photo-capture-circle" disabled aria-label="Capture Photo">
+                                <i class="fa-solid fa-camera"></i>
                             </button>
                         </div>
                     </div>
@@ -231,7 +230,7 @@ include __DIR__ . '/includes/header.php';
                             <i class="fa-solid fa-check me-1"></i>Apply Photo
                         </button>
                         <button type="button" id="clearSourceBtn" class="btn btn-outline-danger d-none wizard-mobile-full">
-                            <i class="fa-solid fa-trash-can me-1"></i>Start Over
+                            <i class="fa-solid fa-rotate-right me-1"></i>Retake Photo
                         </button>
                     </div>
                 </div>
@@ -252,8 +251,12 @@ include __DIR__ . '/includes/header.php';
 
             <div class="wizard-actions mt-4">
                 <a href="apply.php?step=4" class="btn btn-outline-secondary"><i class="fa-solid fa-arrow-left me-1"></i>Previous</a>
-                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-arrow-right me-1"></i>Next Step</button>
+                <button type="submit" class="btn btn-primary" id="step5NextBtn">
+                    <span class="step5-next-label"><i class="fa-solid fa-arrow-right me-1"></i>Next Step</span>
+                    <span class="step5-loading-label d-none"><span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Saving photo...</span>
+                </button>
             </div>
+            <p class="small text-muted mt-2 mb-0" id="step5SubmitNote">Apply a cropped photo to continue.</p>
         </form>
     </div>
 </div>
@@ -283,11 +286,10 @@ document.addEventListener('DOMContentLoaded', function () {
         canvasId: 'cameraCanvas',
         placeholderId: 'cameraPlaceholder',
         guidesId: 'cameraGuides',
-        startCameraBtnId: 'startCameraBtn',
+        fullscreenBtnId: 'toggleFullscreenBtn',
         captureBtnId: 'captureBtn',
-        retakeBtnId: 'retakeBtn',
-        blurThresholdCapture: 16,
-        blurThresholdCrop: 14
+        submitBtnId: 'step5NextBtn',
+        submitNoteId: 'step5SubmitNote'
     });
 });
 </script>

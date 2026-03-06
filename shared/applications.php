@@ -13,16 +13,17 @@ $pageTitle = 'Application Queue';
 $applications = [];
 $documentsByApplication = [];
 $statusFilter = trim((string) ($_GET['status'] ?? ''));
-$queueFilter = trim((string) ($_GET['queue'] ?? 'for_review'));
+$queueFilter = trim((string) ($_GET['queue'] ?? 'under_review'));
 $isAdmin = is_admin();
 $allowedStatus = application_status_options();
 $approvedPhaseStatuses = approved_phase_statuses();
 $bulkStatusButtons = [];
 $queueMap = [
-    'for_review' => ['submitted', 'for_review', 'for_resubmission'],
+    'under_review' => ['under_review', 'needs_resubmission'],
     'for_interview' => ['for_interview'],
-    'for_soa_submission' => ['approved', 'for_soa_submission'],
-    'approved' => ['soa_submitted', 'waitlisted'],
+    'for_soa' => ['interview_passed', 'for_soa'],
+    'interview_passed' => ['soa_received', 'awaiting_payout'],
+    'rejected' => ['rejected'],
     'completed' => ['disbursed'],
     'all' => [],
 ];
@@ -43,50 +44,48 @@ if (!in_array($statusFilter, $allowedStatus, true)) {
     $statusFilter = '';
 }
 if (!array_key_exists($queueFilter, $queueMap)) {
-    $queueFilter = 'for_review';
+    $queueFilter = 'under_review';
 }
 if ($statusFilter !== '') {
     $queueFilter = $statusToQueue($statusFilter);
 }
 
 $bulkStatusMap = [
-    '__default__' => ['for_review'],
-    'draft' => ['for_review'],
-    'submitted' => ['for_review'],
-    'for_review' => ['for_interview', 'rejected'],
-    'for_resubmission' => ['for_review', 'rejected'],
-    'for_interview' => ['approved', 'rejected'],
-    'approved' => ['for_soa_submission'],
-    'for_soa_submission' => ['soa_submitted'],
-    'soa_submitted' => ['waitlisted', 'disbursed'],
-    'waitlisted' => ['disbursed'],
+    '__default__' => ['under_review'],
+    'draft' => ['under_review'],
+    'under_review' => ['for_interview', 'rejected'],
+    'needs_resubmission' => ['under_review', 'rejected'],
+    'for_interview' => ['interview_passed', 'rejected'],
+    'interview_passed' => ['for_soa'],
+    'for_soa' => ['soa_received'],
+    'soa_received' => ['awaiting_payout', 'disbursed'],
+    'awaiting_payout' => ['disbursed'],
     'disbursed' => [],
     'rejected' => [],
 ];
 $queueBulkStatusMap = [
-    'for_review' => [],
-    'for_interview' => ['approved', 'rejected'],
-    'for_soa_submission' => ['soa_submitted'],
-    'approved' => ['disbursed'],
+    'under_review' => [],
+    'for_interview' => ['interview_passed', 'rejected'],
+    'for_soa' => ['soa_received'],
+    'interview_passed' => ['disbursed'],
+    'rejected' => [],
     'completed' => [],
-    'all' => ['for_review'],
+    'all' => ['under_review'],
 ];
 $statusActionLabels = [
-    'for_review' => 'Move to Review',
+    'under_review' => 'Mark Under Review',
     'for_interview' => 'Move to Interview',
-    'for_resubmission' => 'Request Resubmission',
-    'approved' => 'Approve',
-    'for_soa_submission' => 'Move to SOA Submission',
-    'soa_submitted' => 'SOA Submitted',
+    'needs_resubmission' => 'Request Resubmission',
+    'interview_passed' => 'Approve',
+    'for_soa' => 'Move to SOA Submission',
+    'soa_received' => 'SOA Submitted',
     'disbursed' => 'Mark Disbursed',
-    'waitlisted' => 'Mark Waitlisted',
+    'awaiting_payout' => 'Mark Awaiting Approval',
     'rejected' => 'Reject',
-    'submitted' => 'Mark Submitted',
     'draft' => 'Mark Draft',
 ];
 $secondaryStatusByStatus = [
-    'for_review' => 'submitted',
-    'for_soa_submission' => 'approved',
+    'for_soa' => 'interview_passed',
 ];
 $bulkKey = $statusFilter !== '' ? $statusFilter : '__default__';
 $candidateBulkStatuses = $bulkStatusMap[$bulkKey] ?? ($queueBulkStatusMap[$queueFilter] ?? $bulkStatusMap['__default__']);
@@ -103,7 +102,7 @@ $redirectQuery = [];
 if ($statusFilter !== '') {
     $redirectQuery['status'] = $statusFilter;
 }
-if ($queueFilter !== '' && $queueFilter !== 'for_review') {
+if ($queueFilter !== '' && $queueFilter !== 'under_review') {
     $redirectQuery['queue'] = $queueFilter;
 }
 $redirectUrl = 'applications.php' . ($redirectQuery ? '?' . http_build_query($redirectQuery) : '');
@@ -135,6 +134,83 @@ $renderSmsTemplate = static function (string $templateBody, array $replacements)
         $message = str_replace((string) $placeholder, (string) $value, $message);
     }
     return trim($message);
+};
+$statusSmsTemplateConfig = [
+    'under_review' => [
+        'template' => 'Application Under Review',
+        'fallback' => 'San Enrique LGU Scholarship: Application [Application No] is currently under review.',
+    ],
+    'for_interview' => [
+        'template' => 'Documents Verified',
+        'fallback' => 'San Enrique LGU Scholarship: Application [Application No] is scheduled for interview.',
+    ],
+    'interview_passed' => [
+        'template' => 'Interview Passed',
+        'fallback' => 'San Enrique LGU Scholarship: Application [Application No] has passed the interview stage.',
+    ],
+    'for_soa' => [
+        'template' => 'SOA Submission Required',
+        'fallback' => 'San Enrique LGU Scholarship: Please submit the SOA for application [Application No] on or before [Deadline].',
+    ],
+    'soa_received' => [
+        'template' => 'SOA Submitted Confirmation',
+        'fallback' => 'San Enrique LGU Scholarship: The SOA for application [Application No] has been received.',
+    ],
+    'awaiting_payout' => [
+        'template' => 'Awaiting Approval',
+        'fallback' => 'San Enrique LGU Scholarship: Application [Application No] is awaiting final approval.',
+    ],
+    'disbursed' => [
+        'template' => 'Payout Released',
+        'fallback' => 'San Enrique LGU Scholarship: Payout has been released for application [Application No].',
+    ],
+    'rejected' => [
+        'template' => 'Application Not Approved',
+        'fallback' => 'San Enrique LGU Scholarship: Application [Application No] was not approved.',
+    ],
+];
+$buildStatusSmsMessage = static function (string $newStatus, array $current, ?string $deadline = null) use ($conn, $statusSmsTemplateConfig, $resolveSmsTemplate, $renderSmsTemplate): string {
+    $applicationNo = (string) ($current['application_no'] ?? '');
+    $statusText = strtoupper(str_replace('_', ' ', $newStatus));
+    $deadlineText = 'the announced deadline';
+    if ($deadline !== null && trim($deadline) !== '') {
+        $deadlineText = date('M d, Y', strtotime($deadline));
+    }
+
+    $config = $statusSmsTemplateConfig[$newStatus] ?? null;
+    if (is_array($config)) {
+        $templateBody = $resolveSmsTemplate(
+            $conn,
+            (string) ($config['template'] ?? ''),
+            (string) ($config['fallback'] ?? '')
+        );
+        return $renderSmsTemplate($templateBody, [
+            '[Application No]' => $applicationNo,
+            '[Status]' => $statusText,
+            '[Deadline]' => $deadlineText,
+        ]);
+    }
+
+    return 'San Enrique LGU Scholarship: Application ' . $applicationNo . ' has been updated.';
+};
+$statusNotificationConfig = [
+    'under_review' => 'Application [Application No] under review.',
+    'for_interview' => 'Application [Application No] for interview.',
+    'interview_passed' => 'Application [Application No] interview passed.',
+    'for_soa' => 'Submit SOA for application [Application No] by [Deadline].',
+    'soa_received' => 'SOA received for application [Application No].',
+    'awaiting_payout' => 'Application [Application No] awaiting approval.',
+    'disbursed' => 'Payout released for application [Application No].',
+    'rejected' => 'Application [Application No] not approved.',
+];
+$buildStatusNotificationMessage = static function (string $newStatus, array $current, ?string $deadline = null) use ($statusNotificationConfig): string {
+    $applicationNo = (string) ($current['application_no'] ?? '');
+    $template = (string) ($statusNotificationConfig[$newStatus] ?? 'Application [Application No] updated.');
+    $deadlineText = $deadline !== null && trim($deadline) !== '' ? date('M d, Y', strtotime($deadline)) : 'the announced deadline';
+    return strtr($template, [
+        '[Application No]' => $applicationNo,
+        '[Deadline]' => $deadlineText,
+    ]);
 };
 
 if (is_post() && db_ready()) {
@@ -177,8 +253,8 @@ if (is_post() && db_ready()) {
             }
 
             $currentStatus = (string) ($current['status'] ?? '');
-            if (!in_array($currentStatus, ['for_review', 'for_resubmission'], true)) {
-                set_flash('danger', 'Document review action is only allowed for For Review/For Resubmission status.');
+            if (!in_array($currentStatus, ['under_review', 'needs_resubmission'], true)) {
+                set_flash('danger', 'Document review action is only allowed for Under Review/Needs Resubmission status.');
                 redirect($redirectUrl);
             }
 
@@ -225,7 +301,7 @@ if (is_post() && db_ready()) {
                 }
             }
 
-            $newStatus = count($missingDocuments) > 0 ? 'for_resubmission' : 'for_interview';
+            $newStatus = count($missingDocuments) > 0 ? 'needs_resubmission' : 'for_interview';
             $stmtUpdateApp = $conn->prepare(
                 "UPDATE applications
                  SET status = ?, review_notes = ?, updated_at = NOW()
@@ -237,11 +313,11 @@ if (is_post() && db_ready()) {
             $stmtUpdateApp->close();
 
             $missingListText = $missingDocuments ? implode(', ', $missingDocuments) : 'None';
-            if ($newStatus === 'for_resubmission') {
+            if ($newStatus === 'needs_resubmission') {
                 $templateBody = $resolveSmsTemplate(
                     $conn,
                     'Document Resubmission Required',
-                    'San Enrique LGU Scholarship: Application [Application No] requires document resubmission. Please resubmit: [Missing Documents].'
+                    'San Enrique LGU Scholarship: Application [Application No] requires resubmission of the following: [Missing Documents].'
                 );
                 $message = $renderSmsTemplate($templateBody, [
                     '[Application No]' => (string) ($current['application_no'] ?? ''),
@@ -252,7 +328,7 @@ if (is_post() && db_ready()) {
                     $conn,
                     (int) ($current['user_id'] ?? 0),
                     'Document Resubmission Required',
-                    'Application ' . (string) ($current['application_no'] ?? '') . ' requires resubmission for: ' . $missingListText . '.',
+                    'Application ' . (string) ($current['application_no'] ?? '') . ' needs resubmission: ' . $missingListText . '.',
                     'application_status',
                     'my-application.php',
                     (int) (current_user()['id'] ?? 0)
@@ -260,8 +336,8 @@ if (is_post() && db_ready()) {
             } else {
                 $templateBody = $resolveSmsTemplate(
                     $conn,
-                    'Application Moved to Interview Stage',
-                    'San Enrique LGU Scholarship: Application [Application No] passed document review and is now FOR INTERVIEW. Please wait for the official interview schedule.'
+                    'Documents Verified',
+                    'San Enrique LGU Scholarship: Application [Application No] is scheduled for interview.'
                 );
                 $message = $renderSmsTemplate($templateBody, [
                     '[Application No]' => (string) ($current['application_no'] ?? ''),
@@ -271,7 +347,7 @@ if (is_post() && db_ready()) {
                     $conn,
                     (int) ($current['user_id'] ?? 0),
                     'Document Review Passed',
-                    'Application ' . (string) ($current['application_no'] ?? '') . ' passed document review and is now for interview.',
+                    'Application ' . (string) ($current['application_no'] ?? '') . ' for interview.',
                     'application_status',
                     'my-application.php',
                     (int) (current_user()['id'] ?? 0)
@@ -358,36 +434,36 @@ if (is_post() && db_ready()) {
                 }
 
                 $currentStatus = (string) ($current['status'] ?? '');
-                if (in_array($currentStatus, ['for_review', 'for_resubmission'], true)) {
+                if (in_array($currentStatus, ['under_review', 'needs_resubmission'], true)) {
                     $skippedCount++;
                     continue;
                 }
                 $hasInterviewSchedule = trim((string) ($current['interview_date'] ?? '')) !== ''
                     && trim((string) ($current['interview_location'] ?? '')) !== '';
-                if ($newStatus === 'approved' && ($currentStatus !== 'for_interview' || !$hasInterviewSchedule)) {
+                if ($newStatus === 'interview_passed' && ($currentStatus !== 'for_interview' || !$hasInterviewSchedule)) {
                     $skippedCount++;
                     continue;
                 }
-                if ($newStatus === 'for_soa_submission') {
-                    if (!$isAdmin || !in_array($currentStatus, ['approved', 'for_soa_submission'], true)) {
+                if ($newStatus === 'for_soa') {
+                    if (!$isAdmin || !in_array($currentStatus, ['interview_passed', 'for_soa'], true)) {
                         $skippedCount++;
                         continue;
                     }
                 }
-                if ($newStatus === 'soa_submitted' && !in_array($currentStatus, ['for_soa_submission', 'soa_submitted'], true)) {
+                if ($newStatus === 'soa_received' && !in_array($currentStatus, ['for_soa', 'soa_received'], true)) {
                     $skippedCount++;
                     continue;
                 }
-                if ($newStatus === 'disbursed' && !in_array($currentStatus, ['soa_submitted', 'waitlisted'], true)) {
+                if ($newStatus === 'disbursed' && !in_array($currentStatus, ['soa_received', 'awaiting_payout'], true)) {
                     $skippedCount++;
                     continue;
                 }
                 $currentDeadline = trim((string) ($current['soa_submission_deadline'] ?? ''));
-                if ($newStatus === 'soa_submitted' && $currentDeadline === '') {
+                if ($newStatus === 'soa_received' && $currentDeadline === '') {
                     $skippedCount++;
                     continue;
                 }
-                if ($currentStatus === 'soa_submitted' && $newStatus === 'approved') {
+                if ($currentStatus === 'soa_received' && $newStatus === 'interview_passed') {
                     $skippedCount++;
                     continue;
                 }
@@ -396,16 +472,16 @@ if (is_post() && db_ready()) {
                 if ($isAdmin && $soaDeadline !== null) {
                     $deadlineToSave = $soaDeadline;
                 }
-                if ($newStatus === 'for_soa_submission' && $deadlineToSave === null) {
+                if ($newStatus === 'for_soa' && $deadlineToSave === null) {
                     $skippedCount++;
                     continue;
                 }
 
                 $currentSubmittedAt = trim((string) ($current['soa_submitted_at'] ?? ''));
                 $soaSubmittedAt = $currentSubmittedAt !== '' ? $currentSubmittedAt : null;
-                if ($newStatus === 'for_soa_submission') {
+                if ($newStatus === 'for_soa') {
                     $soaSubmittedAt = null;
-                } elseif ($newStatus === 'soa_submitted' && $soaSubmittedAt === null) {
+                } elseif ($newStatus === 'soa_received' && $soaSubmittedAt === null) {
                     $soaSubmittedAt = date('Y-m-d H:i:s');
                 }
 
@@ -422,24 +498,23 @@ if (is_post() && db_ready()) {
                 $deadlineChanged = $currentDeadline !== (string) ($deadlineToSave ?? '');
                 if ($statusChanged || $deadlineChanged) {
                     if ($statusChanged) {
-                        $statusText = strtoupper(str_replace('_', ' ', $newStatus));
-                        $message = 'San Enrique LGU Scholarship: Application ' . $current['application_no'] . ' status updated to ' . $statusText . '.';
+                        $message = $buildStatusSmsMessage($newStatus, $current, $deadlineToSave);
                     } else {
-                        $message = 'San Enrique LGU Scholarship: SOA/Student Copy deadline for application ' . $current['application_no'] . ' has been updated.';
+                        $message = 'San Enrique LGU Scholarship: SOA/Student\'s Copy deadline for application ' . $current['application_no'] . ' has been updated.';
                     }
 
-                    if ($newStatus === 'for_soa_submission' && $deadlineToSave !== null) {
+                    if ($newStatus === 'for_soa' && $deadlineToSave !== null) {
                         $message .= ' Deadline: ' . date('M d, Y', strtotime((string) $deadlineToSave))
-                            . '. Please submit your SOA/Student Copy at the Mayor\'s Office.';
+                            . '. Please submit your SOA/Student\'s Copy at the Mayor\'s Office.';
                     }
                     sms_send((string) ($current['phone'] ?? ''), $message, (int) ($current['user_id'] ?? 0), 'status_update');
 
                     $notificationTitle = $statusChanged ? 'Application Status Updated' : 'SOA Deadline Updated';
                     $notificationMessage = $statusChanged
-                        ? 'Application ' . (string) ($current['application_no'] ?? '') . ' status is now ' . strtoupper(str_replace('_', ' ', $newStatus)) . '.'
-                        : 'SOA/Student Copy deadline for application ' . (string) ($current['application_no'] ?? '') . ' has been updated.';
-                    if ($newStatus === 'for_soa_submission' && $deadlineToSave !== null) {
-                        $notificationMessage .= ' Deadline: ' . date('M d, Y', strtotime((string) $deadlineToSave)) . '. Please submit your SOA/Student Copy at the Mayor\'s Office.';
+                        ? $buildStatusNotificationMessage($newStatus, $current, $deadlineToSave)
+                        : 'SOA/Student\'s Copy deadline for application ' . (string) ($current['application_no'] ?? '') . ' has been updated.';
+                    if ($newStatus === 'for_soa' && $deadlineToSave !== null) {
+                        $notificationMessage .= ' Deadline: ' . date('M d, Y', strtotime((string) $deadlineToSave)) . '. Please submit your SOA/Student\'s Copy at the Mayor\'s Office.';
                     }
                     create_notification(
                         $conn,
@@ -475,7 +550,7 @@ if (is_post() && db_ready()) {
                 $message = 'Bulk status update complete. Updated ' . $updatedCount . ' application(s)';
                 if ($skippedCount > 0) {
                     $message .= ', skipped ' . $skippedCount . '.';
-                    if ($newStatus === 'approved') {
+                    if ($newStatus === 'interview_passed') {
                         $message .= ' Approve requires interview date/time and location to be set first.';
                     }
                 } else {
@@ -613,12 +688,12 @@ if (is_post() && db_ready()) {
                 $stmtGlobalDeadline = $conn->prepare(
                     "UPDATE applications
                      SET status = CASE
-                        WHEN status = 'approved' THEN 'for_soa_submission'
+                        WHEN status = 'interview_passed' THEN 'for_soa'
                         ELSE status
                      END,
                      soa_submission_deadline = ?,
                      updated_at = NOW()
-                     WHERE status IN ('approved', 'for_soa_submission')"
+                     WHERE status IN ('interview_passed', 'for_soa')"
                 );
                 if ($stmtGlobalDeadline) {
                     $stmtGlobalDeadline->bind_param('s', $soaDeadlineInput);
@@ -632,7 +707,7 @@ if (is_post() && db_ready()) {
                 "SELECT a.id, a.application_no, a.soa_submission_deadline, u.id AS user_id, u.phone
                  FROM applications a
                  INNER JOIN users u ON u.id = a.user_id
-                 WHERE a.status = 'for_soa_submission'"
+                 WHERE a.status = 'for_soa'"
             );
             $targets = [];
             if ($stmtTargets) {
@@ -647,9 +722,10 @@ if (is_post() && db_ready()) {
             $templateBody = $resolveSmsTemplate(
                 $conn,
                 'SOA / Student Copy Reminder',
-                'San Enrique LGU Scholarship Reminder: Please submit your SOA/Student Copy at the Mayor\'s Office on or before [Deadline].'
+                'San Enrique LGU Scholarship Reminder: Kindly submit your SOA/Student\'s Copy at the Mayor\'s Office on or before [Deadline]. If you have already submitted it, please disregard this message.'
             );
-            $disregardText = ' If you already submitted your SOA/Student Copy, please disregard this reminder.';
+            $hasDisregard = stripos($templateBody, 'disregard') !== false;
+            $disregardText = $hasDisregard ? '' : ' If you have already submitted it, please disregard this message.';
 
             $sentCount = 0;
             foreach ($targets as $current) {
@@ -664,7 +740,7 @@ if (is_post() && db_ready()) {
                     $conn,
                     (int) ($current['user_id'] ?? 0),
                     'SOA Reminder',
-                    'Please submit your SOA/Student Copy on or before ' . $deadlineText . '. If already submitted, disregard this reminder.',
+                    'Please submit your SOA/Student\'s Copy on or before ' . $deadlineText . '. If already submitted, disregard this reminder.',
                     'application_status',
                     'my-application.php',
                     (int) (current_user()['id'] ?? 0)
@@ -747,12 +823,12 @@ if (is_post() && db_ready()) {
                 }
 
                 $currentStatus = (string) ($current['status'] ?? '');
-                if (!in_array($currentStatus, ['approved', 'for_soa_submission'], true)) {
+                if (!in_array($currentStatus, ['interview_passed', 'for_soa'], true)) {
                     $skippedCount++;
                     continue;
                 }
 
-                $updatedStatus = $currentStatus === 'approved' ? 'for_soa_submission' : $currentStatus;
+                $updatedStatus = $currentStatus === 'interview_passed' ? 'for_soa' : $currentStatus;
                 $stmtUpdate = $conn->prepare(
                     "UPDATE applications
                      SET status = ?, soa_submission_deadline = ?, soa_submitted_at = NULL, updated_at = NOW()
@@ -765,14 +841,14 @@ if (is_post() && db_ready()) {
 
                 $deadlineLabel = date('M d, Y', strtotime($soaDeadline));
                 $message = 'San Enrique LGU Scholarship: Application ' . (string) ($current['application_no'] ?? '')
-                    . ' SOA/Student Copy deadline is set to ' . $deadlineLabel
+                    . ' SOA/Student\'s Copy deadline is set to ' . $deadlineLabel
                     . '. Please submit at the Mayor\'s Office.';
                 sms_send((string) ($current['phone'] ?? ''), $message, (int) ($current['user_id'] ?? 0), 'status_update');
                 create_notification(
                     $conn,
                     (int) ($current['user_id'] ?? 0),
                     'SOA Submission Deadline Set',
-                    'SOA/Student Copy deadline is set to ' . $deadlineLabel . ' for application ' . (string) ($current['application_no'] ?? '') . '.',
+                    'SOA/Student\'s Copy deadline is set to ' . $deadlineLabel . ' for application ' . (string) ($current['application_no'] ?? '') . '.',
                     'application_status',
                     'my-application.php',
                     (int) (current_user()['id'] ?? 0)
@@ -847,8 +923,8 @@ if (is_post() && db_ready()) {
 
             $updatedStatus = (string) $current['status'];
             $soaSubmittedAt = (string) ($current['soa_submitted_at'] ?? '');
-            if ($updatedStatus === 'approved') {
-                $updatedStatus = 'for_soa_submission';
+            if ($updatedStatus === 'interview_passed') {
+                $updatedStatus = 'for_soa';
                 $soaSubmittedAt = '';
             }
             $soaSubmittedAt = $soaSubmittedAt !== '' ? $soaSubmittedAt : null;
@@ -863,15 +939,15 @@ if (is_post() && db_ready()) {
             $stmt->close();
 
             $message = 'San Enrique LGU Scholarship: Application ' . $current['application_no']
-                . ' SOA/Student Copy submission deadline is set to '
+                . ' SOA/Student\'s Copy submission deadline is set to '
                 . date('M d, Y', strtotime($soaDeadline))
-                . '. Please submit your SOA/Student Copy at the Mayor\'s Office.';
+                . '. Please submit your SOA/Student\'s Copy at the Mayor\'s Office.';
             sms_send((string) ($current['phone'] ?? ''), $message, (int) ($current['user_id'] ?? 0), 'status_update');
             create_notification(
                 $conn,
                 (int) ($current['user_id'] ?? 0),
                 'SOA Submission Deadline Set',
-                'Application ' . (string) ($current['application_no'] ?? '') . ' deadline: ' . date('M d, Y', strtotime($soaDeadline)) . '. Please submit your SOA/Student Copy at the Mayor\'s Office.',
+                'Application ' . (string) ($current['application_no'] ?? '') . ' deadline: ' . date('M d, Y', strtotime($soaDeadline)) . '. Please submit your SOA/Student\'s Copy at the Mayor\'s Office.',
                 'application_status',
                 'my-application.php',
                 (int) (current_user()['id'] ?? 0)
@@ -918,7 +994,7 @@ if (is_post() && db_ready()) {
                 set_flash('danger', 'Application not found.');
                 redirect($redirectUrl);
             }
-            if (!in_array((string) $current['status'], ['for_soa_submission', 'soa_submitted'], true)) {
+            if (!in_array((string) $current['status'], ['for_soa', 'soa_received'], true)) {
                 set_flash('danger', 'Application is not currently waiting for SOA submission.');
                 redirect($redirectUrl);
             }
@@ -931,7 +1007,7 @@ if (is_post() && db_ready()) {
             if ($soaSubmittedAt === '') {
                 $soaSubmittedAt = date('Y-m-d H:i:s');
             }
-            $newStatus = 'soa_submitted';
+            $newStatus = 'soa_received';
             $stmt = $conn->prepare(
                 "UPDATE applications
                  SET status = ?, soa_submitted_at = ?, updated_at = NOW()
@@ -943,13 +1019,13 @@ if (is_post() && db_ready()) {
 
             if ((string) $current['status'] !== $newStatus) {
                 $message = 'San Enrique LGU Scholarship: Application ' . $current['application_no']
-                    . ' SOA/Student Copy has been received by the scholarship office.';
+                    . ' SOA/Student\'s Copy has been received by the scholarship office.';
                 sms_send((string) ($current['phone'] ?? ''), $message, (int) ($current['user_id'] ?? 0), 'status_update');
                 create_notification(
                     $conn,
                     (int) ($current['user_id'] ?? 0),
                     'SOA Received',
-                    'Your SOA/Student Copy for application ' . (string) ($current['application_no'] ?? '') . ' has been received by the scholarship office.',
+                    'Your SOA/Student\'s Copy for application ' . (string) ($current['application_no'] ?? '') . ' has been received by the scholarship office.',
                     'application_status',
                     'my-application.php',
                     (int) (current_user()['id'] ?? 0)
@@ -1018,7 +1094,7 @@ if (is_post() && db_ready()) {
             set_flash('danger', 'Invalid status transition for the current application state.');
             redirect($redirectUrl);
         }
-        if ($newStatus === 'approved') {
+        if ($newStatus === 'interview_passed') {
             $hasInterviewSchedule = trim((string) ($current['interview_date'] ?? '')) !== ''
                 && trim((string) ($current['interview_location'] ?? '')) !== '';
             if ($currentStatus !== 'for_interview' || !$hasInterviewSchedule) {
@@ -1027,30 +1103,30 @@ if (is_post() && db_ready()) {
             }
         }
 
-        if ($newStatus === 'for_soa_submission') {
+        if ($newStatus === 'for_soa') {
             if (!$isAdmin) {
                 set_flash('danger', 'Only admin can move application to SOA submission stage.');
                 redirect($redirectUrl);
             }
-            if (!in_array($currentStatus, ['approved', 'for_soa_submission'], true)) {
-                set_flash('danger', 'Only approved applications can be moved to SOA submission stage.');
+            if (!in_array($currentStatus, ['interview_passed', 'for_soa'], true)) {
+                set_flash('danger', 'Only interview-passed applications can be moved to SOA submission stage.');
                 redirect($redirectUrl);
             }
         }
-        if ($newStatus === 'soa_submitted' && !in_array($currentStatus, ['for_soa_submission', 'soa_submitted'], true)) {
+        if ($newStatus === 'soa_received' && !in_array($currentStatus, ['for_soa', 'soa_received'], true)) {
             set_flash('danger', 'SOA can only be marked submitted after approval and SOA request.');
             redirect($redirectUrl);
         }
-        if ($newStatus === 'disbursed' && !in_array($currentStatus, ['soa_submitted', 'waitlisted'], true)) {
-            set_flash('danger', 'Only SOA Submitted or Waitlisted applications can be marked as disbursed.');
+        if ($newStatus === 'disbursed' && !in_array($currentStatus, ['soa_received', 'awaiting_payout'], true)) {
+            set_flash('danger', 'Only SOA Received or Awaiting Approval applications can be marked as disbursed.');
             redirect($redirectUrl);
         }
-        if ($newStatus === 'soa_submitted' && trim((string) ($current['soa_submission_deadline'] ?? '')) === '') {
+        if ($newStatus === 'soa_received' && trim((string) ($current['soa_submission_deadline'] ?? '')) === '') {
             set_flash('danger', 'Set SOA deadline first before marking SOA submitted.');
             redirect($redirectUrl);
         }
-        if ($currentStatus === 'soa_submitted' && $newStatus === 'approved') {
-            set_flash('danger', 'SOA submitted applications must be moved to waitlisted, not approved.');
+        if ($currentStatus === 'soa_received' && $newStatus === 'interview_passed') {
+            set_flash('danger', 'SOA received applications must be moved to awaiting approval, not interview passed.');
             redirect($redirectUrl);
         }
 
@@ -1059,16 +1135,16 @@ if (is_post() && db_ready()) {
         if ($isAdmin && $soaDeadline !== null) {
             $deadlineToSave = $soaDeadline;
         }
-        if ($newStatus === 'for_soa_submission' && $deadlineToSave === null) {
+        if ($newStatus === 'for_soa' && $deadlineToSave === null) {
             set_flash('danger', 'Set an SOA submission deadline before moving to SOA submission stage.');
             redirect($redirectUrl);
         }
 
         $currentSubmittedAt = trim((string) ($current['soa_submitted_at'] ?? ''));
         $soaSubmittedAt = $currentSubmittedAt !== '' ? $currentSubmittedAt : null;
-        if ($newStatus === 'for_soa_submission') {
+        if ($newStatus === 'for_soa') {
             $soaSubmittedAt = null;
-        } elseif ($newStatus === 'soa_submitted' && $soaSubmittedAt === null) {
+        } elseif ($newStatus === 'soa_received' && $soaSubmittedAt === null) {
             $soaSubmittedAt = date('Y-m-d H:i:s');
         }
 
@@ -1085,24 +1161,23 @@ if (is_post() && db_ready()) {
         $deadlineChanged = $currentDeadline !== (string) ($deadlineToSave ?? '');
         if ($statusChanged || $deadlineChanged) {
             if ($statusChanged) {
-                $statusText = strtoupper(str_replace('_', ' ', $newStatus));
-                $message = 'San Enrique LGU Scholarship: Application ' . $current['application_no'] . ' status updated to ' . $statusText . '.';
+                $message = $buildStatusSmsMessage($newStatus, $current, $deadlineToSave);
             } else {
-                $message = 'San Enrique LGU Scholarship: SOA/Student Copy deadline for application ' . $current['application_no'] . ' has been updated.';
+                $message = 'San Enrique LGU Scholarship: SOA/Student\'s Copy deadline for application ' . $current['application_no'] . ' has been updated.';
             }
 
-            if ($newStatus === 'for_soa_submission' && $deadlineToSave !== null) {
+            if ($newStatus === 'for_soa' && $deadlineToSave !== null) {
                 $message .= ' Deadline: ' . date('M d, Y', strtotime($deadlineToSave))
-                    . '. Please submit your SOA/Student Copy at the Mayor\'s Office.';
+                    . '. Please submit your SOA/Student\'s Copy at the Mayor\'s Office.';
             }
             sms_send((string) ($current['phone'] ?? ''), $message, (int) ($current['user_id'] ?? 0), 'status_update');
 
             $notificationTitle = $statusChanged ? 'Application Status Updated' : 'SOA Deadline Updated';
             $notificationMessage = $statusChanged
-                ? 'Application ' . (string) ($current['application_no'] ?? '') . ' status is now ' . strtoupper(str_replace('_', ' ', $newStatus)) . '.'
-                : 'SOA/Student Copy deadline for application ' . (string) ($current['application_no'] ?? '') . ' has been updated.';
-            if ($newStatus === 'for_soa_submission' && $deadlineToSave !== null) {
-                $notificationMessage .= ' Deadline: ' . date('M d, Y', strtotime((string) $deadlineToSave)) . '. Please submit your SOA/Student Copy at the Mayor\'s Office.';
+                ? $buildStatusNotificationMessage($newStatus, $current, $deadlineToSave)
+                : 'SOA/Student\'s Copy deadline for application ' . (string) ($current['application_no'] ?? '') . ' has been updated.';
+            if ($newStatus === 'for_soa' && $deadlineToSave !== null) {
+                $notificationMessage .= ' Deadline: ' . date('M d, Y', strtotime((string) $deadlineToSave)) . '. Please submit your SOA/Student\'s Copy at the Mayor\'s Office.';
             }
             create_notification(
                 $conn,
@@ -1145,8 +1220,6 @@ if (db_ready()) {
 
     if ($statusFilter !== '') {
         $baseSql .= " WHERE a.status = ?";
-    } else {
-        $baseSql .= " WHERE a.status <> 'rejected'";
     }
     $baseSql .= " ORDER BY a.updated_at DESC";
 
@@ -1220,17 +1293,20 @@ include __DIR__ . '/../includes/header.php';
 <div class="card card-soft shadow-sm mb-3">
     <div class="card-body py-2">
         <div class="d-flex flex-wrap gap-2" id="applicationQueueTabs" role="tablist" aria-label="Application Queues">
-            <button type="button" class="btn btn-sm btn-outline-primary<?= $queueFilter === 'for_review' ? ' active' : '' ?>" data-queue-tab="for_review">
-                For Review (<?= number_format((int) ($queueCounts['for_review'] ?? 0)) ?>)
+            <button type="button" class="btn btn-sm btn-outline-primary<?= $queueFilter === 'under_review' ? ' active' : '' ?>" data-queue-tab="under_review">
+                For Review (<?= number_format((int) ($queueCounts['under_review'] ?? 0)) ?>)
             </button>
             <button type="button" class="btn btn-sm btn-outline-primary<?= $queueFilter === 'for_interview' ? ' active' : '' ?>" data-queue-tab="for_interview">
                 For Interview (<?= number_format((int) ($queueCounts['for_interview'] ?? 0)) ?>)
             </button>
-            <button type="button" class="btn btn-sm btn-outline-primary<?= $queueFilter === 'for_soa_submission' ? ' active' : '' ?>" data-queue-tab="for_soa_submission">
-                For SOA (<?= number_format((int) ($queueCounts['for_soa_submission'] ?? 0)) ?>)
+            <button type="button" class="btn btn-sm btn-outline-primary<?= $queueFilter === 'for_soa' ? ' active' : '' ?>" data-queue-tab="for_soa">
+                For SOA (<?= number_format((int) ($queueCounts['for_soa'] ?? 0)) ?>)
             </button>
-            <button type="button" class="btn btn-sm btn-outline-primary<?= $queueFilter === 'approved' ? ' active' : '' ?>" data-queue-tab="approved">
-                Approved (<?= number_format((int) ($queueCounts['approved'] ?? 0)) ?>)
+            <button type="button" class="btn btn-sm btn-outline-primary<?= $queueFilter === 'interview_passed' ? ' active' : '' ?>" data-queue-tab="interview_passed">
+                Approved (<?= number_format((int) ($queueCounts['interview_passed'] ?? 0)) ?>)
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-primary<?= $queueFilter === 'rejected' ? ' active' : '' ?>" data-queue-tab="rejected">
+                Rejected (<?= number_format((int) ($queueCounts['rejected'] ?? 0)) ?>)
             </button>
             <button type="button" class="btn btn-sm btn-outline-primary<?= $queueFilter === 'completed' ? ' active' : '' ?>" data-queue-tab="completed">
                 Completed (<?= number_format((int) ($queueCounts['completed'] ?? 0)) ?>)
@@ -1248,7 +1324,7 @@ include __DIR__ . '/../includes/header.php';
     <div data-live-table class="card card-soft shadow-sm">
         <?php if ($isAdmin): ?>
             <div class="card-body border-bottom">
-                <form method="post" id="bulkSoaReminderForm" class="row g-2 align-items-end mb-2 d-none" data-bulk-special="for_soa_submission" data-crud-modal="1" data-crud-title="Send SOA Reminders?" data-crud-message="Send SOA reminder SMS to all applicants currently in For SOA Submission?" data-crud-confirm-text="Send Reminders" data-crud-kind="warning">
+                <form method="post" id="bulkSoaReminderForm" class="row g-2 align-items-end mb-2 d-none" data-bulk-special="for_soa" data-crud-modal="1" data-crud-title="Send SOA Reminders?" data-crud-message="Send SOA reminder SMS to all applicants currently in For SOA Submission?" data-crud-confirm-text="Send Reminders" data-crud-kind="warning">
                     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                     <input type="hidden" name="action" value="bulk_send_soa_reminder">
                     <div class="col-12 col-md-6">
@@ -1259,7 +1335,7 @@ include __DIR__ . '/../includes/header.php';
                         <div class="small text-muted">Reminder will be sent to all records under For SOA queue. If set, deadline is applied globally.</div>
                     </div>
                     <div class="col-12 col-md-3 d-grid">
-                        <button type="submit" class="btn btn-sm btn-outline-warning" data-bulk-special-submit="for_soa_submission">Send SOA Reminder (All For SOA)</button>
+                        <button type="submit" class="btn btn-sm btn-outline-warning" data-bulk-special-submit="for_soa">Send SOA Reminder (All For SOA)</button>
                     </div>
                     <div class="bulk-selection-inputs"></div>
                 </form>
@@ -1388,7 +1464,7 @@ include __DIR__ . '/../includes/header.php';
                             <span class="badge <?= status_badge_class($rowStatusValue) ?>">
                                 <?= e(strtoupper($rowStatusValue)) ?>
                             </span>
-                            <?php if ((string) $row['status'] === 'for_soa_submission' && !empty($row['soa_submission_deadline'])): ?>
+                            <?php if ((string) $row['status'] === 'for_soa' && !empty($row['soa_submission_deadline'])): ?>
                                 <div class="small text-muted mt-1">
                                     SOA Deadline: <?= date('M d, Y', strtotime((string) $row['soa_submission_deadline'])) ?>
                                 </div>
@@ -1407,7 +1483,7 @@ include __DIR__ . '/../includes/header.php';
                                     <div class="small text-warning mt-1">Interview Not Scheduled</div>
                                 <?php endif; ?>
                             <?php endif; ?>
-                            <?php if ((string) $row['status'] === 'soa_submitted' && !empty($row['soa_submitted_at'])): ?>
+                            <?php if ((string) $row['status'] === 'soa_received' && !empty($row['soa_submitted_at'])): ?>
                                 <div class="small text-muted mt-1">
                                     SOA Received: <?= date('M d, Y h:i A', strtotime((string) $row['soa_submitted_at'])) ?>
                                 </div>
@@ -1460,7 +1536,7 @@ include __DIR__ . '/../includes/header.php';
                             $rowCurrentStatus = (string) ($row['status'] ?? '');
                             $applicationDocuments = $documentsByApplication[(int) ($row['id'] ?? 0)] ?? [];
                             ?>
-                            <?php if (in_array($rowCurrentStatus, ['for_review', 'for_resubmission'], true)): ?>
+                            <?php if (in_array($rowCurrentStatus, ['under_review', 'needs_resubmission'], true)): ?>
                                 <form method="post" class="row g-2">
                                     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                                     <input type="hidden" name="action" value="review_documents">
@@ -1489,9 +1565,26 @@ include __DIR__ . '/../includes/header.php';
                                                             </label>
                                                         </div>
                                                         <?php if ($canViewDoc): ?>
-                                                            <a href="../<?= e($safeDocPath) ?>" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary py-0 px-2">
-                                                                <i class="fa-solid fa-up-right-from-square me-1"></i>View File
-                                                            </a>
+                                                            <div class="d-flex align-items-center gap-1">
+                                                                <button
+                                                                    type="button"
+                                                                    class="btn btn-sm btn-outline-secondary py-0 px-2 js-open-doc-preview"
+                                                                    data-preview-src="<?= e($safeDocPath) ?>"
+                                                                    data-preview-title="<?= e((string) ($doc['requirement_name'] ?? ('Document #' . $docId))) ?>"
+                                                                >
+                                                                    <i class="fa-regular fa-file-lines me-1"></i>View File
+                                                                </button>
+                                                                <a
+                                                                    href="../<?= e($safeDocPath) ?>"
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                                                    title="Open in new tab"
+                                                                    aria-label="Open file in new tab"
+                                                                >
+                                                                    <i class="fa-solid fa-up-right-from-square"></i>
+                                                                </a>
+                                                            </div>
                                                         <?php else: ?>
                                                             <span class="small text-muted">No file</span>
                                                         <?php endif; ?>
@@ -1508,9 +1601,14 @@ include __DIR__ . '/../includes/header.php';
                                         <input type="text" name="review_notes" class="form-control form-control-sm" value="<?= e((string) ($row['review_notes'] ?? '')) ?>" placeholder="Optional review note">
                                     </div>
                                     <div class="col-12 d-flex justify-content-between flex-wrap gap-2 mt-2">
-                                        <a href="../print-application.php?id=<?= (int) $row['id'] ?>" class="btn btn-sm btn-outline-secondary">
+                                        <button
+                                            type="button"
+                                            class="btn btn-sm btn-outline-secondary js-open-print-preview"
+                                            data-preview-title="Printable Form Preview"
+                                            data-preview-url="../print-application.php?id=<?= (int) $row['id'] ?>&embed=1"
+                                        >
                                             <i class="fa-solid fa-print me-1"></i>Print Form
-                                        </a>
+                                        </button>
                                         <button type="submit" class="btn btn-sm btn-primary" <?= $applicationDocuments ? '' : 'disabled' ?>>
                                             <i class="fa-solid fa-floppy-disk me-1"></i>Finalize Document Review
                                         </button>
@@ -1545,7 +1643,7 @@ include __DIR__ . '/../includes/header.php';
                                             if (!in_array($statusValue, $allowedStatus, true)) {
                                                 return false;
                                             }
-                                            if ($rowCurrentStatus === 'for_interview' && $statusValue === 'approved' && !$isInterviewScheduled) {
+                                            if ($rowCurrentStatus === 'for_interview' && $statusValue === 'interview_passed' && !$isInterviewScheduled) {
                                                 return false;
                                             }
                                             return true;
@@ -1569,7 +1667,7 @@ include __DIR__ . '/../includes/header.php';
                                             <div class="small text-muted mt-1">No status transitions available for this current state. You can still save notes.</div>
                                         <?php endif; ?>
                                     </div>
-                                    <?php $showModalNoteDeadlineFields = !in_array($rowCurrentStatus, ['approved', 'for_soa_submission'], true); ?>
+                                    <?php $showModalNoteDeadlineFields = !in_array($rowCurrentStatus, ['interview_passed', 'for_soa'], true); ?>
                                     <?php if ($showModalNoteDeadlineFields): ?>
                                         <div class="col-12 col-md-8">
                                             <label class="form-label form-label-sm">Review Notes</label>
@@ -1583,9 +1681,14 @@ include __DIR__ . '/../includes/header.php';
                                         <?php endif; ?>
                                     <?php endif; ?>
                                     <div class="col-12 d-flex justify-content-between flex-wrap gap-2 mt-2">
-                                        <a href="../print-application.php?id=<?= (int) $row['id'] ?>" class="btn btn-sm btn-outline-secondary">
+                                        <button
+                                            type="button"
+                                            class="btn btn-sm btn-outline-secondary js-open-print-preview"
+                                            data-preview-title="Printable Form Preview"
+                                            data-preview-url="../print-application.php?id=<?= (int) $row['id'] ?>&embed=1"
+                                        >
                                             <i class="fa-solid fa-print me-1"></i>Print Form
-                                        </a>
+                                        </button>
                                         <?php if ($showModalNoteDeadlineFields): ?>
                                             <button type="submit" class="btn btn-sm btn-primary" name="status" value="<?= e($rowCurrentStatus) ?>">
                                                 <i class="fa-solid fa-floppy-disk me-1"></i>Save Notes / Deadline
@@ -1606,6 +1709,31 @@ include __DIR__ . '/../includes/header.php';
     </div>
 <?php endif; ?>
 
+<div class="modal fade" id="adminDocPreviewModal" tabindex="-1" aria-labelledby="adminDocPreviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title h6 m-0" id="adminDocPreviewModalLabel">Document Preview</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <iframe
+                    id="adminDocPreviewFrame"
+                    src="about:blank"
+                    title="Document Preview"
+                    style="border:0;width:100%;height:100%;background:#fff;"
+                ></iframe>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <a href="#" id="adminDocPreviewNewTab" class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener noreferrer">
+                    <i class="fa-solid fa-up-right-from-square me-1"></i>Open in New Tab
+                </a>
+                <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const selectAllCheckbox = document.getElementById('bulkSelectAllApplications');
@@ -1622,32 +1750,30 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     const bulkStatusMap = {
-        "__default__": ["for_review"],
-        "draft": ["for_review"],
-        "submitted": ["for_review"],
-        "for_review": ["for_interview", "rejected"],
-        "for_resubmission": ["for_review", "rejected"],
-        "for_interview": ["approved", "rejected"],
-        "approved": ["for_soa_submission"],
-        "for_soa_submission": ["soa_submitted"],
-        "soa_submitted": ["waitlisted", "disbursed"],
-        "waitlisted": ["disbursed"],
+        "__default__": ["under_review"],
+        "draft": ["under_review"],
+        "under_review": ["for_interview", "rejected"],
+        "needs_resubmission": ["under_review", "rejected"],
+        "for_interview": ["interview_passed", "rejected"],
+        "interview_passed": ["for_soa"],
+        "for_soa": ["soa_received"],
+        "soa_received": ["awaiting_payout", "disbursed"],
+        "awaiting_payout": ["disbursed"],
         "disbursed": [],
         "rejected": []
     };
 
     const statusLabelMap = {
         "draft": "Mark Draft",
-        "submitted": "Mark Submitted",
-        "for_review": "Move to Review",
-        "for_resubmission": "Request Resubmission",
+        "under_review": "Mark Under Review",
+        "needs_resubmission": "Request Resubmission",
         "for_interview": "Move to Interview",
-        "approved": "Approve",
-        "for_soa_submission": "Move to SOA Submission",
-        "soa_submitted": "SOA Submitted",
+        "interview_passed": "Approve",
+        "for_soa": "Move to SOA Submission",
+        "soa_received": "SOA Submitted",
         "disbursed": "Mark Disbursed",
         "rejected": "Reject",
-        "waitlisted": "Mark Waitlisted"
+        "awaiting_payout": "Mark Awaiting Approval"
     };
 
     function getRowCheckboxes(visibleOnly = true) {
@@ -1704,7 +1830,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 button.textContent = 'Schedule Interview (' + selectedCount + ' selected)';
                 return;
             }
-            if (specialKey === 'for_soa_submission') {
+            if (specialKey === 'for_soa') {
                 button.textContent = 'Send SOA Reminder (All For SOA)';
             }
         });
@@ -1756,20 +1882,22 @@ document.addEventListener('DOMContentLoaded', function () {
     function applyBulkActionsForFilter() {
         const queueValue = liveQueueFilter ? String(liveQueueFilter.value || '').trim() : '';
         let actions = bulkStatusMap.__default__;
-        if (queueValue === 'for_review') {
+        if (queueValue === 'under_review') {
             actions = [];
         } else if (queueValue === 'for_interview') {
-            actions = ['approved', 'rejected'];
-        } else if (queueValue === 'for_soa_submission') {
-            actions = ['soa_submitted'];
-        } else if (queueValue === 'approved') {
+            actions = ['interview_passed', 'rejected'];
+        } else if (queueValue === 'for_soa') {
+            actions = ['soa_received'];
+        } else if (queueValue === 'interview_passed') {
             actions = ['disbursed'];
+        } else if (queueValue === 'rejected') {
+            actions = [];
         } else if (queueValue === 'completed') {
             actions = [];
         }
 
         if (bulkForm) {
-            bulkForm.classList.toggle('d-none', queueValue === 'for_review' || queueValue === 'completed');
+            bulkForm.classList.toggle('d-none', queueValue === 'under_review' || queueValue === 'rejected' || queueValue === 'completed');
         }
 
         bulkStatusButtons.forEach(function (button, index) {
@@ -1868,7 +1996,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const serverQueue = <?= json_encode($queueFilter, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     let initialQueue = serverQueue;
     if (initialQueue === '' || initialQueue === null) {
-        initialQueue = 'for_review';
+        initialQueue = 'under_review';
     }
     try {
         const savedQueue = String(window.localStorage.getItem('applications.activeQueue') || '').trim();
@@ -1919,6 +2047,78 @@ document.addEventListener('DOMContentLoaded', function () {
             openApplicationModal(String(row.getAttribute('data-app-modal-id') || '').trim());
         });
     });
+
+    const docPreviewModalEl = document.getElementById('adminDocPreviewModal');
+    const docPreviewTitleEl = document.getElementById('adminDocPreviewModalLabel');
+    const docPreviewFrameEl = document.getElementById('adminDocPreviewFrame');
+    const docPreviewNewTabEl = document.getElementById('adminDocPreviewNewTab');
+    const docPreviewModal = (docPreviewModalEl && typeof bootstrap !== 'undefined')
+        ? bootstrap.Modal.getOrCreateInstance(docPreviewModalEl)
+        : null;
+
+    const openDocumentPreview = function (title, filePath) {
+        if (!docPreviewModal || !docPreviewFrameEl || !filePath) {
+            return;
+        }
+        const cleanPath = String(filePath || '').replace(/^\/+/, '');
+        if (!cleanPath) {
+            return;
+        }
+        const previewUrl = '../preview-document.php?file=' + encodeURIComponent(cleanPath);
+        if (docPreviewTitleEl) {
+            docPreviewTitleEl.textContent = title || 'Document Preview';
+        }
+        docPreviewFrameEl.src = previewUrl;
+        if (docPreviewNewTabEl) {
+            docPreviewNewTabEl.href = previewUrl;
+        }
+        docPreviewModal.show();
+    };
+
+    const openDirectPreview = function (title, url) {
+        if (!docPreviewModal || !docPreviewFrameEl || !url) {
+            return;
+        }
+        const previewUrl = String(url || '').trim();
+        if (!previewUrl) {
+            return;
+        }
+        if (docPreviewTitleEl) {
+            docPreviewTitleEl.textContent = title || 'Preview';
+        }
+        docPreviewFrameEl.src = previewUrl;
+        if (docPreviewNewTabEl) {
+            docPreviewNewTabEl.href = previewUrl;
+        }
+        docPreviewModal.show();
+    };
+
+    document.querySelectorAll('.js-open-doc-preview').forEach(function (button) {
+        button.addEventListener('click', function () {
+            const title = String(button.getAttribute('data-preview-title') || 'Document Preview');
+            const src = String(button.getAttribute('data-preview-src') || '');
+            openDocumentPreview(title, src);
+        });
+    });
+
+    document.querySelectorAll('.js-open-print-preview').forEach(function (button) {
+        button.addEventListener('click', function () {
+            const title = String(button.getAttribute('data-preview-title') || 'Printable Form Preview');
+            const url = String(button.getAttribute('data-preview-url') || '');
+            openDirectPreview(title, url);
+        });
+    });
+
+    if (docPreviewModalEl) {
+        docPreviewModalEl.addEventListener('hidden.bs.modal', function () {
+            if (docPreviewFrameEl) {
+                docPreviewFrameEl.src = 'about:blank';
+            }
+            if (docPreviewNewTabEl) {
+                docPreviewNewTabEl.href = '#';
+            }
+        });
+    }
 });
 </script>
 

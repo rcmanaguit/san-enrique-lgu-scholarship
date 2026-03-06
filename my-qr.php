@@ -11,8 +11,23 @@ require_login('login.php');
 $user = current_user();
 $applicationId = (int) ($_GET['id'] ?? 0);
 
+if ($applicationId <= 0 && !user_has_role(['admin', 'staff'])) {
+    $stmtLatest = $conn->prepare(
+        "SELECT id
+         FROM applications
+         WHERE user_id = ?
+         ORDER BY id DESC
+         LIMIT 1"
+    );
+    $stmtLatest->bind_param('i', $user['id']);
+    $stmtLatest->execute();
+    $latestRow = $stmtLatest->get_result()->fetch_assoc();
+    $stmtLatest->close();
+    $applicationId = (int) ($latestRow['id'] ?? 0);
+}
+
 if ($applicationId <= 0) {
-    set_flash('warning', 'Select a valid application first.');
+    set_flash('warning', 'No application record found yet.');
     redirect('my-application.php');
 }
 

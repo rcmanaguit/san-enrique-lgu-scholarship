@@ -34,7 +34,7 @@
         var retakeBtn = getEl(opts.retakeBtnId || "docCaptureRetakeBtn");
         var useBtn = getEl(opts.useBtnId || "docCaptureUseBtn");
         var alertEl = getEl(opts.alertId || "docCaptureAlert");
-        var blurThreshold = Number(opts.blurThreshold || 16);
+        var blurThreshold = Number(opts.blurThreshold || 12);
         var hiddenInputPrefix = String(opts.hiddenInputPrefix || "reqCaptureInput");
         var statusPrefix = String(opts.statusPrefix || "reqCaptureStatus");
         var clearBtnPrefix = String(opts.clearBtnPrefix || "reqCaptureClearBtn");
@@ -178,7 +178,8 @@
                 }
                 ctx.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
                 var score = window.SE_CAPTURE.blurScoreFromImageData(ctx.getImageData(0, 0, canvasEl.width, canvasEl.height));
-                if (score < blurThreshold) {
+                var hardRejectThreshold = Math.max(6, blurThreshold * 0.45);
+                if (score < hardRejectThreshold) {
                     if (useBtn) {
                         useBtn.disabled = true;
                     }
@@ -190,7 +191,11 @@
                 if (useBtn) {
                     useBtn.disabled = false;
                 }
-                setAlert("Capture is clear. You can now use this image.", "success");
+                if (score < blurThreshold) {
+                    setAlert("Capture looks slightly blurry. Retake is recommended, but you can still use this image.", "info");
+                } else {
+                    setAlert("Capture is clear. You can now use this image.", "success");
+                }
             });
         }
 
@@ -258,16 +263,34 @@
         var cameraCanvas = getEl(opts.canvasId || "cameraCanvas");
         var cameraPlaceholder = getEl(opts.placeholderId || "cameraPlaceholder");
         var cameraGuides = getEl(opts.guidesId || "cameraGuides");
-        var startCameraBtn = getEl(opts.startCameraBtnId || "startCameraBtn");
+        var fullscreenBtn = getEl(opts.fullscreenBtnId || "toggleFullscreenBtn");
         var captureBtn = getEl(opts.captureBtnId || "captureBtn");
-        var retakeBtn = getEl(opts.retakeBtnId || "retakeBtn");
+        var submitBtn = getEl(opts.submitBtnId || "step5NextBtn");
+        var submitNote = getEl(opts.submitNoteId || "step5SubmitNote");
 
-        var blurThresholdCapture = Number(opts.blurThresholdCapture || 16);
-        var blurThresholdCrop = Number(opts.blurThresholdCrop || 14);
         var stream = null;
         var cropper = null;
         var currentMode = "upload";
         var initialPreview = previewFrame ? previewFrame.innerHTML : "";
+        var overlayFallback = false;
+        var submitting = false;
+
+        function hasPreviewImage() {
+            return !!(previewFrame && previewFrame.querySelector("img"));
+        }
+
+        function syncSubmitState() {
+            if (!submitBtn) {
+                return;
+            }
+            var canContinue = !!(photoBase64 && photoBase64.value.trim() !== "") || hasPreviewImage();
+            submitBtn.disabled = !canContinue || submitting;
+            if (submitNote) {
+                submitNote.textContent = canContinue
+                    ? "Photo is ready. You may continue to the next step."
+                    : "Apply a cropped photo to continue.";
+            }
+        }
 
         function setStatus(message, tone) {
             var safeTone = ["info", "success", "error"].indexOf(tone) >= 0 ? tone : "info";
@@ -318,6 +341,77 @@
             }
         }
 
+        function supportsFullscreen() {
+            return !!(
+                cameraPanel
+                && (cameraPanel.requestFullscreen
+                    || cameraPanel.webkitRequestFullscreen
+                    || document.exitFullscreen
+                    || document.webkitExitFullscreen)
+            );
+        }
+
+        function isFullscreenActive() {
+            return document.fullscreenElement === cameraPanel || document.webkitFullscreenElement === cameraPanel;
+        }
+
+        function syncFullscreenButton() {
+            if (!fullscreenBtn) {
+                return;
+            }
+            var active = isFullscreenActive() || overlayFallback;
+            fullscreenBtn.innerHTML = active
+                ? '<i class="fa-solid fa-compress me-1"></i>Exit Full Screen'
+                : '<i class="fa-solid fa-expand me-1"></i>Full Screen';
+        }
+
+        function enterOverlayFallback() {
+            if (!cameraPanel) {
+                return;
+            }
+            overlayFallback = true;
+            cameraPanel.classList.add("photo-panel-overlay");
+            document.body.classList.add("photo-camera-overlay-open");
+            syncFullscreenButton();
+        }
+
+        function exitOverlayFallback() {
+            if (!cameraPanel) {
+                return;
+            }
+            overlayFallback = false;
+            cameraPanel.classList.remove("photo-panel-overlay");
+            document.body.classList.remove("photo-camera-overlay-open");
+            syncFullscreenButton();
+        }
+
+        function toggleFullscreenMode() {
+            if (!cameraPanel) {
+                return;
+            }
+
+            if (supportsFullscreen()) {
+                if (isFullscreenActive()) {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    } else if (document.webkitExitFullscreen) {
+                        document.webkitExitFullscreen();
+                    }
+                } else if (cameraPanel.requestFullscreen) {
+                    cameraPanel.requestFullscreen();
+                } else if (cameraPanel.webkitRequestFullscreen) {
+                    cameraPanel.webkitRequestFullscreen();
+                }
+                return;
+            }
+
+            if (overlayFallback) {
+                exitOverlayFallback();
+            } else {
+                enterOverlayFallback();
+            }
+        }
+
         async function startCamera() {
             stopCamera();
             setStatus("Requesting camera permission...", "info");
@@ -326,14 +420,22 @@
                     video: { facingMode: "user", width: { ideal: 1080 }, height: { ideal: 1080 } },
                     audio: false
                 });
+                try {
+                    var tracks = stream.getVideoTracks ? stream.getVideoTracks() : [];
+                    if (tracks.length > 0 && tracks[0].getCapabilities && tracks[0].applyConstraints) {
+                        var caps = tracks[0].getCapabilities() || {};
+                        if (typeof caps.zoom === "object") {
+                            tracks[0].applyConstraints({ advanced: [{ zoom: 1 }] }).catch(function () {});
+                        }
+                    }
+                } catch (_e) {
+                    // Ignore; not all browsers/devices support zoom constraints.
+                }
                 showElement(cameraVideo);
                 hideElement(cameraPlaceholder);
                 showElement(cameraGuides);
                 if (captureBtn) {
                     captureBtn.disabled = false;
-                }
-                if (retakeBtn) {
-                    retakeBtn.disabled = true;
                 }
                 setStatus("Camera ready. Keep your face centered, then tap \"Capture Photo\".", "success");
             } catch (error) {
@@ -375,11 +477,15 @@
                 hideElement(uploadPanel);
                 showElement(cameraPanel);
                 startCamera();
+                syncFullscreenButton();
                 return;
             }
             showElement(uploadPanel);
             hideElement(cameraPanel);
             stopCamera();
+            if (overlayFallback) {
+                exitOverlayFallback();
+            }
             setStatus("Upload a clear photo, crop it, then tap \"Apply Photo\".", "info");
         }
 
@@ -409,13 +515,9 @@
             });
         }
 
-        if (startCameraBtn) {
-            startCameraBtn.addEventListener("click", function () {
-                if (currentMode !== "camera") {
-                    setMode("camera");
-                    return;
-                }
-                startCamera();
+        if (fullscreenBtn) {
+            fullscreenBtn.addEventListener("click", function () {
+                toggleFullscreenMode();
             });
         }
 
@@ -425,38 +527,64 @@
                     setStatus("Camera feed is not ready yet.", "error");
                     return;
                 }
-                var width = cameraVideo.videoWidth;
-                var height = cameraVideo.videoHeight;
-                cameraCanvas.width = width;
-                cameraCanvas.height = height;
+                var srcWidth = cameraVideo.videoWidth;
+                var srcHeight = cameraVideo.videoHeight;
+                // Match the visible square preview framing to avoid vertical jump after capture.
+                var outputSize = Math.min(srcWidth, srcHeight);
+                cameraCanvas.width = outputSize;
+                cameraCanvas.height = outputSize;
                 var ctx = cameraCanvas.getContext("2d", { willReadFrequently: true });
                 if (!ctx) {
                     setStatus("Failed to process camera image. Try again.", "error");
                     return;
                 }
-                ctx.drawImage(cameraVideo, 0, 0, width, height);
-                var score = window.SE_CAPTURE.blurScoreFromCanvas(cameraCanvas);
-                if (score < blurThresholdCapture) {
-                    setStatus("Capture is blurry. Hold still and retake.", "error");
-                    return;
+                var srcAspect = srcWidth / srcHeight;
+                var dstAspect = 1;
+                var drawWidth;
+                var drawHeight;
+                var offsetX;
+                var offsetY;
+                if (srcAspect > dstAspect) {
+                    drawHeight = srcHeight;
+                    drawWidth = drawHeight * dstAspect;
+                    offsetX = (srcWidth - drawWidth) / 2;
+                    offsetY = 0;
+                } else {
+                    drawWidth = srcWidth;
+                    drawHeight = drawWidth / dstAspect;
+                    offsetX = 0;
+                    offsetY = (srcHeight - drawHeight) / 2;
                 }
+                // Keep front-camera capture framing consistent with mirrored live preview.
+                ctx.save();
+                ctx.translate(outputSize, 0);
+                ctx.scale(-1, 1);
+                ctx.drawImage(
+                    cameraVideo,
+                    offsetX,
+                    offsetY,
+                    drawWidth,
+                    drawHeight,
+                    0,
+                    0,
+                    outputSize,
+                    outputSize
+                );
+                ctx.restore();
                 buildCropper(cameraCanvas.toDataURL("image/jpeg", 0.95));
                 stopCamera();
-                if (retakeBtn) {
-                    retakeBtn.disabled = false;
+                hideElement(cameraPanel);
+                if (overlayFallback) {
+                    exitOverlayFallback();
+                }
+                if (isFullscreenActive()) {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    } else if (document.webkitExitFullscreen) {
+                        document.webkitExitFullscreen();
+                    }
                 }
                 setStatus("Photo captured. Crop it, then tap \"Apply Photo\".", "success");
-            });
-        }
-
-        if (retakeBtn) {
-            retakeBtn.addEventListener("click", function () {
-                cleanupCropper();
-                if (photoBase64) {
-                    photoBase64.value = "";
-                }
-                setMode("camera");
-                setStatus("Ready for retake. Keep your face inside the guide.", "info");
             });
         }
 
@@ -471,11 +599,6 @@
                     setStatus("Unable to crop this image. Please try another photo.", "error");
                     return;
                 }
-                var score = window.SE_CAPTURE.blurScoreFromCanvas(canvas);
-                if (score < blurThresholdCrop) {
-                    setStatus("Cropped photo is blurry. Retake or choose a clearer image.", "error");
-                    return;
-                }
                 var data = canvas.toDataURL("image/jpeg", 0.92);
                 if (photoBase64) {
                     photoBase64.value = data;
@@ -484,6 +607,7 @@
                     previewFrame.innerHTML = '<img src="' + data + '" alt="2x2 Preview">';
                 }
                 setStatus("Photo applied. You can now continue to the next step.", "success");
+                syncSubmitState();
             });
         }
 
@@ -503,18 +627,25 @@
                     photoFileName.textContent = "No file selected yet.";
                 }
                 if (currentMode === "camera") {
+                    showElement(cameraPanel);
                     startCamera();
                     setStatus("Selection cleared. Capture a new photo when ready.", "info");
+                    syncSubmitState();
                     return;
                 }
                 setStatus("Selection cleared. Upload or capture a new photo.", "info");
+                syncSubmitState();
             });
         }
 
         form.addEventListener("submit", function (event) {
+            if (submitting) {
+                event.preventDefault();
+                return;
+            }
             var hasAppliedCrop = !!(photoBase64 && photoBase64.value.trim() !== "");
             var hasUpload = !!(input && input.files && input.files.length > 0);
-            var hasPreviewImage = !!(previewFrame && previewFrame.querySelector("img"));
+            var hasPreview = hasPreviewImage();
             var hasPendingSource = !!(source && !source.classList.contains("d-none"));
 
             if (hasPendingSource && !hasAppliedCrop) {
@@ -522,22 +653,46 @@
                 setStatus("Tap \"Apply Photo\" before continuing.", "error");
                 return;
             }
-            if (!hasAppliedCrop && !hasUpload && !hasPreviewImage) {
+            if (!hasAppliedCrop && !hasUpload && !hasPreview) {
                 event.preventDefault();
                 setStatus("Please upload or capture a photo first.", "error");
+                syncSubmitState();
+                return;
+            }
+            submitting = true;
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                var nextLabel = submitBtn.querySelector(".step5-next-label");
+                var loadingLabel = submitBtn.querySelector(".step5-loading-label");
+                if (nextLabel) {
+                    nextLabel.classList.add("d-none");
+                }
+                if (loadingLabel) {
+                    loadingLabel.classList.remove("d-none");
+                }
+            }
+            if (submitNote) {
+                submitNote.textContent = "Please wait while we save your photo...";
             }
         });
 
         window.addEventListener("beforeunload", function () {
+            if (overlayFallback) {
+                exitOverlayFallback();
+            }
             stopCamera();
         });
 
+        document.addEventListener("fullscreenchange", syncFullscreenButton);
+        document.addEventListener("webkitfullscreenchange", syncFullscreenButton);
+
         setMode("upload");
-        if (previewFrame && previewFrame.querySelector("img")) {
+        if (hasPreviewImage()) {
             setStatus("Existing 2x2 photo detected. You can keep it or replace it.", "info");
         } else {
             setStatus("Choose Upload Photo or Use Camera to begin.", "info");
         }
+        syncSubmitState();
     }
 
     window.SE_CAPTURE_UI = {

@@ -290,99 +290,184 @@ $defaultTitle = $isEditMode ? trim((string) ($editAnnouncement['title'] ?? '')) 
 $defaultContent = $isEditMode ? trim((string) ($editAnnouncement['content'] ?? '')) : '';
 $defaultIsActive = $isEditMode ? ((int) ($editAnnouncement['is_active'] ?? 0) === 1) : true;
 $smsProviderLabel = sms_provider_label();
+$totalAnnouncements = count($announcements);
+$publishedAnnouncements = 0;
+foreach ($announcements as $announcementRow) {
+    if ((int) ($announcementRow['is_active'] ?? 0) === 1) {
+        $publishedAnnouncements++;
+    }
+}
+$archivedAnnouncements = $totalAnnouncements - $publishedAnnouncements;
+$latestAnnouncementDate = $totalAnnouncements > 0
+    ? date('M d, Y h:i A', strtotime((string) ($announcements[0]['created_at'] ?? 'now')))
+    : 'No announcements yet';
 
 include __DIR__ . '/../includes/header.php';
 ?>
 
+<style>
+    .announcement-requirements-card {
+        position: sticky;
+        top: 1rem;
+    }
+    #announcementPreviewContent {
+        white-space: pre-line;
+    }
+    #announcement-list table tbody tr {
+        transition: background-color .15s ease;
+    }
+    #announcement-list table tbody tr:hover {
+        background-color: rgba(13, 110, 253, .04);
+    }
+    @media (max-width: 1199.98px) {
+        .announcement-requirements-card {
+            position: static;
+        }
+    }
+</style>
+
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <h1 class="h4 m-0">Announcement Management</h1>
+    <div>
+        <h1 class="h4 m-0">Announcement Management</h1>
+        <div class="small text-muted">Publish clear updates to applicants and monitor announcement status in one place.</div>
+    </div>
+    <a href="#announcement-list" class="btn btn-sm btn-outline-secondary">
+        <i class="fa-solid fa-table-list me-1"></i>Go to Announcement List
+    </a>
 </div>
 
-<div class="card card-soft shadow-sm mb-4 announcement-create-card">
-    <div class="card-body">
-        <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
-            <h2 class="h6 mb-0" id="announcement-form"><?= e($formModeTitle) ?></h2>
-            <?php if ($isEditMode): ?>
-                <a href="announcements.php" class="btn btn-sm btn-outline-secondary">Cancel Edit</a>
-            <?php endif; ?>
+<div class="row g-3 mb-4">
+    <div class="col-12 col-md-4">
+        <div class="card card-soft shadow-sm h-100">
+            <div class="card-body">
+                <div class="small text-muted text-uppercase">Total</div>
+                <div class="h4 mb-0"><?= number_format($totalAnnouncements) ?></div>
+            </div>
         </div>
-        <form method="post" class="row g-3">
-            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-            <input type="hidden" name="action" value="<?= e($formModeAction) ?>">
-            <?php if ($isEditMode): ?>
-                <input type="hidden" name="announcement_id" value="<?= (int) ($editAnnouncement['id'] ?? 0) ?>">
-            <?php endif; ?>
-            <div class="col-12 col-lg-8">
-                <label class="form-label">Announcement Template</label>
-                <select id="announcementTemplate" class="form-select">
-                    <option value="">Custom (No Template)</option>
-                    <option value="application_open">Application Period Open</option>
-                    <option value="deadline_extension">Deadline Extension</option>
-                    <option value="requirements_update">Requirements Update</option>
-                    <option value="interview_schedule">Interview Schedule Notice</option>
-                    <option value="results_release">Results / Status Notice</option>
-                    <option value="soa_reminder">SOA/Student Copy Reminder</option>
-                    <option value="payout_advisory">Payout Schedule Advisory</option>
-                    <option value="office_advisory">Office/System Advisory</option>
-                </select>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card card-soft shadow-sm h-100">
+            <div class="card-body">
+                <div class="small text-muted text-uppercase">Published</div>
+                <div class="h4 mb-0"><?= number_format($publishedAnnouncements) ?></div>
             </div>
-            <div class="col-12 col-lg-4 announcement-template-actions">
-                <label class="form-label d-none d-lg-block">Quick Action</label>
-                <button type="button" class="btn btn-outline-primary w-100 announcement-template-btn" id="insertRequirementsBtn">
-                    <i class="fa-solid fa-list-check me-1"></i>Insert Active Requirements List
-                </button>
-                <button type="button" class="btn btn-outline-secondary w-100 mt-2 announcement-template-btn" id="clearAnnouncementContentBtn">
-                    <i class="fa-solid fa-eraser me-1"></i>Clear Content
-                </button>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card card-soft shadow-sm h-100">
+            <div class="card-body">
+                <div class="small text-muted text-uppercase">Last Update</div>
+                <div class="small fw-semibold"><?= e($latestAnnouncementDate) ?></div>
+                <div class="small text-muted">Archived: <?= number_format($archivedAnnouncements) ?></div>
             </div>
-            <div class="col-12">
-                <div class="form-text mt-0">Choose a template to auto-fill title and content, then adjust details before publishing.</div>
-            </div>
-            <div class="col-12">
-                <label class="form-label">Title</label>
-                <input type="text" class="form-control" name="title" id="announcementTitle" value="<?= e($defaultTitle) ?>" required>
-            </div>
-            <div class="col-12">
-                <label class="form-label">Content</label>
-                <textarea class="form-control" name="content" id="announcementContent" rows="7" required><?= e($defaultContent) ?></textarea>
-            </div>
-            <div class="col-12 form-check ms-1">
-                <input class="form-check-input" type="checkbox" name="is_active" id="is_active" <?= $defaultIsActive ? 'checked' : '' ?>>
-                <label class="form-check-label" for="is_active">Publish now</label>
-            </div>
-            <div class="col-12 form-check ms-1">
-                <input class="form-check-input" type="checkbox" name="send_sms" id="send_sms">
-                <label class="form-check-label" for="send_sms">
-                    <?= $isEditMode ? 'Send update SMS to applicants (' . e($smsProviderLabel) . ')' : 'Send SMS to applicants (' . e($smsProviderLabel) . ')' ?>
-                </label>
-            </div>
-            <div class="col-12">
-                <button type="submit" class="btn btn-primary"><?= e($submitButtonText) ?></button>
-            </div>
-        </form>
+        </div>
     </div>
 </div>
 
-<div class="card card-soft shadow-sm mb-4 announcement-requirements-card">
-    <div class="card-body">
-        <h2 class="h6 mb-2">Active Requirements Reference</h2>
-        <?php if (!$requirementTemplates): ?>
-            <p class="text-muted mb-0">No active requirements found.</p>
-        <?php else: ?>
-            <ol class="mb-0 small">
-                <?php foreach ($requirementTemplates as $req): ?>
-                    <li class="mb-1">
-                        <strong><?= e((string) ($req['requirement_name'] ?? 'Requirement')) ?></strong>
-                        <?php if ((int) ($req['is_required'] ?? 1) === 0): ?>
-                            <span class="badge text-bg-light ms-1">Optional</span>
-                        <?php endif; ?>
-                        <?php if (trim((string) ($req['description'] ?? '')) !== ''): ?>
-                            <div class="text-muted"><?= e((string) $req['description']) ?></div>
-                        <?php endif; ?>
-                    </li>
-                <?php endforeach; ?>
-            </ol>
-        <?php endif; ?>
+<div class="row g-4 mb-4">
+    <div class="col-12 col-xl-8">
+        <div class="card card-soft shadow-sm announcement-create-card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+                    <h2 class="h6 mb-0" id="announcement-form"><?= e($formModeTitle) ?></h2>
+                    <?php if ($isEditMode): ?>
+                        <a href="announcements.php" class="btn btn-sm btn-outline-secondary">Cancel Edit</a>
+                    <?php endif; ?>
+                </div>
+                <form method="post" class="row g-3">
+                    <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+                    <input type="hidden" name="action" value="<?= e($formModeAction) ?>">
+                    <?php if ($isEditMode): ?>
+                        <input type="hidden" name="announcement_id" value="<?= (int) ($editAnnouncement['id'] ?? 0) ?>">
+                    <?php endif; ?>
+                    <div class="col-12 col-lg-8">
+                        <label class="form-label">Announcement Template</label>
+                        <select id="announcementTemplate" class="form-select">
+                            <option value="">Custom (No Template)</option>
+                            <option value="application_open">Application Period Open</option>
+                            <option value="deadline_extension">Deadline Extension</option>
+                            <option value="requirements_update">Requirements Update</option>
+                            <option value="interview_schedule">Interview Schedule Notice</option>
+                            <option value="results_release">Results / Status Notice</option>
+                            <option value="soa_reminder">SOA/Student Copy Reminder</option>
+                            <option value="payout_advisory">Payout Schedule Advisory</option>
+                            <option value="office_advisory">Office/System Advisory</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-lg-4 announcement-template-actions">
+                        <label class="form-label d-none d-lg-block">Quick Action</label>
+                        <button type="button" class="btn btn-outline-primary w-100 announcement-template-btn" id="insertRequirementsBtn">
+                            <i class="fa-solid fa-list-check me-1"></i>Insert Active Requirements
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary w-100 mt-2 announcement-template-btn" id="clearAnnouncementContentBtn">
+                            <i class="fa-solid fa-eraser me-1"></i>Clear Content
+                        </button>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-text mt-0">Use a template to draft quickly, then revise before publishing.</div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Title</label>
+                        <input type="text" class="form-control" name="title" id="announcementTitle" value="<?= e($defaultTitle) ?>" required>
+                        <div class="small text-muted mt-1 text-end" id="announcementTitleMeta">0 characters</div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Content</label>
+                        <textarea class="form-control" name="content" id="announcementContent" rows="8" required><?= e($defaultContent) ?></textarea>
+                        <div class="d-flex justify-content-between align-items-center mt-1 small text-muted">
+                            <span id="announcementContentMeta">0 characters</span>
+                            <span id="announcementReadTimeMeta">Estimated read: 0 min</span>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="card border-0 bg-light-subtle">
+                            <div class="card-body py-2 px-3">
+                                <div class="small text-muted text-uppercase">Live Preview</div>
+                                <div class="fw-semibold" id="announcementPreviewTitle">No title yet</div>
+                                <div class="small mb-0" id="announcementPreviewContent">Compose your announcement content to preview it here.</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 form-check ms-1">
+                        <input class="form-check-input" type="checkbox" name="is_active" id="is_active" <?= $defaultIsActive ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="is_active">Publish now</label>
+                    </div>
+                    <div class="col-12 form-check ms-1">
+                        <input class="form-check-input" type="checkbox" name="send_sms" id="send_sms">
+                        <label class="form-check-label" for="send_sms">
+                            <?= $isEditMode ? 'Send update SMS to applicants (' . e($smsProviderLabel) . ')' : 'Send SMS to applicants (' . e($smsProviderLabel) . ')' ?>
+                        </label>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary"><?= e($submitButtonText) ?></button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-xl-4">
+        <div class="card card-soft shadow-sm announcement-requirements-card h-100">
+            <div class="card-body">
+                <h2 class="h6 mb-2">Active Requirements Reference</h2>
+                <?php if (!$requirementTemplates): ?>
+                    <p class="text-muted mb-0">No active requirements found.</p>
+                <?php else: ?>
+                    <ol class="mb-0 small">
+                        <?php foreach ($requirementTemplates as $req): ?>
+                            <li class="mb-1">
+                                <strong><?= e((string) ($req['requirement_name'] ?? 'Requirement')) ?></strong>
+                                <?php if ((int) ($req['is_required'] ?? 1) === 0): ?>
+                                    <span class="badge text-bg-light ms-1">Optional</span>
+                                <?php endif; ?>
+                                <?php if (trim((string) ($req['description'] ?? '')) !== ''): ?>
+                                    <div class="text-muted"><?= e((string) $req['description']) ?></div>
+                                <?php endif; ?>
+                            </li>
+                        <?php endforeach; ?>
+                    </ol>
+                <?php endif; ?>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -419,6 +504,11 @@ include __DIR__ . '/../includes/header.php';
         const contentInput = document.getElementById('announcementContent');
         const insertRequirementsBtn = document.getElementById('insertRequirementsBtn');
         const clearAnnouncementContentBtn = document.getElementById('clearAnnouncementContentBtn');
+        const titleMeta = document.getElementById('announcementTitleMeta');
+        const contentMeta = document.getElementById('announcementContentMeta');
+        const readTimeMeta = document.getElementById('announcementReadTimeMeta');
+        const previewTitle = document.getElementById('announcementPreviewTitle');
+        const previewContent = document.getElementById('announcementPreviewContent');
         const promptModalEl = document.getElementById('announcementPromptModal');
         const promptIconEl = document.getElementById('announcementPromptIcon');
         const promptTitleEl = document.getElementById('announcementPromptTitle');
@@ -426,6 +516,16 @@ include __DIR__ . '/../includes/header.php';
         const promptCancelBtn = document.getElementById('announcementPromptCancel');
         const promptConfirmBtn = document.getElementById('announcementPromptConfirm');
         const promptSubtitleEl = document.getElementById('announcementPromptSubtitle');
+        const announcementSearchInput = document.getElementById('announcementSearch');
+        const announcementStatusFilter = document.getElementById('announcementStatusFilter');
+        const announcementRows = Array.from(document.querySelectorAll('[data-announcement-row="1"]'));
+        const announcementVisibleCount = document.getElementById('announcementVisibleCount');
+        const announcementEmptyState = document.getElementById('announcementEmptyState');
+        const announcementPageSize = document.getElementById('announcementPageSize');
+        const announcementPrevPage = document.getElementById('announcementPrevPage');
+        const announcementNextPage = document.getElementById('announcementNextPage');
+        const announcementPageInfo = document.getElementById('announcementPageInfo');
+        let currentPage = 1;
 
         if (!templateSelect || !titleInput || !contentInput || !insertRequirementsBtn || !promptModalEl || !promptIconEl || !promptTitleEl || !promptMessageEl || !promptCancelBtn || !promptConfirmBtn || !promptSubtitleEl) {
             return;
@@ -433,6 +533,85 @@ include __DIR__ . '/../includes/header.php';
 
         const requirementTemplates = <?= json_encode($requirementTemplates, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
         const promptModal = typeof bootstrap !== 'undefined' ? new bootstrap.Modal(promptModalEl) : null;
+
+        function updateComposerMeta() {
+            const titleValue = String(titleInput.value || '').trim();
+            const contentValue = String(contentInput.value || '').trim();
+
+            if (titleMeta) {
+                titleMeta.textContent = titleValue.length + (titleValue.length === 1 ? ' character' : ' characters');
+            }
+            if (contentMeta) {
+                contentMeta.textContent = contentValue.length + (contentValue.length === 1 ? ' character' : ' characters');
+            }
+            if (readTimeMeta) {
+                const words = contentValue === '' ? 0 : contentValue.split(/\s+/).filter(Boolean).length;
+                const minutes = Math.max(1, Math.ceil(words / 180));
+                readTimeMeta.textContent = 'Estimated read: ' + (words === 0 ? 0 : minutes) + ' min';
+            }
+            if (previewTitle) {
+                previewTitle.textContent = titleValue !== '' ? titleValue : 'No title yet';
+            }
+            if (previewContent) {
+                previewContent.textContent = contentValue !== '' ? contentValue : 'Compose your announcement content to preview it here.';
+            }
+        }
+
+        function applyAnnouncementFilters(resetPage) {
+            if (!announcementRows.length) {
+                return;
+            }
+            if (resetPage !== false) {
+                currentPage = 1;
+            }
+
+            const searchTerm = String(announcementSearchInput ? announcementSearchInput.value : '').trim().toLowerCase();
+            const statusValue = String(announcementStatusFilter ? announcementStatusFilter.value : '').trim().toLowerCase();
+            const pageSize = Math.max(1, parseInt(String(announcementPageSize ? announcementPageSize.value : '10'), 10) || 10);
+            const filteredRows = [];
+
+            announcementRows.forEach(function (row) {
+                const title = String(row.getAttribute('data-title') || '');
+                const content = String(row.getAttribute('data-content') || '');
+                const author = String(row.getAttribute('data-author') || '');
+                const status = String(row.getAttribute('data-status') || '');
+
+                const matchesSearch = searchTerm === '' || title.includes(searchTerm) || content.includes(searchTerm) || author.includes(searchTerm);
+                const matchesStatus = statusValue === '' || status === statusValue;
+                const show = matchesSearch && matchesStatus;
+                if (show) {
+                    filteredRows.push(row);
+                }
+                row.classList.add('d-none');
+            });
+
+            const visibleCount = filteredRows.length;
+            const totalPages = Math.max(1, Math.ceil(visibleCount / pageSize));
+            currentPage = Math.min(Math.max(1, currentPage), totalPages);
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = startIndex + pageSize;
+            filteredRows.slice(startIndex, endIndex).forEach(function (row) {
+                row.classList.remove('d-none');
+            });
+
+            if (announcementVisibleCount) {
+                announcementVisibleCount.textContent = visibleCount.toLocaleString() + ' matched';
+            }
+            if (announcementEmptyState) {
+                announcementEmptyState.classList.toggle('d-none', visibleCount > 0);
+            }
+            if (announcementPrevPage) {
+                announcementPrevPage.disabled = currentPage <= 1 || visibleCount === 0;
+            }
+            if (announcementNextPage) {
+                announcementNextPage.disabled = currentPage >= totalPages || visibleCount === 0;
+            }
+            if (announcementPageInfo) {
+                announcementPageInfo.textContent = visibleCount === 0
+                    ? 'Page 0 of 0'
+                    : ('Page ' + currentPage + ' of ' + totalPages);
+            }
+        }
 
         function showPrompt(options) {
             const opts = Object.assign({
@@ -687,6 +866,36 @@ include __DIR__ . '/../includes/header.php';
         });
 
         insertRequirementsBtn.addEventListener('click', insertRequirements);
+        titleInput.addEventListener('input', updateComposerMeta);
+        contentInput.addEventListener('input', updateComposerMeta);
+
+        if (announcementSearchInput) {
+            announcementSearchInput.addEventListener('input', function () {
+                applyAnnouncementFilters(true);
+            });
+        }
+        if (announcementStatusFilter) {
+            announcementStatusFilter.addEventListener('change', function () {
+                applyAnnouncementFilters(true);
+            });
+        }
+        if (announcementPageSize) {
+            announcementPageSize.addEventListener('change', function () {
+                applyAnnouncementFilters(true);
+            });
+        }
+        if (announcementPrevPage) {
+            announcementPrevPage.addEventListener('click', function () {
+                currentPage = Math.max(1, currentPage - 1);
+                applyAnnouncementFilters(false);
+            });
+        }
+        if (announcementNextPage) {
+            announcementNextPage.addEventListener('click', function () {
+                currentPage += 1;
+                applyAnnouncementFilters(false);
+            });
+        }
         if (clearAnnouncementContentBtn) {
             clearAnnouncementContentBtn.addEventListener('click', async function () {
                 if (contentInput.value.trim() === '') {
@@ -740,15 +949,44 @@ include __DIR__ . '/../includes/header.php';
                 }
             });
         });
+
+        updateComposerMeta();
+        applyAnnouncementFilters(true);
     });
 </script>
 
-<div class="card card-soft shadow-sm">
+<div class="card card-soft shadow-sm" id="announcement-list">
     <div class="card-body">
-        <h2 class="h6">All Announcements</h2>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h2 class="h6 mb-0">All Announcements</h2>
+            <span class="badge text-bg-light" id="announcementVisibleCount"><?= number_format($totalAnnouncements) ?> shown</span>
+        </div>
         <?php if (!$announcements): ?>
             <p class="text-muted mb-0">No announcements yet.</p>
         <?php else: ?>
+            <div class="row g-2 mb-3">
+                <div class="col-12 col-md-6">
+                    <label for="announcementSearch" class="form-label form-label-sm mb-1">Search</label>
+                    <input type="search" class="form-control form-control-sm" id="announcementSearch" placeholder="Search title, content, or author...">
+                </div>
+                <div class="col-12 col-md-3">
+                    <label for="announcementStatusFilter" class="form-label form-label-sm mb-1">Status</label>
+                    <select class="form-select form-select-sm" id="announcementStatusFilter">
+                        <option value="">All</option>
+                        <option value="published">Published</option>
+                        <option value="archived">Archived</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-3">
+                    <label for="announcementPageSize" class="form-label form-label-sm mb-1">Rows</label>
+                    <select class="form-select form-select-sm" id="announcementPageSize">
+                        <option value="5">5</option>
+                        <option value="10" selected>10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                    </select>
+                </div>
+            </div>
             <div class="table-responsive">
                 <table class="table align-middle mb-0">
                     <thead>
@@ -756,22 +994,40 @@ include __DIR__ . '/../includes/header.php';
                             <th>Title</th>
                             <th>Status</th>
                             <th>Date</th>
+                            <th>Author</th>
                             <th class="text-end">Action</th>
                         </tr>
                     </thead>
                     <tbody>
                     <?php foreach ($announcements as $row): ?>
-                        <tr>
+                        <?php
+                            $rowTitle = trim((string) ($row['title'] ?? ''));
+                            $rowContent = trim((string) ($row['content'] ?? ''));
+                            $rowStatus = (int) ($row['is_active'] ?? 0) === 1 ? 'published' : 'archived';
+                            $rowAuthorName = trim((string) (($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')));
+                            if ($rowAuthorName === '') {
+                                $rowAuthorName = 'System';
+                            }
+                        ?>
+                        <tr data-announcement-row="1"
+                            data-title="<?= e(strtolower($rowTitle)) ?>"
+                            data-content="<?= e(strtolower($rowContent)) ?>"
+                            data-author="<?= e(strtolower($rowAuthorName)) ?>"
+                            data-status="<?= e($rowStatus) ?>">
                             <td>
-                                <strong><?= e($row['title']) ?></strong>
-                                <div class="small text-muted"><?= e(excerpt((string) $row['content'], 90)) ?></div>
+                                <strong><?= e($rowTitle) ?></strong>
+                                <div class="small text-muted"><?= e(excerpt($rowContent, 100)) ?></div>
                             </td>
                             <td>
                                 <span class="badge <?= (int) $row['is_active'] === 1 ? 'text-bg-success' : 'text-bg-secondary' ?>">
                                     <?= (int) $row['is_active'] === 1 ? 'Published' : 'Archived' ?>
                                 </span>
                             </td>
-                            <td><?= date('M d, Y', strtotime((string) $row['created_at'])) ?></td>
+                            <td>
+                                <div><?= date('M d, Y', strtotime((string) $row['created_at'])) ?></div>
+                                <div class="small text-muted"><?= date('h:i A', strtotime((string) $row['created_at'])) ?></div>
+                            </td>
+                            <td><?= e($rowAuthorName) ?></td>
                             <td class="text-end">
                                 <a href="announcements.php?edit=<?= (int) $row['id'] ?>#announcement-form" class="btn btn-sm btn-outline-secondary me-1">
                                     Edit
@@ -799,6 +1055,14 @@ include __DIR__ . '/../includes/header.php';
                     </tbody>
                 </table>
             </div>
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+                <div class="small text-muted" id="announcementPageInfo">Page 1 of 1</div>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Announcement table pagination">
+                    <button type="button" class="btn btn-outline-secondary" id="announcementPrevPage">Previous</button>
+                    <button type="button" class="btn btn-outline-secondary" id="announcementNextPage">Next</button>
+                </div>
+            </div>
+            <p class="text-muted small mb-0 mt-3 d-none" id="announcementEmptyState">No announcements match your filters.</p>
         <?php endif; ?>
     </div>
 </div>

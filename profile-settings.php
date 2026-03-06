@@ -13,6 +13,7 @@ $sessionUser = current_user();
 $userId = (int) ($sessionUser['id'] ?? 0);
 $profile = $sessionUser ?: [];
 $isApplicant = (($sessionUser['role'] ?? '') === 'applicant');
+$schoolNameOptions = negros_occidental_colleges_universities();
 
 if (is_post()) {
     if (!verify_csrf($_POST['csrf_token'] ?? null)) {
@@ -30,11 +31,34 @@ if (is_post()) {
     if ($action === 'update_profile') {
         $firstName = trim((string) ($_POST['first_name'] ?? ''));
         $middleName = trim((string) ($_POST['middle_name'] ?? ''));
+        $suffix = trim((string) ($_POST['suffix'] ?? ''));
         $lastName = trim((string) ($_POST['last_name'] ?? ''));
         $email = strtolower(trim((string) ($_POST['email'] ?? '')));
-        $schoolName = trim((string) ($_POST['school_name'] ?? ''));
+        $schoolNameSelection = trim((string) ($_POST['school_name'] ?? ''));
+        $schoolNameOther = trim((string) ($_POST['school_name_other'] ?? ''));
+        $resolvedSchoolName = $schoolNameSelection;
+        if ($schoolNameSelection === '__other__') {
+            $validatedSchoolOther = validate_typed_academic_text($schoolNameOther, 'School name');
+            if (!($validatedSchoolOther['ok'] ?? false)) {
+                set_flash('danger', (string) ($validatedSchoolOther['error'] ?? 'Invalid school name.'));
+                redirect('profile-settings.php');
+            }
+            $resolvedSchoolName = (string) ($validatedSchoolOther['value'] ?? '');
+        }
+        $schoolName = normalize_school_name($resolvedSchoolName);
         $schoolType = trim((string) ($_POST['school_type'] ?? ''));
-        $course = trim((string) ($_POST['course'] ?? ''));
+        $courseSelection = trim((string) ($_POST['course'] ?? ''));
+        $courseOther = trim((string) ($_POST['course_other'] ?? ''));
+        $resolvedCourse = $courseSelection;
+        if ($courseSelection === '__other__') {
+            $validatedCourseOther = validate_typed_academic_text($courseOther, 'Course');
+            if (!($validatedCourseOther['ok'] ?? false)) {
+                set_flash('danger', (string) ($validatedCourseOther['error'] ?? 'Invalid course.'));
+                redirect('profile-settings.php');
+            }
+            $resolvedCourse = (string) ($validatedCourseOther['value'] ?? '');
+        }
+        $course = normalize_course_name($resolvedCourse);
         $address = trim((string) ($_POST['address'] ?? ''));
 
         if ($firstName === '' || $lastName === '' || $email === '') {
@@ -44,6 +68,24 @@ if (is_post()) {
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             set_flash('danger', 'Please enter a valid email address.');
             redirect('profile-settings.php');
+        }
+        if ($suffix !== '' && (!preg_match("/^[A-Za-z0-9 .'-]{1,20}$/", $suffix) || strlen($suffix) > 20)) {
+            set_flash('danger', 'Suffix must be up to 20 characters and can only contain letters, numbers, spaces, apostrophes, dots, and hyphens.');
+            redirect('profile-settings.php');
+        }
+        if ($isApplicant) {
+            if ($schoolNameSelection !== '__other__' && $schoolName !== '' && !is_valid_negros_occidental_school_name($schoolName)) {
+                set_flash('danger', 'Please select a school from the list or choose Other and type your school name.');
+                redirect('profile-settings.php');
+            }
+            if ($course === '') {
+                set_flash('danger', 'Course is required.');
+                redirect('profile-settings.php');
+            }
+            if ($courseSelection !== '__other__' && $courseSelection !== '' && !is_valid_scholarship_course($course)) {
+                set_flash('danger', 'Please select a course from the list or choose Other and type your course.');
+                redirect('profile-settings.php');
+            }
         }
 
         $stmtEmail = $conn->prepare("SELECT id FROM users WHERE email = ? AND id <> ? LIMIT 1");
@@ -60,15 +102,16 @@ if (is_post()) {
 
         $stmt = $conn->prepare(
             "UPDATE users
-             SET first_name = ?, middle_name = ?, last_name = ?, email = ?, school_name = ?, school_type = ?, course = ?, address = ?
+             SET first_name = ?, middle_name = ?, suffix = ?, last_name = ?, email = ?, school_name = ?, school_type = ?, course = ?, address = ?
              WHERE id = ?
              LIMIT 1"
         );
         if ($stmt) {
             $stmt->bind_param(
-                'ssssssssi',
+                'sssssssssi',
                 $firstName,
                 $middleName,
+                $suffix,
                 $lastName,
                 $email,
                 $schoolName,
@@ -83,6 +126,7 @@ if (is_post()) {
 
         $_SESSION['user']['first_name'] = $firstName;
         $_SESSION['user']['middle_name'] = $middleName;
+        $_SESSION['user']['suffix'] = $suffix;
         $_SESSION['user']['last_name'] = $lastName;
         $_SESSION['user']['email'] = $email;
         if ($isApplicant) {
@@ -171,7 +215,7 @@ if (is_post()) {
 
 if (db_ready()) {
     $stmt = $conn->prepare(
-        "SELECT id, role, first_name, middle_name, last_name, email, phone, school_name, school_type, course, address, created_at
+        "SELECT id, role, first_name, middle_name, suffix, last_name, email, phone, school_name, school_type, course, address, created_at
          FROM users
          WHERE id = ?
          LIMIT 1"
@@ -207,15 +251,20 @@ include __DIR__ . '/includes/header.php';
                     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                     <input type="hidden" name="action" value="update_profile">
 
-                    <div class="col-12 col-md-4">
+                    <div class="col-12 col-md-3">
                         <label class="form-label">First Name *</label>
                         <input type="text" class="form-control" name="first_name" required value="<?= e((string) ($profile['first_name'] ?? '')) ?>">
                     </div>
-                    <div class="col-12 col-md-4">
+                    <div class="col-12 col-md-3">
                         <label class="form-label">Middle Name</label>
                         <input type="text" class="form-control" name="middle_name" value="<?= e((string) ($profile['middle_name'] ?? '')) ?>">
                     </div>
-                    <div class="col-12 col-md-4">
+                    <div class="col-12 col-md-3">
+                        <label class="form-label">Suffix</label>
+                        <input type="text" class="form-control" name="suffix" maxlength="20" placeholder="e.g., Jr., Sr., III" value="<?= e((string) ($profile['suffix'] ?? '')) ?>">
+                        <div class="form-text">Leave blank if not applicable.</div>
+                    </div>
+                    <div class="col-12 col-md-3">
                         <label class="form-label">Last Name *</label>
                         <input type="text" class="form-control" name="last_name" required value="<?= e((string) ($profile['last_name'] ?? '')) ?>">
                     </div>
@@ -230,9 +279,38 @@ include __DIR__ . '/includes/header.php';
                     </div>
 
                     <?php if ($isApplicant): ?>
+                        <?php
+                        $profileSchoolName = trim((string) ($profile['school_name'] ?? ''));
+                        $selectedSchoolName = '';
+                        if ($profileSchoolName !== '') {
+                            $selectedSchoolName = is_valid_negros_occidental_school_name($profileSchoolName) ? $profileSchoolName : '__other__';
+                        }
+                        $otherSchoolName = $selectedSchoolName === '__other__' ? (string) ($profile['school_name'] ?? '') : '';
+                        $isOtherSchoolSelected = $selectedSchoolName === '__other__';
+                        $courseOptions = scholarship_course_options();
+                        $profileCourse = trim((string) ($profile['course'] ?? ''));
+                        $selectedCourse = '';
+                        if ($profileCourse !== '') {
+                            $selectedCourse = is_valid_scholarship_course($profileCourse) ? $profileCourse : '__other__';
+                        }
+                        $otherCourse = $selectedCourse === '__other__' ? (string) ($profile['course'] ?? '') : '';
+                        $isOtherCourseSelected = $selectedCourse === '__other__';
+                        ?>
                         <div class="col-12 col-md-6">
                             <label class="form-label">School Name</label>
-                            <input type="text" class="form-control" name="school_name" value="<?= e((string) ($profile['school_name'] ?? '')) ?>">
+                            <select class="form-select" name="school_name" id="profileSchoolNameSelect">
+                                <option value="">Select School</option>
+                                <?php foreach ($schoolNameOptions as $schoolOption): ?>
+                                    <option value="<?= e($schoolOption) ?>" <?= $selectedSchoolName === $schoolOption ? 'selected' : '' ?>>
+                                        <?= e($schoolOption) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                                <option value="__other__" <?= $selectedSchoolName === '__other__' ? 'selected' : '' ?>>Other (Type School Name)</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-6<?= $isOtherSchoolSelected ? '' : ' d-none' ?>" id="profileOtherSchoolWrapper">
+                            <label class="form-label">Other School Name</label>
+                            <input type="text" class="form-control" name="school_name_other" id="profileOtherSchoolInput" value="<?= e($otherSchoolName) ?>" placeholder="Type if not listed" <?= $isOtherSchoolSelected ? 'required' : '' ?>>
                         </div>
                         <div class="col-12 col-md-3">
                             <label class="form-label">School Type</label>
@@ -244,8 +322,20 @@ include __DIR__ . '/includes/header.php';
                             </select>
                         </div>
                         <div class="col-12 col-md-6">
-                            <label class="form-label">Course</label>
-                            <input type="text" class="form-control" name="course" value="<?= e((string) ($profile['course'] ?? '')) ?>">
+                            <label class="form-label">Course *</label>
+                            <select class="form-select" name="course" id="profileCourseSelect" required>
+                                <option value="">Select Course</option>
+                                <?php foreach ($courseOptions as $courseOption): ?>
+                                    <option value="<?= e($courseOption) ?>" <?= $selectedCourse === $courseOption ? 'selected' : '' ?>>
+                                        <?= e($courseOption) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                                <option value="__other__" <?= $selectedCourse === '__other__' ? 'selected' : '' ?>>Other (Type Course)</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-6<?= $isOtherCourseSelected ? '' : ' d-none' ?>" id="profileOtherCourseWrapper">
+                            <label class="form-label">Other Course</label>
+                            <input type="text" class="form-control" name="course_other" id="profileOtherCourseInput" value="<?= e($otherCourse) ?>" placeholder="Type if not listed" <?= $isOtherCourseSelected ? 'required' : '' ?>>
                         </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label">Address</label>
@@ -326,5 +416,42 @@ include __DIR__ . '/includes/header.php';
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const schoolSelect = document.getElementById('profileSchoolNameSelect');
+    const otherWrapper = document.getElementById('profileOtherSchoolWrapper');
+    const otherInput = document.getElementById('profileOtherSchoolInput');
+    const courseSelect = document.getElementById('profileCourseSelect');
+    const otherCourseWrapper = document.getElementById('profileOtherCourseWrapper');
+    const otherCourseInput = document.getElementById('profileOtherCourseInput');
+
+    if (schoolSelect && otherWrapper && otherInput) {
+        const syncOtherSchoolVisibility = function () {
+            const showOther = schoolSelect.value === '__other__';
+            otherWrapper.classList.toggle('d-none', !showOther);
+            otherInput.required = showOther;
+            if (!showOther) {
+                otherInput.value = '';
+            }
+        };
+        schoolSelect.addEventListener('change', syncOtherSchoolVisibility);
+        syncOtherSchoolVisibility();
+    }
+
+    if (courseSelect && otherCourseWrapper && otherCourseInput) {
+        const syncOtherCourseVisibility = function () {
+            const showOther = courseSelect.value === '__other__';
+            otherCourseWrapper.classList.toggle('d-none', !showOther);
+            otherCourseInput.required = showOther;
+            if (!showOther) {
+                otherCourseInput.value = '';
+            }
+        };
+        courseSelect.addEventListener('change', syncOtherCourseVisibility);
+        syncOtherCourseVisibility();
+    }
+});
+</script>
 
 <?php include __DIR__ . '/includes/footer.php'; ?>

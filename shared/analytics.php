@@ -40,14 +40,9 @@ $summary = [
     'applications_pending' => 0,
     'disbursement_amount' => 0.0,
     'disbursement_records' => 0,
-    'qr_scans_total' => 0,
-    'sms_total' => 0,
-    'sms_success' => 0,
-    'sms_failed' => 0,
 ];
 $statusBreakdown = [];
 $topSchools = [];
-$qrPurposeBreakdown = [];
 $semesterSubmissions = [];
 $semesterDisbursements = [];
 
@@ -62,9 +57,6 @@ $semesterLabel = static function (string $semester, string $schoolYear): string 
     $label = trim($semesterShort . ' ' . $schoolYear);
     return $label !== '' ? $label : 'Semester';
 };
-
-$hasQrLogs = db_ready() && table_exists($conn, 'qr_scan_logs');
-$hasSmsLogs = db_ready() && table_exists($conn, 'sms_logs');
 
 if (db_ready()) {
     $stmt = $conn->prepare(
@@ -83,7 +75,7 @@ if (db_ready()) {
         "SELECT COUNT(*) AS total
          FROM applications
          WHERE COALESCE(submitted_at, created_at) BETWEEN ? AND ?
-           AND status IN ('approved', 'for_soa_submission', 'soa_submitted', 'waitlisted', 'disbursed')"
+           AND status IN ('interview_passed', 'for_soa', 'soa_received', 'awaiting_payout', 'disbursed')"
     );
     if ($stmt) {
         $stmt->bind_param('ss', $fromDateTime, $toDateTime);
@@ -95,7 +87,7 @@ if (db_ready()) {
     $stmt = $conn->prepare(
         "SELECT COUNT(*) AS total
          FROM applications
-         WHERE status IN ('submitted', 'for_review', 'for_interview', 'for_soa_submission')"
+         WHERE status IN ('under_review', 'needs_resubmission', 'for_interview', 'for_soa')"
     );
     if ($stmt) {
         $stmt->execute();
@@ -115,40 +107,6 @@ if (db_ready()) {
         $summary['disbursement_records'] = (int) ($row['total_records'] ?? 0);
         $summary['disbursement_amount'] = (float) ($row['total_amount'] ?? 0);
         $stmt->close();
-    }
-
-    if ($hasQrLogs) {
-        $stmt = $conn->prepare(
-            "SELECT COUNT(*) AS total
-             FROM qr_scan_logs
-             WHERE created_at BETWEEN ? AND ?"
-        );
-        if ($stmt) {
-            $stmt->bind_param('ss', $fromDateTime, $toDateTime);
-            $stmt->execute();
-            $summary['qr_scans_total'] = (int) (($stmt->get_result()->fetch_assoc()['total'] ?? 0));
-            $stmt->close();
-        }
-    }
-
-    if ($hasSmsLogs) {
-        $stmt = $conn->prepare(
-            "SELECT
-                COUNT(*) AS total,
-                SUM(CASE WHEN delivery_status = 'success' THEN 1 ELSE 0 END) AS success_total,
-                SUM(CASE WHEN delivery_status = 'failed' THEN 1 ELSE 0 END) AS failed_total
-             FROM sms_logs
-             WHERE created_at BETWEEN ? AND ?"
-        );
-        if ($stmt) {
-            $stmt->bind_param('ss', $fromDateTime, $toDateTime);
-            $stmt->execute();
-            $row = $stmt->get_result()->fetch_assoc() ?: [];
-            $summary['sms_total'] = (int) ($row['total'] ?? 0);
-            $summary['sms_success'] = (int) ($row['success_total'] ?? 0);
-            $summary['sms_failed'] = (int) ($row['failed_total'] ?? 0);
-            $stmt->close();
-        }
     }
 
     $stmt = $conn->prepare(
@@ -182,23 +140,6 @@ if (db_ready()) {
         $result = $stmt->get_result();
         $topSchools = $result instanceof mysqli_result ? $result->fetch_all(MYSQLI_ASSOC) : [];
         $stmt->close();
-    }
-
-    if ($hasQrLogs) {
-        $stmt = $conn->prepare(
-            "SELECT purpose, COUNT(*) AS total
-             FROM qr_scan_logs
-             WHERE created_at BETWEEN ? AND ?
-             GROUP BY purpose
-             ORDER BY total DESC, purpose ASC"
-        );
-        if ($stmt) {
-            $stmt->bind_param('ss', $fromDateTime, $toDateTime);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $qrPurposeBreakdown = $result instanceof mysqli_result ? $result->fetch_all(MYSQLI_ASSOC) : [];
-            $stmt->close();
-        }
     }
 
     $result = $conn->query(
@@ -241,9 +182,6 @@ if (db_ready()) {
 $approvalRate = $summary['applications_total'] > 0
     ? ($summary['applications_approved'] / $summary['applications_total']) * 100
     : 0;
-$smsSuccessRate = $summary['sms_total'] > 0
-    ? ($summary['sms_success'] / $summary['sms_total']) * 100
-    : 0;
 
 $statusChartLabels = [];
 $statusChartData = [];
@@ -280,13 +218,6 @@ if (!$disbursementChartLabels) {
     $disbursementChartData = [0];
 }
 
-$qrChartLabels = [];
-$qrChartData = [];
-foreach ($qrPurposeBreakdown as $row) {
-    $qrChartLabels[] = qr_scan_purpose_label((string) ($row['purpose'] ?? ''));
-    $qrChartData[] = (int) ($row['total'] ?? 0);
-}
-
 include __DIR__ . '/../includes/header.php';
 ?>
 
@@ -319,28 +250,38 @@ $baseQuery = http_build_query([
 
 <?php if (is_admin()): ?>
 <div class="card card-soft shadow-sm mb-3">
-    <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-3">
         <div>
             <h2 class="h6 m-0">Report Exports (Selected Date Range)</h2>
-            <p class="small text-muted mb-0">Use these links for printable and spreadsheet reports.</p>
+            <p class="small text-muted mb-0">Choose report and format, then click Export.</p>
         </div>
-        <div class="d-flex flex-wrap gap-2">
-            <a href="../admin-only/export-reports.php?dataset=status_summary&format=pdf&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">Status PDF</a>
-            <a href="../admin-only/export-reports.php?dataset=status_summary&format=docx&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">Status DOCX</a>
-            <a href="../admin-only/export-reports.php?dataset=status_summary&format=xlsx&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">Status XLSX</a>
-            <a href="../admin-only/export-reports.php?dataset=scholarship_summary&format=pdf&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">Applicant Type PDF</a>
-            <a href="../admin-only/export-reports.php?dataset=scholarship_summary&format=docx&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">Applicant Type DOCX</a>
-            <a href="../admin-only/export-reports.php?dataset=scholarship_summary&format=xlsx&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">Applicant Type XLSX</a>
-            <a href="../admin-only/export-reports.php?dataset=monthly_disbursements&format=pdf&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">Disbursements PDF</a>
-            <a href="../admin-only/export-reports.php?dataset=monthly_disbursements&format=docx&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">Disbursements DOCX</a>
-            <a href="../admin-only/export-reports.php?dataset=monthly_disbursements&format=xlsx&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">Disbursements XLSX</a>
-            <a href="../admin-only/export-reports.php?dataset=sms_delivery_summary&format=pdf&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">SMS PDF</a>
-            <a href="../admin-only/export-reports.php?dataset=sms_delivery_summary&format=docx&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">SMS DOCX</a>
-            <a href="../admin-only/export-reports.php?dataset=sms_delivery_summary&format=xlsx&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">SMS XLSX</a>
-            <a href="../admin-only/export-reports.php?dataset=qr_scan_summary&format=pdf&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">QR PDF</a>
-            <a href="../admin-only/export-reports.php?dataset=qr_scan_summary&format=docx&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">QR DOCX</a>
-            <a href="../admin-only/export-reports.php?dataset=qr_scan_summary&format=xlsx&<?= e($baseQuery) ?>" class="btn btn-outline-primary btn-sm">QR XLSX</a>
-        </div>
+        <form method="get" action="../admin-only/export-reports.php" class="row g-2 align-items-end">
+            <input type="hidden" name="from_date" value="<?= e($fromDate) ?>">
+            <input type="hidden" name="to_date" value="<?= e($toDate) ?>">
+            <div class="col-12 col-md-auto">
+                <label class="form-label form-label-sm mb-1">Report</label>
+                <select name="dataset" class="form-select form-select-sm">
+                    <option value="status_summary">Application Status Summary</option>
+                    <option value="scholarship_summary">Applicant Type Summary</option>
+                    <option value="monthly_disbursements">Semester Disbursement Summary</option>
+                    <option value="approved_scholars">Approved Scholars</option>
+                    <option value="audit_logs">Audit Logs</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-auto">
+                <label class="form-label form-label-sm mb-1">Format</label>
+                <select name="format" class="form-select form-select-sm">
+                    <option value="pdf">PDF</option>
+                    <option value="docx">DOCX</option>
+                    <option value="xlsx" selected>XLSX</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-auto d-grid">
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="fa-solid fa-download me-1"></i>Export
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 <?php endif; ?>
@@ -441,52 +382,6 @@ $baseQuery = http_build_query([
         </div>
     </div>
 
-    <div class="row g-3">
-        <div class="col-12 col-lg-6">
-            <div class="card card-soft shadow-sm h-100">
-                <div class="card-body">
-                    <h2 class="h6 mb-2">SMS Delivery (Selected Range)</h2>
-                    <?php if (!$hasSmsLogs): ?>
-                        <p class="text-muted mb-0">SMS log table not available.</p>
-                    <?php else: ?>
-                        <div class="d-flex justify-content-between mb-1">
-                            <span>Total Sent</span>
-                            <strong><?= number_format($summary['sms_total']) ?></strong>
-                        </div>
-                        <div class="d-flex justify-content-between mb-1">
-                            <span>Success</span>
-                            <strong class="text-success"><?= number_format($summary['sms_success']) ?></strong>
-                        </div>
-                        <div class="d-flex justify-content-between mb-1">
-                            <span>Failed</span>
-                            <strong class="text-danger"><?= number_format($summary['sms_failed']) ?></strong>
-                        </div>
-                        <div class="progress mt-2" role="progressbar" aria-label="SMS success rate">
-                            <div class="progress-bar bg-success" style="width: <?= e((string) max(0, min(100, $smsSuccessRate))) ?>%"></div>
-                        </div>
-                        <div class="small text-muted mt-2"><?= number_format($smsSuccessRate, 1) ?>% success rate</div>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-lg-6">
-            <div class="card card-soft shadow-sm h-100">
-                <div class="card-body">
-                    <h2 class="h6 mb-2">QR Scan Activity (Selected Range)</h2>
-                    <?php if (!$hasQrLogs): ?>
-                        <p class="text-muted mb-0">QR scan logs table not available.</p>
-                    <?php else: ?>
-                        <div class="d-flex justify-content-between mb-2">
-                            <span>Total Scans</span>
-                            <strong><?= number_format($summary['qr_scans_total']) ?></strong>
-                        </div>
-                        <canvas id="qrPurposeChart" height="140"></canvas>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             if (typeof Chart === 'undefined') {
@@ -549,23 +444,6 @@ $baseQuery = http_build_query([
                 },
                 options: chartDefaults
             });
-
-            <?php if ($hasQrLogs): ?>
-            new Chart(document.getElementById('qrPurposeChart'), {
-                type: 'bar',
-                data: {
-                    labels: <?= json_encode($qrChartLabels, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
-                    datasets: [{
-                        label: 'Scans',
-                        data: <?= json_encode($qrChartData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
-                        backgroundColor: 'rgba(120, 194, 255, 0.62)',
-                        borderColor: '#2d8fd5',
-                        borderWidth: 1
-                    }]
-                },
-                options: chartDefaults
-            });
-            <?php endif; ?>
         });
     </script>
 <?php endif; ?>

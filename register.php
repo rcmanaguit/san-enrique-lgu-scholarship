@@ -99,12 +99,17 @@ if (is_post()) {
 
         $firstName = trim((string) ($_POST['first_name'] ?? ''));
         $lastName = trim((string) ($_POST['last_name'] ?? ''));
+        $email = strtolower(trim((string) ($_POST['email'] ?? '')));
         $phoneInput = trim((string) ($_POST['phone'] ?? ''));
         $password = (string) ($_POST['password'] ?? '');
         $phone = normalize_mobile_number($phoneInput);
 
-        if (!$firstName || !$lastName || !$phoneInput || !$password) {
+        if (!$firstName || !$lastName || !$email || !$phoneInput || !$password) {
             set_flash('danger', 'Please fill in all required fields.');
+            redirect('register.php');
+        }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            set_flash('danger', 'Please enter a valid email address.');
             redirect('register.php');
         }
         if (!is_valid_mobile_number($phoneInput)) {
@@ -120,10 +125,22 @@ if (is_post()) {
             set_flash('danger', 'Mobile number is already registered.');
             redirect('register.php');
         }
+        $stmtEmail = $conn->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
+        if ($stmtEmail) {
+            $stmtEmail->bind_param('s', $email);
+            $stmtEmail->execute();
+            $emailExists = $stmtEmail->get_result()->fetch_assoc();
+            $stmtEmail->close();
+            if ($emailExists) {
+                set_flash('danger', 'Email is already registered.');
+                redirect('register.php');
+            }
+        }
 
         $registrationPayload = [
             'first_name' => $firstName,
             'last_name' => $lastName,
+            'email' => $email,
             'phone' => $phone,
             'password_hash' => password_hash($password, PASSWORD_DEFAULT),
         ];
@@ -182,6 +199,10 @@ include __DIR__ . '/includes/header.php';
                     <div class="col-12 col-md-6">
                         <label class="form-label">Last Name *</label>
                         <input type="text" class="form-control" name="last_name" required value="<?= e(old('last_name', (string) ($pendingRegistration['last_name'] ?? ''))) ?>">
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label">Email Address *</label>
+                        <input type="email" class="form-control" name="email" required placeholder="you@example.com" value="<?= e(old('email', (string) ($pendingRegistration['email'] ?? ''))) ?>">
                     </div>
                     <div class="col-12 col-md-6">
                         <label class="form-label">Mobile Number *</label>

@@ -1,0 +1,52 @@
+flowchart LR
+    %% DFD Level 0 (Context)
+    %% External entities <-> Main system <-> Core data stores
+
+    subgraph EXTERNALS[External Entities]
+        AP[Applicant]
+        AS[Admin/Staff]
+        SG[SMS Gateway]
+    end
+
+    SYS((0.0 Scholarship Records Management System))
+
+    subgraph STORES[Data Stores]
+        D1[(D1 Users)]
+        D2[(D2 Applications)]
+        D3[(D3 Application Documents)]
+        D4[(D4 Requirement Templates)]
+        D5[(D5 Application Periods)]
+        D6[(D6 Disbursements)]
+        D7[(D7 Notifications)]
+        D8[(D8 SMS Templates)]
+        D9[(D9 SMS Logs)]
+        D10[(D10 Audit Logs)]
+        D11[(D11 Announcements)]
+        D12[(D12 OTP Codes)]
+        D13[(D13 Application Wizard Drafts)]
+        D14[(D14 Barangays)]
+    end
+
+    AP -->|Registration, login, application data,\nrequirements, photo, profile updates| SYS
+    SYS -->|Account status, application status,\nnotifications, announcements| AP
+
+    AS -->|Period setup, requirements setup,\nstatus updates, disbursement actions,\nannouncements, SMS broadcast| SYS
+    SYS -->|Dashboards, logs, reports,\nsearch results, exports| AS
+
+    SYS -->|Outbound SMS payload| SG
+    SG -->|Delivery response / status| SYS
+
+    SYS <--> D1
+    SYS <--> D2
+    SYS <--> D3
+    SYS <--> D4
+    SYS <--> D5
+    SYS <--> D6
+    SYS <--> D7
+    SYS <--> D8
+    SYS <--> D9
+    SYS <--> D10
+    SYS <--> D11
+    SYS <--> D12
+    SYS <--> D13
+    SYS <--> D14
