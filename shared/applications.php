@@ -22,7 +22,7 @@ $queueMap = [
     'under_review' => ['under_review', 'needs_resubmission'],
     'for_interview' => ['for_interview'],
     'for_soa' => ['interview_passed', 'for_soa'],
-    'interview_passed' => ['soa_received', 'awaiting_payout'],
+    'awaiting_payout' => ['soa_received', 'awaiting_payout'],
     'rejected' => ['rejected'],
     'completed' => ['disbursed'],
     'all' => [],
@@ -67,7 +67,7 @@ $queueBulkStatusMap = [
     'under_review' => [],
     'for_interview' => ['interview_passed', 'rejected'],
     'for_soa' => ['soa_received'],
-    'interview_passed' => ['disbursed'],
+    'awaiting_payout' => ['disbursed'],
     'rejected' => [],
     'completed' => [],
     'all' => ['under_review'],
@@ -106,6 +106,8 @@ if ($queueFilter !== '' && $queueFilter !== 'under_review') {
     $redirectQuery['queue'] = $queueFilter;
 }
 $redirectUrl = 'applications.php' . ($redirectQuery ? '?' . http_build_query($redirectQuery) : '');
+$selectionEnabledQueues = ['for_interview', 'for_soa', 'awaiting_payout'];
+$isSelectionEnabled = in_array($queueFilter, $selectionEnabledQueues, true);
 $resolveSmsTemplate = static function (mysqli $conn, string $templateName, string $fallbackBody): string {
     if (!table_exists($conn, 'sms_templates')) {
         return $fallbackBody;
@@ -1283,43 +1285,103 @@ foreach ($applications as $row) {
 include __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <h1 class="h4 m-0"><i class="fa-solid fa-folder-tree me-2 text-primary"></i>Application Queue</h1>
-    <div class="d-flex gap-2 align-items-center">
-        <span class="small text-muted">Single queue workflow enabled</span>
-    </div>
-</div>
+<style>
+    .applications-hero {
+        border: 1px solid rgba(13, 110, 253, 0.12);
+        background: linear-gradient(140deg, #f6f9ff 0%, #ffffff 55%, #eef5ff 100%);
+    }
+    .applications-hero .hero-note {
+        font-size: 0.82rem;
+        color: #5c6f86;
+    }
+    .apps-grid-stats {
+        display: grid;
+        gap: 0.65rem;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    }
+    .apps-grid-stats .stat-card {
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 0.75rem;
+        background: #fff;
+        padding: 0.6rem 0.7rem;
+    }
+    .apps-grid-stats .stat-card.stat-card-btn {
+        width: 100%;
+        text-align: left;
+        cursor: pointer;
+    }
+    .apps-grid-stats .stat-card.stat-card-btn.active {
+        border-color: rgba(13, 110, 253, 0.45);
+        background: linear-gradient(135deg, #0d6efd 0%, #2a7fff 100%);
+        color: #fff;
+    }
+    .apps-grid-stats .stat-card.stat-card-btn.active .stat-label {
+        color: rgba(255, 255, 255, 0.85);
+    }
+    .apps-grid-stats .stat-label {
+        display: block;
+        font-size: 0.74rem;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+        color: #6c757d;
+    }
+    .apps-grid-stats .stat-value {
+        font-size: 1.05rem;
+        font-weight: 700;
+    }
+    .applications-table-wrap .table tbody tr {
+        transition: background-color 0.18s ease;
+    }
+    .applications-table-wrap .table tbody tr:hover {
+        background-color: #f7fbff;
+    }
+    .apps-helper-text {
+        font-size: 0.82rem;
+        color: #6b7280;
+    }
+</style>
 
-<div class="card card-soft shadow-sm mb-3">
-    <div class="card-body py-2">
-        <div class="d-flex flex-wrap gap-2" id="applicationQueueTabs" role="tablist" aria-label="Application Queues">
-            <button type="button" class="btn btn-sm btn-outline-primary<?= $queueFilter === 'under_review' ? ' active' : '' ?>" data-queue-tab="under_review">
-                For Review (<?= number_format((int) ($queueCounts['under_review'] ?? 0)) ?>)
+<div class="card card-soft shadow-sm mb-3 applications-hero">
+    <div class="card-body py-3">
+        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+            <h1 class="h4 m-0"><i class="fa-solid fa-folder-tree me-2 text-primary"></i>Application Queue</h1>
+            <span class="hero-note">Live queue filtering and search enabled</span>
+        </div>
+        <div class="apps-grid-stats" id="applicationQueueTabs" role="tablist" aria-label="Application Queues">
+            <button type="button" class="stat-card stat-card-btn<?= $queueFilter === 'all' ? ' active' : '' ?>" data-queue-tab="all">
+                <span class="stat-label">Total</span>
+                <span class="stat-value"><?= number_format((int) ($queueCounts['all'] ?? 0)) ?></span>
             </button>
-            <button type="button" class="btn btn-sm btn-outline-primary<?= $queueFilter === 'for_interview' ? ' active' : '' ?>" data-queue-tab="for_interview">
-                For Interview (<?= number_format((int) ($queueCounts['for_interview'] ?? 0)) ?>)
+            <button type="button" class="stat-card stat-card-btn<?= $queueFilter === 'under_review' ? ' active' : '' ?>" data-queue-tab="under_review">
+                <span class="stat-label">For Review</span>
+                <span class="stat-value"><?= number_format((int) ($queueCounts['under_review'] ?? 0)) ?></span>
             </button>
-            <button type="button" class="btn btn-sm btn-outline-primary<?= $queueFilter === 'for_soa' ? ' active' : '' ?>" data-queue-tab="for_soa">
-                For SOA (<?= number_format((int) ($queueCounts['for_soa'] ?? 0)) ?>)
+            <button type="button" class="stat-card stat-card-btn<?= $queueFilter === 'for_interview' ? ' active' : '' ?>" data-queue-tab="for_interview">
+                <span class="stat-label">Interview</span>
+                <span class="stat-value"><?= number_format((int) ($queueCounts['for_interview'] ?? 0)) ?></span>
             </button>
-            <button type="button" class="btn btn-sm btn-outline-primary<?= $queueFilter === 'interview_passed' ? ' active' : '' ?>" data-queue-tab="interview_passed">
-                Approved (<?= number_format((int) ($queueCounts['interview_passed'] ?? 0)) ?>)
+            <button type="button" class="stat-card stat-card-btn<?= $queueFilter === 'for_soa' ? ' active' : '' ?>" data-queue-tab="for_soa">
+                <span class="stat-label">For SOA</span>
+                <span class="stat-value"><?= number_format((int) ($queueCounts['for_soa'] ?? 0)) ?></span>
             </button>
-            <button type="button" class="btn btn-sm btn-outline-primary<?= $queueFilter === 'rejected' ? ' active' : '' ?>" data-queue-tab="rejected">
-                Rejected (<?= number_format((int) ($queueCounts['rejected'] ?? 0)) ?>)
+            <button type="button" class="stat-card stat-card-btn<?= $queueFilter === 'awaiting_payout' ? ' active' : '' ?>" data-queue-tab="awaiting_payout">
+                <span class="stat-label">Awaiting Approval</span>
+                <span class="stat-value"><?= number_format((int) ($queueCounts['awaiting_payout'] ?? 0)) ?></span>
             </button>
-            <button type="button" class="btn btn-sm btn-outline-primary<?= $queueFilter === 'completed' ? ' active' : '' ?>" data-queue-tab="completed">
-                Completed (<?= number_format((int) ($queueCounts['completed'] ?? 0)) ?>)
+            <button type="button" class="stat-card stat-card-btn<?= $queueFilter === 'completed' ? ' active' : '' ?>" data-queue-tab="completed">
+                <span class="stat-label">Completed</span>
+                <span class="stat-value"><?= number_format((int) ($queueCounts['completed'] ?? 0)) ?></span>
             </button>
-            <button type="button" class="btn btn-sm btn-outline-secondary<?= $queueFilter === 'all' ? ' active' : '' ?>" data-queue-tab="all">
-                All (<?= number_format((int) ($queueCounts['all'] ?? 0)) ?>)
+            <button type="button" class="stat-card stat-card-btn<?= $queueFilter === 'rejected' ? ' active' : '' ?>" data-queue-tab="rejected">
+                <span class="stat-label">Rejected</span>
+                <span class="stat-value"><?= number_format((int) ($queueCounts['rejected'] ?? 0)) ?></span>
             </button>
         </div>
     </div>
 </div>
 
 <?php if (!$applications): ?>
-    <div class="card card-soft"><div class="card-body text-muted">No application records found.</div></div>
+    <div class="card card-soft"><div class="card-body text-muted">No application records found for the current queue and filters.</div></div>
 <?php else: ?>
     <div data-live-table class="card card-soft shadow-sm">
         <?php if ($isAdmin): ?>
@@ -1382,7 +1444,7 @@ include __DIR__ . '/../includes/header.php';
                     </div>
                     <div class="bulk-selection-inputs"></div>
                 </form>
-                <div class="form-check mt-2">
+                <div class="form-check mt-2<?= $isSelectionEnabled ? '' : ' d-none' ?>" data-bulk-selection-ui="1">
                     <input class="form-check-input" type="checkbox" id="bulkSelectAllApplications">
                     <label class="form-check-label small" for="bulkSelectAllApplications">Select all listed applications</label>
                 </div>
@@ -1395,6 +1457,15 @@ include __DIR__ . '/../includes/header.php';
                     <input type="text" data-table-search class="form-control form-control-sm" placeholder="Search app no, name, school">
                 </div>
                 <div class="col-6 col-md-3">
+                    <label class="form-label form-label-sm">Live Status Filter</label>
+                    <select data-table-filter class="form-select form-select-sm">
+                        <option value="">All Statuses</option>
+                        <?php foreach ($allowedStatus as $statusOption): ?>
+                            <option value="<?= e($statusOption) ?>"><?= e(ucwords(str_replace('_', ' ', $statusOption))) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
                     <label class="form-label form-label-sm">Rows</label>
                     <select data-table-per-page class="form-select form-select-sm">
                         <option value="10">10</option>
@@ -1402,18 +1473,19 @@ include __DIR__ . '/../includes/header.php';
                         <option value="50">50</option>
                     </select>
                 </div>
-                <div class="col-12 col-md-5 text-md-end">
+                <div class="col-12 col-md-3 text-md-end">
                     <span class="page-legend" data-table-summary></span>
                 </div>
             </div>
+            <div class="apps-helper-text mt-2">Tip: Click any row to open its action panel.</div>
             <input type="hidden" id="applicationLiveQueueFilter" data-table-filter data-filter-key="queue" value="">
         </div>
 
-        <div class="table-responsive">
+        <div class="table-responsive applications-table-wrap">
             <table class="table table-hover align-middle mb-0">
                 <thead>
                     <tr>
-                        <th style="width: 44px;">Pick</th>
+                        <th style="width: 44px;" class="<?= $isSelectionEnabled ? '' : 'd-none' ?>" data-pick-col="1">Pick</th>
                         <th>Application</th>
                         <th>Applicant</th>
                         <th>Status</th>
@@ -1440,7 +1512,7 @@ include __DIR__ . '/../includes/header.php';
                         data-app-modal-id="<?= e($modalId) ?>"
                         style="cursor:pointer;"
                     >
-                        <td>
+                        <td class="<?= $isSelectionEnabled ? '' : 'd-none' ?>" data-pick-col="1">
                             <input type="checkbox" class="form-check-input bulk-application-checkbox" value="<?= (int) $row['id'] ?>" aria-label="Select application <?= e((string) $row['application_no']) ?>">
                         </td>
                         <td>
@@ -1879,6 +1951,29 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    function setSelectionUiVisibility(queueValue) {
+        const canSelect = queueValue === 'for_interview' || queueValue === 'for_soa' || queueValue === 'awaiting_payout';
+        const selectionUi = Array.from(document.querySelectorAll('[data-bulk-selection-ui]'));
+        const pickCells = Array.from(document.querySelectorAll('[data-pick-col]'));
+
+        selectionUi.forEach(function (el) {
+            el.classList.toggle('d-none', !canSelect);
+        });
+        pickCells.forEach(function (el) {
+            el.classList.toggle('d-none', !canSelect);
+        });
+
+        if (!canSelect) {
+            getRowCheckboxes(false).forEach(function (checkbox) {
+                checkbox.checked = false;
+            });
+            if (selectAllCheckbox) {
+                selectAllCheckbox.checked = false;
+            }
+            renderSelectionInputs();
+        }
+    }
+
     function applyBulkActionsForFilter() {
         const queueValue = liveQueueFilter ? String(liveQueueFilter.value || '').trim() : '';
         let actions = bulkStatusMap.__default__;
@@ -1888,7 +1983,7 @@ document.addEventListener('DOMContentLoaded', function () {
             actions = ['interview_passed', 'rejected'];
         } else if (queueValue === 'for_soa') {
             actions = ['soa_received'];
-        } else if (queueValue === 'interview_passed') {
+        } else if (queueValue === 'awaiting_payout') {
             actions = ['disbursed'];
         } else if (queueValue === 'rejected') {
             actions = [];
@@ -1897,8 +1992,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         if (bulkForm) {
-            bulkForm.classList.toggle('d-none', queueValue === 'under_review' || queueValue === 'rejected' || queueValue === 'completed');
+            bulkForm.classList.toggle('d-none', queueValue === '' || queueValue === 'under_review' || queueValue === 'rejected' || queueValue === 'completed');
         }
+
+        setSelectionUiVisibility(queueValue);
 
         bulkStatusButtons.forEach(function (button, index) {
             const actionStatus = actions[index] || '';
