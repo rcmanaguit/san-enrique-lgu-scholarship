@@ -158,8 +158,17 @@ if (is_post()) {
 
         $stmt = $conn->prepare("UPDATE users SET phone = ? WHERE id = ? LIMIT 1");
         $stmt->bind_param('si', $newPhone, $user['id']);
-        $stmt->execute();
+        $ok = $stmt->execute();
+        $errorNo = (int) ($stmt->errno ?? 0);
         $stmt->close();
+        if (!$ok) {
+            if ($errorNo === 1062) {
+                set_flash('danger', 'That mobile number is already in use by another account.');
+                redirect('account-security.php');
+            }
+            set_flash('danger', 'Could not update mobile number right now. Please try again.');
+            redirect('account-security.php');
+        }
         audit_log(
             $conn,
             'change_mobile_success',

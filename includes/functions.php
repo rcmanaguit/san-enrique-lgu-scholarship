@@ -283,6 +283,11 @@ function mobile_number_exists(mysqli $conn, string $phone, int $excludeUserId = 
     return $exists;
 }
 
+function is_duplicate_key_error(mysqli $conn): bool
+{
+    return (int) ($conn->errno ?? 0) === 1062;
+}
+
 function current_open_application_period(mysqli $conn): ?array
 {
     if (!table_exists($conn, 'application_periods')) {
@@ -946,7 +951,7 @@ function calculate_age_from_birth_date(?string $birthDate): ?int
         return null;
     }
 
-    $date = DateTimeImmutable::createFromFormat('Y-m-d', $birthDate);
+    $date = DateTimeImmutable::createFromFormat('!Y-m-d', $birthDate);
     if (!$date || $date->format('Y-m-d') !== $birthDate) {
         return null;
     }
@@ -1507,12 +1512,60 @@ function generate_application_no(mysqli $conn): string
 {
     $year = date('Y');
     $prefix = 'SE-' . $year . '-';
+    $sequenceTable = 'application_no_sequences';
+    if (!table_exists($conn, $sequenceTable)) {
+        $conn->query(
+            "CREATE TABLE IF NOT EXISTS application_no_sequences (
+                sequence_year SMALLINT UNSIGNED NOT NULL PRIMARY KEY,
+                last_number INT UNSIGNED NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+    }
+
+    if (table_exists($conn, $sequenceTable)) {
+        $yearInt = (int) $year;
+        $stmtSeq = $conn->prepare(
+            "INSERT INTO application_no_sequences (sequence_year, last_number)
+             VALUES (?, 1)
+             ON DUPLICATE KEY UPDATE last_number = LAST_INSERT_ID(last_number + 1)"
+        );
+        if ($stmtSeq) {
+            $stmtSeq->bind_param('i', $yearInt);
+            $stmtSeq->execute();
+            $stmtSeq->close();
+
+            $nextNumber = (int) ($conn->insert_id ?? 0);
+            if ($nextNumber <= 0) {
+                $stmtCurrent = $conn->prepare(
+                    "SELECT last_number
+                     FROM application_no_sequences
+                     WHERE sequence_year = ?
+                     LIMIT 1"
+                );
+                if ($stmtCurrent) {
+                    $stmtCurrent->bind_param('i', $yearInt);
+                    $stmtCurrent->execute();
+                    $row = $stmtCurrent->get_result()->fetch_assoc();
+                    $stmtCurrent->close();
+                    $nextNumber = (int) ($row['last_number'] ?? 0);
+                }
+            }
+
+            if ($nextNumber > 0) {
+                return $prefix . str_pad((string) $nextNumber, 5, '0', STR_PAD_LEFT);
+            }
+        }
+    }
+
     $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM applications WHERE application_no LIKE CONCAT(?, '%')");
+    if (!$stmt) {
+        return $prefix . str_pad((string) random_int(1, 99999), 5, '0', STR_PAD_LEFT);
+    }
     $stmt->bind_param('s', $prefix);
     $stmt->execute();
     $count = (int) ($stmt->get_result()->fetch_assoc()['total'] ?? 0);
     $stmt->close();
-
     return $prefix . str_pad((string) ($count + 1), 5, '0', STR_PAD_LEFT);
 }
 

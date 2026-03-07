@@ -142,10 +142,15 @@ if (is_post()) {
             }
             $stmt->bind_param('sssssss', $firstName, $middleName, $lastName, $email, $phone, $hash, $status);
             $ok = $stmt->execute();
+            $errorNo = (int) ($stmt->errno ?? 0);
             $newId = (int) $stmt->insert_id;
             $stmt->close();
 
             if (!$ok || $newId <= 0) {
+                if ($errorNo === 1062) {
+                    set_flash('danger', 'Mobile number or email is already used by another account.');
+                    redirect('staff.php');
+                }
                 set_flash('danger', 'Could not create staff account right now. Please try again.');
                 redirect('staff.php');
             }
@@ -188,8 +193,13 @@ if (is_post()) {
             $stmt->bind_param('ssssssi', $firstName, $middleName, $lastName, $email, $phone, $status, $staffId);
         }
         $ok = $stmt->execute();
+        $errorNo = (int) ($stmt->errno ?? 0);
         $stmt->close();
         if (!$ok) {
+            if ($errorNo === 1062) {
+                set_flash('danger', 'Mobile number or email is already used by another account.');
+                redirect('staff.php');
+            }
             set_flash('danger', 'Could not update staff account right now. Please try again.');
             redirect('staff.php');
         }

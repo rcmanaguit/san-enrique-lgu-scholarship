@@ -185,6 +185,7 @@ if (is_post()) {
         );
         $stmt->bind_param('sssssssss', $firstName, $middleName, $lastName, $email, $phone, $passwordHash, $schoolName, $schoolType, $course);
         $ok = $stmt->execute();
+        $errorNo = (int) ($stmt->errno ?? 0);
         $stmt->close();
 
         if ($ok) {
@@ -232,6 +233,10 @@ if (is_post()) {
             redirect('apply.php?step=1');
         }
 
+        if ($errorNo === 1062) {
+            set_flash('danger', 'Registration conflict detected. Mobile number or email is already registered.');
+            redirect('register.php');
+        }
         set_flash('danger', 'Registration failed. Please try again.');
         redirect('register.php');
     }

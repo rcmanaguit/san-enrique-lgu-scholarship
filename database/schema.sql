@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS users (
     town VARCHAR(120) NOT NULL DEFAULT 'San Enrique',
     province VARCHAR(120) NOT NULL DEFAULT 'Negros Occidental',
     status ENUM('active','inactive') NOT NULL DEFAULT 'active',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_users_phone (phone)
 );
 
 CREATE TABLE IF NOT EXISTS barangays (
@@ -269,6 +270,12 @@ CREATE TABLE IF NOT EXISTS application_wizard_drafts (
     CONSTRAINT fk_wizard_drafts_user
         FOREIGN KEY (user_id) REFERENCES users(id)
         ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS application_no_sequences (
+    sequence_year SMALLINT UNSIGNED NOT NULL PRIMARY KEY,
+    last_number INT UNSIGNED NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_applications_status ON applications(status);

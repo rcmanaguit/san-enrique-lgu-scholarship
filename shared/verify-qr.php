@@ -42,6 +42,7 @@ $formatPayoutSchedule = static function (string $dateValue, ?string $timeValue =
 };
 $currentUser = current_user();
 $scannerUserId = (int) ($currentUser['id'] ?? 0);
+$scannerIsAdmin = is_admin();
 $allowedStatus = application_status_options();
 $bulkStatusMap = [
     '__default__' => ['under_review'],
@@ -110,8 +111,25 @@ if ($isAjaxRequest && trim((string) ($_POST['action'] ?? '')) === 'update_status
         echo json_encode(['ok' => false, 'error' => 'Invalid update payload.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
+    if (!in_array($newStatus, $allowedStatus, true)) {
+        echo json_encode(['ok' => false, 'error' => 'Invalid target status.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+    if ($soaDeadline !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $soaDeadline) !== 1) {
+        echo json_encode(['ok' => false, 'error' => 'Invalid SOA deadline format.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+    if ($soaDeadline !== '' && !$scannerIsAdmin) {
+        echo json_encode(['ok' => false, 'error' => 'Only admin can set or extend SOA deadline.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
 
-    $stmtCurrent = $conn->prepare("SELECT id, application_no, status FROM applications WHERE id = ? LIMIT 1");
+    $stmtCurrent = $conn->prepare(
+        "SELECT id, application_no, status, soa_submission_deadline, interview_date, interview_location
+         FROM applications
+         WHERE id = ?
+         LIMIT 1"
+    );
     if (!$stmtCurrent) {
         echo json_encode(['ok' => false, 'error' => 'Unable to read application.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
@@ -131,6 +149,46 @@ if ($isAjaxRequest && trim((string) ($_POST['action'] ?? '')) === 'update_status
         echo json_encode(['ok' => false, 'error' => 'Status transition is not allowed.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
+    if ($newStatus === 'interview_passed') {
+        $hasInterviewSchedule = trim((string) ($current['interview_date'] ?? '')) !== ''
+            && trim((string) ($current['interview_location'] ?? '')) !== '';
+        if ($currentStatus !== 'for_interview' || !$hasInterviewSchedule) {
+            echo json_encode(['ok' => false, 'error' => 'Approve is only allowed after interview date/time and location are set.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+    }
+    if ($newStatus === 'for_soa') {
+        if (!$scannerIsAdmin) {
+            echo json_encode(['ok' => false, 'error' => 'Only admin can move application to SOA stage.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+        if (!in_array($currentStatus, ['interview_passed', 'for_soa'], true)) {
+            echo json_encode(['ok' => false, 'error' => 'Only interview-passed applications can be moved to SOA stage.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+    }
+    if ($newStatus === 'soa_received' && !in_array($currentStatus, ['for_soa', 'soa_received'], true)) {
+        echo json_encode(['ok' => false, 'error' => 'SOA can only be marked submitted after SOA request stage.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+    if ($newStatus === 'disbursed' && !in_array($currentStatus, ['soa_received', 'awaiting_payout'], true)) {
+        echo json_encode(['ok' => false, 'error' => 'Only SOA Received or Awaiting Approval applications can be marked as disbursed.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    $currentDeadline = trim((string) ($current['soa_submission_deadline'] ?? ''));
+    $deadlineToSave = $currentDeadline;
+    if ($scannerIsAdmin && $soaDeadline !== '') {
+        $deadlineToSave = $soaDeadline;
+    }
+    if ($newStatus === 'for_soa' && $deadlineToSave === '') {
+        echo json_encode(['ok' => false, 'error' => 'Set SOA deadline first before moving to SOA stage.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+    if ($newStatus === 'soa_received' && $deadlineToSave === '') {
+        echo json_encode(['ok' => false, 'error' => 'Set SOA deadline first before marking SOA submitted.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
 
     $hasSoaDeadline = table_column_exists($conn, 'applications', 'soa_submission_deadline');
     if ($hasSoaDeadline) {
@@ -144,7 +202,7 @@ if ($isAjaxRequest && trim((string) ($_POST['action'] ?? '')) === 'update_status
             echo json_encode(['ok' => false, 'error' => 'Unable to update application.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             exit;
         }
-        $stmtUpdate->bind_param('sssi', $newStatus, $reviewNotes, $soaDeadline, $applicationId);
+        $stmtUpdate->bind_param('sssi', $newStatus, $reviewNotes, $deadlineToSave, $applicationId);
     } else {
         $stmtUpdate = $conn->prepare(
             "UPDATE applications
