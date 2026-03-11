@@ -184,11 +184,6 @@ if ($user && in_array((string) ($user['role'] ?? ''), ['admin', 'staff'], true))
         <div class="collapse navbar-collapse app-nav-panel" id="mainNav">
             <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                 <?php if (!$user): ?>
-                    <li class="nav-item">
-                        <a class="<?= e($navLinkClass(['announcements.php', 'shared/announcements.php'])) ?>"
-                            href="<?= e($link('announcements.php')) ?>"><i
-                                class="fa-regular fa-bell me-1"></i>Announcements</a>
-                    </li>
                 <?php endif; ?>
                 <?php if ($user && $user['role'] === 'applicant'): ?>
                     <li class="nav-item">
@@ -296,20 +291,16 @@ if ($user && in_array((string) ($user['role'] ?? ''), ['admin', 'staff'], true))
             </ul>
             <div class="d-flex gap-2 app-nav-actions">
                 <?php if (!$user): ?>
-                    <a class="btn btn-outline-primary btn-sm" href="<?= e($facebookPageUrl) ?>" target="_blank"
-                        rel="noopener noreferrer" title="Open official Facebook page">
-                        <i class="fa-brands fa-facebook me-1"></i>Facebook
-                    </a>
-                    <a class="btn btn-outline-primary btn-sm" href="<?= e($link('login.php')) ?>"><i
-                            class="fa-solid fa-right-to-bracket me-1"></i>Login</a>
                     <?php if ($hasOpenApplicationPeriod): ?>
                         <a class="btn btn-primary btn-sm" href="<?= e($link('register.php')) ?>"><i
-                                class="fa-solid fa-user-plus me-1"></i>Register</a>
+                                class="fa-solid fa-user-plus me-1"></i>Apply Now</a>
                     <?php else: ?>
                         <button type="button" class="btn btn-secondary btn-sm" disabled>
-                            <i class="fa-solid fa-lock me-1"></i>Application Period Closed
+                            <i class="fa-solid fa-lock me-1"></i>Applications Closed
                         </button>
                     <?php endif; ?>
+                    <a class="btn btn-outline-primary btn-sm" href="<?= e($link('login.php')) ?>"><i
+                            class="fa-solid fa-right-to-bracket me-1"></i>Track Application</a>
                 <?php else: ?>
                     <span class="small text-muted align-self-center d-none d-md-inline nav-user-label">
                         <?= e($user['first_name'] . ' ' . $user['last_name']) ?>

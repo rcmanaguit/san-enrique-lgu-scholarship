@@ -18,11 +18,13 @@ if (db_ready()) {
 
 include __DIR__ . '/includes/header.php';
 ?>
-
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h4 m-0">Announcements</h1>
-    <a href="index.php" class="btn btn-outline-secondary btn-sm">Back to Home</a>
-</div>
+<?php
+$pageHeaderEyebrow = 'Public Updates';
+$pageHeaderTitle = 'Announcements';
+$pageHeaderDescription = 'Read scholarship opening dates, reminders, and office advisories here.';
+$pageHeaderActions = '<a href="index.php" class="btn btn-outline-secondary btn-sm">Back to Home</a>';
+include __DIR__ . '/includes/partials/page-shell-header.php';
+?>
 
 <?php if (!db_ready()): ?>
     <div class="alert alert-warning">The system is not ready yet. Please contact the administrator.</div>

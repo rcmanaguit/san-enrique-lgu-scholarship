@@ -353,6 +353,69 @@ function format_application_period(?array $period): string
     return $name;
 }
 
+function normalize_period_scope(string $scope, string $default = 'active'): string
+{
+    $scope = strtolower(trim($scope));
+    $allowed = ['active', 'archived', 'all'];
+    if (in_array($scope, $allowed, true)) {
+        return $scope;
+    }
+    return in_array($default, $allowed, true) ? $default : 'active';
+}
+
+function application_is_in_active_period(
+    array $application,
+    ?array $activePeriod,
+    bool $hasApplicationPeriodColumn = true
+): bool {
+    if (!$activePeriod) {
+        return false;
+    }
+
+    $activePeriodId = (int) ($activePeriod['id'] ?? 0);
+    if ($hasApplicationPeriodColumn && $activePeriodId > 0) {
+        $applicationPeriodId = (int) ($application['application_period_id'] ?? 0);
+        return $applicationPeriodId > 0 && $applicationPeriodId === $activePeriodId;
+    }
+
+    $activeSemester = trim((string) ($activePeriod['semester'] ?? ''));
+    $activeSchoolYear = trim((string) ($activePeriod['academic_year'] ?? ''));
+    if ($activeSemester !== '' && $activeSchoolYear !== '') {
+        return trim((string) ($application['semester'] ?? '')) === $activeSemester
+            && trim((string) ($application['school_year'] ?? '')) === $activeSchoolYear;
+    }
+
+    return false;
+}
+
+function application_is_archived_for_active_period(
+    array $application,
+    ?array $activePeriod,
+    bool $hasApplicationPeriodColumn = true
+): bool {
+    if (!$activePeriod) {
+        return true;
+    }
+
+    return !application_is_in_active_period($application, $activePeriod, $hasApplicationPeriodColumn);
+}
+
+function application_matches_period_scope(
+    array $application,
+    string $scope,
+    ?array $activePeriod,
+    bool $hasApplicationPeriodColumn = true
+): bool {
+    $scope = normalize_period_scope($scope, 'active');
+    if ($scope === 'all') {
+        return true;
+    }
+    if ($scope === 'archived') {
+        return application_is_archived_for_active_period($application, $activePeriod, $hasApplicationPeriodColumn);
+    }
+    return application_is_in_active_period($application, $activePeriod, $hasApplicationPeriodColumn);
+}
+
 function table_column_exists(mysqli $conn, string $tableName, string $columnName): bool
 {
     static $cache = [];
@@ -970,18 +1033,222 @@ function application_status_options(): array
         'under_review',
         'needs_resubmission',
         'for_interview',
-        'interview_passed',
         'for_soa',
-        'soa_received',
-        'disbursed',
+        'approved_for_release',
+        'released',
         'rejected',
-        'awaiting_payout',
     ];
 }
 
 function approved_phase_statuses(): array
 {
-    return ['interview_passed', 'for_soa', 'soa_received', 'awaiting_payout'];
+    return ['for_soa', 'approved_for_release', 'released'];
+}
+
+function application_status_meta(string $status): array
+{
+    $status = trim($status);
+
+    $map = [
+        'under_review' => [
+            'label' => 'Under Review',
+            'short_label' => 'Review',
+            'applicant_title' => 'Your application is being reviewed.',
+            'applicant_detail' => 'Wait for document review results. You will be notified if anything needs to be replaced.',
+            'staff_title' => 'Review submitted documents.',
+            'staff_detail' => 'Check each uploaded requirement, add optional notes, then either request resubmission or move the applicant to interview.',
+            'next_action_label' => 'Review documents',
+            'tone' => 'info',
+        ],
+        'needs_resubmission' => [
+            'label' => 'Needs Resubmission',
+            'short_label' => 'Resubmit',
+            'applicant_title' => 'Replace the incomplete or rejected documents.',
+            'applicant_detail' => 'Upload only the documents marked for resubmission, then send them back for review.',
+            'staff_title' => 'Waiting for applicant replacements.',
+            'staff_detail' => 'Applicant must re-upload the rejected documents before the record can move forward.',
+            'next_action_label' => 'Upload replacement files',
+            'tone' => 'warning',
+        ],
+        'for_interview' => [
+            'label' => 'For Interview',
+            'short_label' => 'Interview',
+            'applicant_title' => 'Prepare for your interview schedule.',
+            'applicant_detail' => 'Check the interview date, time, and location. Bring the required identification on schedule.',
+            'staff_title' => 'Schedule or complete the interview stage.',
+            'staff_detail' => 'Set the interview schedule, then move qualified applicants to SOA submission.',
+            'next_action_label' => 'Schedule interview',
+            'tone' => 'primary',
+        ],
+        'for_soa' => [
+            'label' => 'Submit SOA',
+            'short_label' => 'SOA',
+            'applicant_title' => 'Submit your SOA or student copy.',
+            'applicant_detail' => 'Submit the school-issued SOA before the deadline so final release can be prepared.',
+            'staff_title' => 'Collect and confirm SOA submission.',
+            'staff_detail' => 'Track the deadline, record the SOA receipt, and move complete records to release approval.',
+            'next_action_label' => 'Submit SOA',
+            'tone' => 'primary',
+        ],
+        'approved_for_release' => [
+            'label' => 'Approved for Payout',
+            'short_label' => 'Approved',
+            'applicant_title' => 'Your application is approved for payout scheduling.',
+            'applicant_detail' => 'Wait for the payout schedule and keep your QR code ready.',
+            'staff_title' => 'Prepare the payout release step.',
+            'staff_detail' => 'This record is cleared for disbursement scheduling and release confirmation.',
+            'next_action_label' => 'Prepare payout release',
+            'tone' => 'secondary',
+        ],
+        'released' => [
+            'label' => 'Released',
+            'short_label' => 'Released',
+            'applicant_title' => 'Payout has been released.',
+            'applicant_detail' => 'This application is complete.',
+            'staff_title' => 'Application completed.',
+            'staff_detail' => 'No further action is needed unless records or reporting must be reviewed.',
+            'next_action_label' => 'Completed',
+            'tone' => 'success',
+        ],
+        'rejected' => [
+            'label' => 'Rejected',
+            'short_label' => 'Rejected',
+            'applicant_title' => 'This application was not approved.',
+            'applicant_detail' => 'Review the notes for the recorded reason.',
+            'staff_title' => 'Application closed as rejected.',
+            'staff_detail' => 'No further workflow action is available for this record.',
+            'next_action_label' => 'Closed',
+            'tone' => 'danger',
+        ],
+    ];
+
+    return $map[$status] ?? [
+        'label' => ucwords(str_replace('_', ' ', $status !== '' ? $status : 'unknown')),
+        'short_label' => ucwords(str_replace('_', ' ', $status !== '' ? $status : 'unknown')),
+        'applicant_title' => 'Application status updated.',
+        'applicant_detail' => 'Please check the latest application details for the next step.',
+        'staff_title' => 'Review application status.',
+        'staff_detail' => 'Check the record and continue the workflow as needed.',
+        'next_action_label' => 'Review record',
+        'tone' => 'secondary',
+    ];
+}
+
+function application_status_label(string $status): string
+{
+    return (string) (application_status_meta($status)['label'] ?? ucwords(str_replace('_', ' ', $status)));
+}
+
+function application_workflow_steps(): array
+{
+    return [
+        'under_review',
+        'needs_resubmission',
+        'for_interview',
+        'for_soa',
+        'approved_for_release',
+        'released',
+    ];
+}
+
+function application_timeline_steps(string $status): array
+{
+    $steps = [];
+    $workflow = application_workflow_steps();
+    $currentIndex = array_search($status, $workflow, true);
+
+    foreach ($workflow as $index => $stepStatus) {
+        $meta = application_status_meta($stepStatus);
+        $state = 'upcoming';
+        if ($status === 'rejected') {
+            $state = $stepStatus === 'under_review' ? 'current' : 'upcoming';
+        } elseif ($status === 'needs_resubmission') {
+            if ($stepStatus === 'under_review') {
+                $state = 'complete';
+            } elseif ($stepStatus === 'needs_resubmission') {
+                $state = 'current';
+            }
+        } elseif ($currentIndex !== false) {
+            if ($index < $currentIndex) {
+                $state = 'complete';
+            } elseif ($index === $currentIndex) {
+                $state = 'current';
+            }
+        }
+
+        $steps[] = [
+            'status' => $stepStatus,
+            'label' => (string) ($meta['label'] ?? application_status_label($stepStatus)),
+            'short_label' => (string) ($meta['short_label'] ?? application_status_label($stepStatus)),
+            'state' => $state,
+        ];
+    }
+
+    if ($status === 'rejected') {
+        $steps[] = [
+            'status' => 'rejected',
+            'label' => 'Rejected',
+            'short_label' => 'Rejected',
+            'state' => 'current',
+        ];
+    }
+
+    return $steps;
+}
+
+function application_next_action_summary(array $application, string $audience = 'applicant'): array
+{
+    $status = trim((string) ($application['status'] ?? ''));
+    $meta = application_status_meta($status);
+    $isStaff = strtolower(trim($audience)) === 'staff';
+
+    $title = (string) ($meta[$isStaff ? 'staff_title' : 'applicant_title'] ?? 'Review application status.');
+    $detail = (string) ($meta[$isStaff ? 'staff_detail' : 'applicant_detail'] ?? '');
+
+    if (!$isStaff && $status === 'needs_resubmission') {
+        $rejectedCount = (int) ($application['rejected_document_count'] ?? 0);
+        if ($rejectedCount > 0) {
+            $title = 'Upload ' . $rejectedCount . ' replacement document' . ($rejectedCount === 1 ? '' : 's') . '.';
+        }
+    }
+
+    if (!$isStaff && $status === 'for_interview' && !empty($application['interview_date']) && !empty($application['interview_location'])) {
+        $title = 'Attend the scheduled interview.';
+        $detail = 'Interview schedule: '
+            . date('M d, Y h:i A', strtotime((string) $application['interview_date']))
+            . ' at '
+            . trim((string) $application['interview_location']) . '.';
+    }
+
+    if (!$isStaff && $status === 'for_soa' && !empty($application['soa_submission_deadline'])) {
+        if (!empty($application['soa_submitted_at'])) {
+            $title = 'SOA submitted successfully.';
+            $detail = 'Your uploaded SOA is being reviewed by the scholarship office.';
+        } else {
+            $detail = 'Submit the SOA on or before '
+                . date('M d, Y', strtotime((string) $application['soa_submission_deadline']))
+                . '.';
+        }
+    }
+
+    if ($isStaff && $status === 'for_interview') {
+        $hasInterviewSchedule = trim((string) ($application['interview_date'] ?? '')) !== ''
+            && trim((string) ($application['interview_location'] ?? '')) !== '';
+        if ($hasInterviewSchedule) {
+            $title = 'Interview scheduled. Move qualified applicants to SOA after completion.';
+            $detail = 'Current schedule: '
+                . date('M d, Y h:i A', strtotime((string) $application['interview_date']))
+                . ' at '
+                . trim((string) ($application['interview_location'] ?? '')) . '.';
+        }
+    }
+
+    return [
+        'title' => $title,
+        'detail' => $detail,
+        'action_label' => (string) ($meta['next_action_label'] ?? 'Review record'),
+        'label' => (string) ($meta['label'] ?? application_status_label($status)),
+    ];
 }
 
 function status_badge_class(string $status): string
@@ -990,19 +1257,43 @@ function status_badge_class(string $status): string
         'under_review' => 'text-bg-info',
         'needs_resubmission' => 'text-bg-warning',
         'for_interview' => 'text-bg-warning',
-        'interview_passed' => 'text-bg-success',
         'for_soa' => 'text-bg-warning',
-        'soa_received' => 'text-bg-success',
-        'disbursed' => 'text-bg-success',
-        'scheduled' => 'text-bg-info',
+        'approved_for_release' => 'text-bg-secondary',
         'released' => 'text-bg-success',
+        'scheduled' => 'text-bg-info',
         'cancelled' => 'text-bg-danger',
         'success' => 'text-bg-success',
         'failed' => 'text-bg-danger',
         'queued' => 'text-bg-secondary',
         'rejected' => 'text-bg-danger',
-        'awaiting_payout' => 'text-bg-secondary',
         default => 'text-bg-light'
+    };
+}
+
+function application_status_group(string $status): string
+{
+    return match ($status) {
+        'released' => 'released',
+        'rejected' => 'rejected',
+        default => 'in_progress',
+    };
+}
+
+function application_status_group_label(string $status): string
+{
+    return match (application_status_group($status)) {
+        'released' => 'Released',
+        'rejected' => 'Rejected',
+        default => 'In Progress',
+    };
+}
+
+function application_status_group_badge_class(string $status): string
+{
+    return match (application_status_group($status)) {
+        'released' => 'text-bg-success',
+        'rejected' => 'text-bg-danger',
+        default => 'text-bg-warning',
     };
 }
 
@@ -1181,13 +1472,15 @@ function wizard_step2_is_complete(array $state): bool
     if (
         trim((string) ($step2['last_name'] ?? '')) === ''
         || trim((string) ($step2['first_name'] ?? '')) === ''
+        || trim((string) ($step2['email'] ?? '')) === ''
         || trim((string) ($step2['contact_number'] ?? '')) === ''
         || trim((string) ($step2['barangay'] ?? '')) === ''
     ) {
         return false;
     }
 
-    return is_valid_mobile_number((string) ($step2['contact_number'] ?? ''))
+    return filter_var((string) ($step2['email'] ?? ''), FILTER_VALIDATE_EMAIL) !== false
+        && is_valid_mobile_number((string) ($step2['contact_number'] ?? ''))
         && is_valid_barangay((string) ($step2['barangay'] ?? ''));
 }
 
@@ -1579,6 +1872,11 @@ function active_requirements(mysqli $conn, ?string $applicantType, ?string $scho
     $applicantType = $applicantType ?: '';
     $schoolType = $schoolType ?: '';
 
+    $periodRequirementRows = current_period_requirements($conn, $applicantType, $schoolType);
+    if ($periodRequirementRows) {
+        return $periodRequirementRows;
+    }
+
     $sql = "SELECT id, requirement_name, description, applicant_type, school_type, is_required, sort_order
             FROM requirement_templates
             WHERE is_active = 1
@@ -1593,6 +1891,184 @@ function active_requirements(mysqli $conn, ?string $applicantType, ?string $scho
     $rows = $result instanceof mysqli_result ? $result->fetch_all(MYSQLI_ASSOC) : [];
     $stmt->close();
     return $rows;
+}
+
+function ensure_application_period_requirements_table(mysqli $conn): bool
+{
+    static $ensured = false;
+
+    if ($ensured) {
+        return table_exists($conn, 'application_period_requirements');
+    }
+
+    $ensured = true;
+    if (table_exists($conn, 'application_period_requirements')) {
+        return true;
+    }
+
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS application_period_requirements (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            application_period_id INT UNSIGNED NOT NULL,
+            requirement_template_id INT UNSIGNED NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_application_period_requirement (application_period_id, requirement_template_id),
+            CONSTRAINT fk_application_period_requirements_period
+                FOREIGN KEY (application_period_id) REFERENCES application_periods(id)
+                ON DELETE CASCADE,
+            CONSTRAINT fk_application_period_requirements_template
+                FOREIGN KEY (requirement_template_id) REFERENCES requirement_templates(id)
+                ON DELETE CASCADE
+        )"
+    );
+
+    return table_exists($conn, 'application_period_requirements');
+}
+
+function save_application_period_requirements(mysqli $conn, int $periodId, array $requirementTemplateIds): void
+{
+    if ($periodId <= 0 || !ensure_application_period_requirements_table($conn)) {
+        return;
+    }
+
+    $cleanIds = array_values(array_unique(array_filter(array_map(
+        static fn($value): int => (int) $value,
+        $requirementTemplateIds
+    ), static fn(int $value): bool => $value > 0)));
+
+    $conn->query("DELETE FROM application_period_requirements WHERE application_period_id = " . $periodId);
+    if (!$cleanIds) {
+        return;
+    }
+
+    $stmt = $conn->prepare(
+        "INSERT INTO application_period_requirements (application_period_id, requirement_template_id)
+         VALUES (?, ?)"
+    );
+
+    foreach ($cleanIds as $templateId) {
+        $stmt->bind_param('ii', $periodId, $templateId);
+        $stmt->execute();
+    }
+
+    $stmt->close();
+}
+
+function current_period_requirements(mysqli $conn, ?string $applicantType, ?string $schoolType): array
+{
+    if (!ensure_application_period_requirements_table($conn)) {
+        return [];
+    }
+
+    $openPeriod = current_open_application_period($conn);
+    $periodId = (int) ($openPeriod['id'] ?? 0);
+    if ($periodId <= 0) {
+        return [];
+    }
+
+    $applicantType = $applicantType ?: '';
+    $schoolType = $schoolType ?: '';
+
+    $sql = "SELECT rt.id, rt.requirement_name, rt.description, rt.applicant_type, rt.school_type, rt.is_required, rt.sort_order
+            FROM application_period_requirements apr
+            INNER JOIN requirement_templates rt ON rt.id = apr.requirement_template_id
+            WHERE apr.application_period_id = ?
+              AND rt.is_active = 1
+              AND (? = '' OR rt.applicant_type IS NULL OR rt.applicant_type = ?)
+              AND (? = '' OR rt.school_type IS NULL OR rt.school_type = ?)
+            ORDER BY rt.sort_order ASC, rt.id ASC";
+
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param('issss', $periodId, $applicantType, $applicantType, $schoolType, $schoolType);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $rows = $result instanceof mysqli_result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+    $stmt->close();
+
+    return $rows;
+}
+
+function application_period_timeline_for_user(mysqli $conn, int $userId): array
+{
+    if ($userId <= 0 || !table_exists($conn, 'application_periods') || !table_exists($conn, 'applications')) {
+        return [];
+    }
+
+    $periodRows = [];
+    $result = $conn->query(
+        "SELECT id, academic_year, semester, period_name, start_date, end_date
+         FROM application_periods
+         ORDER BY
+            CASE WHEN start_date IS NULL THEN 1 ELSE 0 END ASC,
+            start_date ASC,
+            id ASC"
+    );
+    if ($result instanceof mysqli_result) {
+        $periodRows = $result->fetch_all(MYSQLI_ASSOC);
+    }
+    if ($periodRows === []) {
+        return [];
+    }
+
+    $applicationRows = [];
+    $stmt = $conn->prepare(
+        "SELECT id, application_no, application_period_id, semester, school_year, status, submitted_at, created_at
+         FROM applications
+         WHERE user_id = ?
+         ORDER BY COALESCE(submitted_at, created_at) ASC, id ASC"
+    );
+    if ($stmt) {
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $applicationRows = $result instanceof mysqli_result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+        $stmt->close();
+    }
+
+    $applicationsByPeriodId = [];
+    $applicationsByKey = [];
+    foreach ($applicationRows as $applicationRow) {
+        $periodId = (int) ($applicationRow['application_period_id'] ?? 0);
+        if ($periodId > 0) {
+            $applicationsByPeriodId[$periodId] = $applicationRow;
+        }
+
+        $semester = trim((string) ($applicationRow['semester'] ?? ''));
+        $schoolYear = trim((string) ($applicationRow['school_year'] ?? ''));
+        if ($semester !== '' && $schoolYear !== '') {
+            $applicationsByKey[$semester . '|' . $schoolYear] = $applicationRow;
+        }
+    }
+
+    $timeline = [];
+    foreach ($periodRows as $periodRow) {
+        $periodId = (int) ($periodRow['id'] ?? 0);
+        $semester = trim((string) ($periodRow['semester'] ?? ''));
+        $academicYear = trim((string) ($periodRow['academic_year'] ?? ''));
+        $match = $applicationsByPeriodId[$periodId] ?? null;
+        if (!$match && $semester !== '' && $academicYear !== '') {
+            $match = $applicationsByKey[$semester . '|' . $academicYear] ?? null;
+        }
+
+        $hasApplication = is_array($match);
+        $status = trim((string) ($match['status'] ?? ''));
+        $isReleased = $status === 'released';
+
+        $timeline[] = [
+            'period_label' => format_application_period($periodRow),
+            'application_id' => (int) ($match['id'] ?? 0),
+            'application_no' => trim((string) ($match['application_no'] ?? '')),
+            'status' => $status,
+            'label' => $hasApplication ? 'Applied / Released' : 'No application',
+            'badge_class' => $hasApplication
+                ? ($isReleased ? 'text-bg-success' : 'text-bg-primary')
+                : 'text-bg-light',
+            'has_application' => $hasApplication,
+            'is_released' => $isReleased,
+        ];
+    }
+
+    return $timeline;
 }
 
 function move_temp_file_to_final(string $relativePath, string $targetDir, string $newPrefix): ?string

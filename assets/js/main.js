@@ -43,6 +43,8 @@ function initLiveTable(wrapper) {
     const perPageSelect = wrapper.querySelector("[data-table-per-page]");
     const pagerContainer = wrapper.querySelector("[data-table-pager]");
     const summary = wrapper.querySelector("[data-table-summary]");
+    const disableSort = String(wrapper.getAttribute("data-disable-sort") || "").trim() === "1";
+    const detachHiddenRows = String(wrapper.getAttribute("data-detach-hidden-rows") || "").trim() === "1";
     const originalRowOrder = new Map(allRows.map((row, index) => [row, index]));
     const sortLabelsToSkip = new Set(["actions", "action", "use", "select", "review"]);
     const collator = new Intl.Collator(undefined, {
@@ -52,11 +54,11 @@ function initLiveTable(wrapper) {
 
     let state = {
         page: 1,
-        perPage: parseInt(perPageSelect ? perPageSelect.value : "10", 10),
+        perPage: parseInt(perPageSelect ? perPageSelect.value : String(allRows.length), 10),
         sortColumn: null,
         sortDirection: "asc",
     };
-    const sortableColumns = initSortControls();
+    const sortableColumns = disableSort ? [] : initSortControls();
 
     function textMatch(row, query) {
         if (!query) {
@@ -208,6 +210,9 @@ function initLiveTable(wrapper) {
     }
 
     function initSortControls() {
+        if (disableSort) {
+            return [];
+        }
         if (!table.tHead || table.tHead.rows.length === 0) {
             return [];
         }
@@ -312,6 +317,9 @@ function initLiveTable(wrapper) {
     }
 
     function reorderRows(sortedFilteredRows) {
+        if (detachHiddenRows) {
+            return;
+        }
         const sortedSet = new Set(sortedFilteredRows);
         const hiddenRows = allRows.filter((row) => !sortedSet.has(row));
         const fragment = document.createDocumentFragment();
@@ -374,7 +382,9 @@ function initLiveTable(wrapper) {
         const query = (searchInput ? searchInput.value : "").trim().toLowerCase();
         const filteredRows = allRows.filter((row) => textMatch(row, query) && filterMatch(row));
         const sortedRows = applySorting(filteredRows);
-        reorderRows(sortedRows);
+        if (!detachHiddenRows) {
+            reorderRows(sortedRows);
+        }
 
         const total = sortedRows.length;
         const totalPages = Math.max(1, Math.ceil(total / state.perPage));
@@ -382,10 +392,29 @@ function initLiveTable(wrapper) {
             state.page = totalPages;
         }
 
-        allRows.forEach((row) => row.classList.add("d-none"));
         const start = (state.page - 1) * state.perPage;
         const currentRows = sortedRows.slice(start, start + state.perPage);
-        currentRows.forEach((row) => row.classList.remove("d-none"));
+        const currentRowSet = new Set(currentRows);
+
+        if (detachHiddenRows) {
+            allRows.forEach((row) => {
+                if (!currentRowSet.has(row)) {
+                    const rowCheckboxes = row.querySelectorAll('input[type="checkbox"]');
+                    rowCheckboxes.forEach((checkbox) => {
+                        checkbox.checked = false;
+                    });
+                }
+            });
+            const fragment = document.createDocumentFragment();
+            currentRows.forEach((row) => {
+                row.classList.remove("d-none");
+                fragment.appendChild(row);
+            });
+            tbody.replaceChildren(fragment);
+        } else {
+            allRows.forEach((row) => row.classList.add("d-none"));
+            currentRows.forEach((row) => row.classList.remove("d-none"));
+        }
 
         if (summary) {
             const end = Math.min(start + currentRows.length, total);

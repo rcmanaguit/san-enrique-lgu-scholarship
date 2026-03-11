@@ -1,17 +1,17 @@
 -- =========================================================
--- Flood Seed Data (Applicants + Applications + Documents)
+-- Flood Seed Data (All Under Review)
 -- =========================================================
 -- Notes:
--- 1) This script is re-runnable (uses NOT EXISTS / ON DUPLICATE checks).
--- 2) It seeds metadata paths for photos/documents:
---    - uploads/photos/app_flood_XXXX.jpg
---    - uploads/documents/app_flood_XXXX_*.pdf
--- 3) For full preview testing, make sure those files exist in uploads/.
+-- 1) Standalone seed for 120 applicants/applications, all in under_review.
+-- 2) Uses APP-REVIEW-* / QRREVIEW* identifiers so it can coexist with APP-FLOOD-* data.
+-- 3) Seeds metadata paths for photos/documents:
+--    - uploads/photos/app_review_XXXX.jpg
+--    - uploads/documents/app_review_XXXX_*.pdf
 
 USE lgu_scholarship;
 
 SET @seed_password_hash = '$2y$10$OJ2MKaZbtsNsLW1pWY.oO.G7BqoSPLyvnkNeQbl7xpMXlFC/cFAZm';
-SET @flood_count = 120;
+SET @review_flood_count = 120;
 
 SET @period_id = (
     SELECT id
@@ -35,8 +35,8 @@ SET @semester = COALESCE(
     'First Semester'
 );
 
-DROP TEMPORARY TABLE IF EXISTS seed_flood_people;
-CREATE TEMPORARY TABLE seed_flood_people (
+DROP TEMPORARY TABLE IF EXISTS seed_review_people;
+CREATE TEMPORARY TABLE seed_review_people (
     seed_no INT PRIMARY KEY,
     first_name VARCHAR(80) NOT NULL,
     middle_name VARCHAR(80) NULL,
@@ -51,7 +51,7 @@ CREATE TEMPORARY TABLE seed_flood_people (
     app_status VARCHAR(40) NOT NULL
 );
 
-INSERT INTO seed_flood_people (
+INSERT INTO seed_review_people (
     seed_no, first_name, middle_name, last_name, sex, birth_date, barangay, school_name, school_type, course, applicant_type, app_status
 )
 SELECT
@@ -212,17 +212,7 @@ SELECT
         WHEN b.n MOD 3 = 0 THEN 'renew'
         ELSE 'new'
     END AS applicant_type,
-    CASE b.idx MOD 9
-        WHEN 0 THEN 'under_review'
-        WHEN 1 THEN 'for_interview'
-        WHEN 2 THEN 'for_soa'
-        WHEN 3 THEN 'approved_for_release'
-        WHEN 4 THEN 'released'
-        WHEN 5 THEN 'needs_resubmission'
-        WHEN 6 THEN 'under_review'
-        WHEN 7 THEN 'needs_resubmission'
-        ELSE 'rejected'
-    END AS app_status
+    'under_review' AS app_status
 FROM (
     SELECT
         seq.n,
@@ -242,7 +232,7 @@ FROM (
             UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9
         ) h
     ) seq
-    WHERE seq.n <= @flood_count
+    WHERE seq.n <= @review_flood_count
 ) b
 ORDER BY b.n;
 
@@ -272,11 +262,11 @@ SELECT
         LOWER(REPLACE(REPLACE(p.first_name, ' ', ''), '''', '')),
         '.',
         LOWER(REPLACE(REPLACE(p.last_name, ' ', ''), '''', '')),
-        '.',
-        LPAD(p.seed_no, 2, '0'),
+        '.review.',
+        LPAD(p.seed_no, 3, '0'),
         '@example.com'
     ) AS email,
-    CONCAT('0917', LPAD(p.seed_no, 6, '0')) AS phone,
+    CONCAT('0918', LPAD(p.seed_no, 6, '0')) AS phone,
     @seed_password_hash,
     p.school_name,
     p.school_type,
@@ -286,7 +276,7 @@ SELECT
     'San Enrique',
     'Negros Occidental',
     'active'
-FROM seed_flood_people p
+FROM seed_review_people p
 ON DUPLICATE KEY UPDATE
     first_name = VALUES(first_name),
     middle_name = VALUES(middle_name),
@@ -335,10 +325,10 @@ INSERT INTO applications (
     submitted_at
 )
 SELECT
-    CONCAT('APP-FLOOD-', LPAD(p.seed_no, 4, '0')),
+    CONCAT('APP-REVIEW-', LPAD(p.seed_no, 4, '0')),
     u.id,
     @period_id,
-    CONCAT('QRFLOOD', LPAD(p.seed_no, 8, '0')),
+    CONCAT('QRREVIEW', LPAD(p.seed_no, 8, '0')),
     p.applicant_type,
     @semester,
     @school_year,
@@ -357,42 +347,22 @@ SELECT
     'San Enrique',
     'Negros Occidental',
     CONCAT('Purok ', p.seed_no, ', Brgy. ', p.barangay),
-    CONCAT('0917', LPAD(p.seed_no, 6, '0')),
-    CONCAT('uploads/photos/app_flood_', LPAD(p.seed_no, 4, '0'), '.jpg'),
-    p.app_status,
-    CASE
-        WHEN p.app_status = 'needs_resubmission' THEN 'Please re-upload the flagged requirement documents.'
-        WHEN p.app_status = 'rejected' THEN 'Application was not approved for this period.'
-        ELSE NULL
-    END,
-    CASE
-        WHEN p.app_status IN ('for_interview', 'for_soa', 'approved_for_release', 'released')
-            THEN DATE_ADD(DATE_SUB(NOW(), INTERVAL (p.seed_no MOD 21) DAY), INTERVAL ((p.seed_no MOD 5) + 1) DAY)
-        ELSE NULL
-    END,
-    CASE
-        WHEN p.app_status IN ('for_interview', 'for_soa', 'approved_for_release', 'released')
-            THEN 'Mayor''s Office, San Enrique'
-        ELSE NULL
-    END,
-    CASE
-        WHEN p.app_status = 'for_soa' THEN DATE_ADD(CURDATE(), INTERVAL ((p.seed_no MOD 7) + 3) DAY)
-        WHEN p.app_status IN ('approved_for_release', 'released') THEN DATE_SUB(CURDATE(), INTERVAL ((p.seed_no MOD 7) + 1) DAY)
-        ELSE NULL
-    END,
-    CASE
-        WHEN p.app_status IN ('approved_for_release', 'released')
-            THEN DATE_SUB(NOW(), INTERVAL (p.seed_no MOD 6) DAY)
-        ELSE NULL
-    END,
+    CONCAT('0918', LPAD(p.seed_no, 6, '0')),
+    CONCAT('uploads/photos/app_review_', LPAD(p.seed_no, 4, '0'), '.jpg'),
+    'under_review',
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     DATE_SUB(NOW(), INTERVAL (p.seed_no MOD 21) DAY)
-FROM seed_flood_people p
+FROM seed_review_people p
 INNER JOIN users u ON u.email = CONCAT(
     LOWER(REPLACE(REPLACE(p.first_name, ' ', ''), '''', '')),
     '.',
     LOWER(REPLACE(REPLACE(p.last_name, ' ', ''), '''', '')),
-    '.',
-    LPAD(p.seed_no, 2, '0'),
+    '.review.',
+    LPAD(p.seed_no, 3, '0'),
     '@example.com'
 )
 ON DUPLICATE KEY UPDATE
@@ -425,10 +395,6 @@ ON DUPLICATE KEY UPDATE
     submitted_at = VALUES(submitted_at),
     updated_at = CURRENT_TIMESTAMP;
 
--- =========================================================
--- Seed Uploaded Documents (metadata paths)
--- =========================================================
--- Core required documents
 INSERT INTO application_documents (
     application_id,
     requirement_template_id,
@@ -452,18 +418,10 @@ SELECT
     'requirement',
     CONCAT('uploads/documents/', LOWER(REPLACE(a.application_no, '-', '_')), '_report_card.pdf'),
     'pdf',
-    CASE
-        WHEN a.status IN ('under_review', 'needs_resubmission') THEN 'pending'
-        WHEN a.status = 'rejected' THEN 'rejected'
-        ELSE 'verified'
-    END,
-    CASE
-        WHEN a.status = 'needs_resubmission' THEN 'Please re-upload a clearer copy.'
-        WHEN a.status = 'rejected' THEN 'Application closed.'
-        ELSE 'Seeded document record.'
-    END
+    'pending',
+    'Seeded document record.'
 FROM applications a
-WHERE a.application_no LIKE 'APP-FLOOD-%'
+WHERE a.application_no LIKE 'APP-REVIEW-%'
   AND NOT EXISTS (
       SELECT 1
       FROM application_documents d
@@ -494,14 +452,10 @@ SELECT
     'requirement',
     CONCAT('uploads/documents/', LOWER(REPLACE(a.application_no, '-', '_')), '_enrollment.pdf'),
     'pdf',
-    CASE
-        WHEN a.status IN ('under_review', 'needs_resubmission') THEN 'pending'
-        WHEN a.status = 'rejected' THEN 'rejected'
-        ELSE 'verified'
-    END,
+    'pending',
     'Seeded document record.'
 FROM applications a
-WHERE a.application_no LIKE 'APP-FLOOD-%'
+WHERE a.application_no LIKE 'APP-REVIEW-%'
   AND NOT EXISTS (
       SELECT 1
       FROM application_documents d
@@ -532,14 +486,10 @@ SELECT
     'requirement',
     CONCAT('uploads/documents/', LOWER(REPLACE(a.application_no, '-', '_')), '_barangay_residency.pdf'),
     'pdf',
-    CASE
-        WHEN a.status IN ('under_review', 'needs_resubmission') THEN 'pending'
-        WHEN a.status = 'rejected' THEN 'rejected'
-        ELSE 'verified'
-    END,
+    'pending',
     'Seeded document record.'
 FROM applications a
-WHERE a.application_no LIKE 'APP-FLOOD-%'
+WHERE a.application_no LIKE 'APP-REVIEW-%'
   AND NOT EXISTS (
       SELECT 1
       FROM application_documents d
@@ -547,78 +497,4 @@ WHERE a.application_no LIKE 'APP-FLOOD-%'
         AND d.requirement_name = 'Barangay Residency'
   );
 
--- SOA documents for later workflow stages
-INSERT INTO application_documents (
-    application_id,
-    requirement_template_id,
-    requirement_name,
-    document_type,
-    file_path,
-    file_ext,
-    verification_status,
-    remarks
-)
-SELECT
-    a.id,
-    (
-        SELECT rt.id
-        FROM requirement_templates rt
-        WHERE rt.requirement_name = 'Original Student Copy / Statement of Account (SOA)'
-        ORDER BY rt.id ASC
-        LIMIT 1
-    ),
-    'Original Student Copy / Statement of Account (SOA)',
-    'requirement',
-    CONCAT('uploads/documents/', LOWER(REPLACE(a.application_no, '-', '_')), '_soa.pdf'),
-    'pdf',
-    CASE
-        WHEN a.status IN ('for_soa') THEN 'pending'
-        WHEN a.status IN ('approved_for_release', 'released') THEN 'verified'
-        ELSE 'pending'
-    END,
-    'Seeded SOA document record.'
-FROM applications a
-WHERE a.application_no LIKE 'APP-FLOOD-%'
-  AND a.status IN ('for_soa', 'approved_for_release', 'released')
-  AND NOT EXISTS (
-      SELECT 1
-      FROM application_documents d
-      WHERE d.application_id = a.id
-        AND d.requirement_name = 'Original Student Copy / Statement of Account (SOA)'
-  );
-
--- =========================================================
--- Optional payout records for disbursed applications
--- =========================================================
-INSERT INTO disbursements (
-    application_id,
-    amount,
-    disbursement_date,
-    disbursement_time,
-    reference_no,
-    payout_location,
-    status,
-    qr_token,
-    remarks
-)
-SELECT
-    a.id,
-    5000.00,
-    DATE_SUB(CURDATE(), INTERVAL 3 DAY),
-    '09:00:00',
-    CONCAT('FLOOD-DISB-', LPAD(a.id, 6, '0')),
-    'Mayor''s Office, San Enrique',
-    'released',
-    CONCAT('DISBQR', LPAD(a.id, 8, '0')),
-    'Seeded disbursement record.'
-FROM applications a
-WHERE a.application_no LIKE 'APP-FLOOD-%'
-  AND a.status = 'released'
-  AND NOT EXISTS (
-      SELECT 1
-      FROM disbursements d
-      WHERE d.application_id = a.id
-        AND d.reference_no = CONCAT('FLOOD-DISB-', LPAD(a.id, 6, '0'))
-  );
-
-DROP TEMPORARY TABLE IF EXISTS seed_flood_people;
+DROP TEMPORARY TABLE IF EXISTS seed_review_people;

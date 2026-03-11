@@ -257,6 +257,7 @@ if (is_post()) {
             'last_name' => trim((string) ($_POST['last_name'] ?? '')),
             'first_name' => trim((string) ($_POST['first_name'] ?? '')),
             'middle_name' => trim((string) ($_POST['middle_name'] ?? '')),
+            'email' => strtolower(trim((string) ($_POST['email'] ?? ''))),
             'suffix' => $suffix,
             'age' => $computedAge === null ? '' : (string) $computedAge,
             'civil_status' => $civilStatus,
@@ -270,8 +271,23 @@ if (is_post()) {
             'contact_number' => trim((string) ($user['phone'] ?? '')),
         ];
 
-        if ($data['last_name'] === '' || $data['first_name'] === '' || $data['contact_number'] === '' || $data['barangay'] === '') {
-            set_flash('danger', 'Last name, first name, contact number, and barangay are required.');
+        if (
+            $data['last_name'] === ''
+            || $data['first_name'] === ''
+            || $data['email'] === ''
+            || $data['birth_date'] === ''
+            || $data['civil_status'] === ''
+            || $data['sex'] === ''
+            || $data['birth_place'] === ''
+            || $data['address'] === ''
+            || $data['contact_number'] === ''
+            || $data['barangay'] === ''
+        ) {
+            set_flash('danger', 'Please complete all required fields in Step 2.');
+            redirect('apply.php?step=2');
+        }
+        if (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+            set_flash('danger', 'Please enter a valid email address.');
             redirect('apply.php?step=2');
         }
         if (!in_array($data['civil_status'], $allowedCivilStatuses, true)) {
@@ -297,6 +313,30 @@ if (is_post()) {
             redirect('apply.php?step=2');
         }
         $data['contact_number'] = normalize_mobile_number($data['contact_number']);
+        $currentUserId = (int) ($user['id'] ?? 0);
+        $stmtEmail = $conn->prepare("SELECT id FROM users WHERE email = ? AND id <> ? LIMIT 1");
+        if (!$stmtEmail) {
+            set_flash('danger', 'Unable to validate email right now. Please try again.');
+            redirect('apply.php?step=2');
+        }
+        $stmtEmail->bind_param('si', $data['email'], $currentUserId);
+        $stmtEmail->execute();
+        $emailExists = $stmtEmail->get_result()->fetch_assoc();
+        $stmtEmail->close();
+        if ($emailExists) {
+            set_flash('danger', 'Email is already assigned to another account.');
+            redirect('apply.php?step=2');
+        }
+        $stmtUserEmail = $conn->prepare("UPDATE users SET email = ? WHERE id = ? LIMIT 1");
+        if (!$stmtUserEmail) {
+            set_flash('danger', 'Unable to save your email right now. Please try again.');
+            redirect('apply.php?step=2');
+        }
+        $stmtUserEmail->bind_param('si', $data['email'], $currentUserId);
+        $stmtUserEmail->execute();
+        $stmtUserEmail->close();
+        $_SESSION['user']['email'] = $data['email'];
+        $user['email'] = $data['email'];
 
         $wizard['step2'] = $data;
         $wizard['step2_done'] = true;
@@ -371,6 +411,51 @@ if (is_post()) {
                     $grants[] = $entry;
                 }
             }
+        }
+
+        if (
+            !$motherNa
+            && (
+                trim((string) ($_POST['mother_name'] ?? '')) === ''
+                || trim((string) ($_POST['mother_age'] ?? '')) === ''
+                || trim((string) ($_POST['mother_occupation'] ?? '')) === ''
+                || trim((string) ($_POST['mother_monthly_income'] ?? '')) === ''
+            )
+        ) {
+            set_flash('danger', 'Please complete all required mother information or mark it as Not Applicable.');
+            redirect('apply.php?step=3');
+        }
+        if (
+            !$fatherNa
+            && (
+                trim((string) ($_POST['father_name'] ?? '')) === ''
+                || trim((string) ($_POST['father_age'] ?? '')) === ''
+                || trim((string) ($_POST['father_occupation'] ?? '')) === ''
+                || trim((string) ($_POST['father_monthly_income'] ?? '')) === ''
+            )
+        ) {
+            set_flash('danger', 'Please complete all required father information or mark it as Not Applicable.');
+            redirect('apply.php?step=3');
+        }
+        if (!$siblingsNa && count($siblings) === 0) {
+            set_flash('danger', 'Please add at least one sibling entry or mark siblings as Not Applicable.');
+            redirect('apply.php?step=3');
+        }
+        if (!$grantsNa && count($grants) === 0) {
+            set_flash('danger', 'Please add at least one scholarship grant entry or mark it as Not Applicable.');
+            redirect('apply.php?step=3');
+        }
+        if (
+            trim((string) ($_POST['education'][0]['school'] ?? '')) === ''
+            || trim((string) ($_POST['education'][0]['year'] ?? '')) === ''
+            || trim((string) ($_POST['education'][1]['school'] ?? '')) === ''
+            || trim((string) ($_POST['education'][1]['year'] ?? '')) === ''
+            || trim((string) ($_POST['education'][2]['school'] ?? '')) === ''
+            || trim((string) ($_POST['education'][2]['course'] ?? '')) === ''
+            || trim((string) ($_POST['education'][2]['year'] ?? '')) === ''
+        ) {
+            set_flash('danger', 'Please complete all required educational background fields in Step 3.');
+            redirect('apply.php?step=3');
         }
 
         $wizard['step3'] = [
@@ -653,7 +738,7 @@ if (is_post()) {
 
             $conn->commit();
 
-            $smsMessage = 'San Enrique LGU Scholarship: Application ' . $applicationNo . ' was submitted successfully and is now under review.';
+            $smsMessage = 'San Enrique LGU Scholarship: Application ' . $applicationNo . ' has been submitted and is currently under review. Please wait for further updates.';
             sms_send((string) $step2['contact_number'], $smsMessage, (int) $user['id'], 'status_update');
             audit_log(
                 $conn,
@@ -672,7 +757,7 @@ if (is_post()) {
                 $conn,
                 (int) ($user['id'] ?? 0),
                 'Application Submitted',
-                'Your application ' . $applicationNo . ' was submitted successfully and is now under review.',
+                'Your application ' . $applicationNo . ' has been submitted and is currently under review. Please wait for further updates.',
                 'application',
                 'my-application.php',
                 (int) ($user['id'] ?? 0)
@@ -924,8 +1009,8 @@ include __DIR__ . '/includes/header.php';
                     <div class="form-text">Leave blank if not applicable.</div>
                 </div>
                 <div class="col-6 col-md-4">
-                    <label class="form-label">Date of Birth</label>
-                    <input type="date" name="birth_date" id="birthDateInput" class="form-control" value="<?= e((string) ($step2['birth_date'] ?? '')) ?>">
+                    <label class="form-label">Date of Birth *</label>
+                    <input type="date" name="birth_date" id="birthDateInput" class="form-control" value="<?= e((string) ($step2['birth_date'] ?? '')) ?>" required>
                 </div>
                 <div class="col-6 col-md-2">
                     <label class="form-label">Age</label>
@@ -933,9 +1018,9 @@ include __DIR__ . '/includes/header.php';
                     <div class="form-text">Auto-calculated</div>
                 </div>
                 <div class="col-6 col-md-3">
-                    <label class="form-label">Civil Status</label>
+                    <label class="form-label">Civil Status *</label>
                     <?php $selectedCivilStatus = (string) ($step2['civil_status'] ?? ''); ?>
-                    <select name="civil_status" class="form-select">
+                    <select name="civil_status" class="form-select" required>
                         <option value="">Select</option>
                         <?php foreach (['Single', 'Married', 'Widowed', 'Separated'] as $civilStatusOption): ?>
                             <option value="<?= e($civilStatusOption) ?>" <?= $selectedCivilStatus === $civilStatusOption ? 'selected' : '' ?>><?= e($civilStatusOption) ?></option>
@@ -943,9 +1028,9 @@ include __DIR__ . '/includes/header.php';
                     </select>
                 </div>
                 <div class="col-6 col-md-3">
-                    <label class="form-label">Sex</label>
+                    <label class="form-label">Sex *</label>
                     <?php $selectedSex = (string) ($step2['sex'] ?? ''); ?>
-                    <select name="sex" class="form-select">
+                    <select name="sex" class="form-select" required>
                         <option value="">Select</option>
                         <?php foreach (['Male', 'Female'] as $sexOption): ?>
                             <option value="<?= e($sexOption) ?>" <?= $selectedSex === $sexOption ? 'selected' : '' ?>><?= e($sexOption) ?></option>
@@ -953,12 +1038,17 @@ include __DIR__ . '/includes/header.php';
                     </select>
                 </div>
                 <div class="col-12 col-md-6">
-                    <label class="form-label">Place of Birth</label>
-                    <input type="text" name="birth_place" class="form-control" value="<?= e((string) ($step2['birth_place'] ?? '')) ?>">
+                    <label class="form-label">Email Address *</label>
+                    <input type="email" name="email" class="form-control" value="<?= e((string) ($step2['email'] ?? ($user['email'] ?? ''))) ?>" placeholder="you@example.com" required>
+                    <div class="form-text">This email will be saved to your account and used in application records.</div>
                 </div>
                 <div class="col-12 col-md-6">
-                    <label class="form-label">Address (House No. / Street / Purok)</label>
-                    <textarea name="address" class="form-control" rows="2" placeholder="Address (House No. / Street / Purok)"><?= e((string) ($step2['address'] ?? '')) ?></textarea>
+                    <label class="form-label">Place of Birth *</label>
+                    <input type="text" name="birth_place" class="form-control" value="<?= e((string) ($step2['birth_place'] ?? '')) ?>" required>
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Address (House No. / Street / Purok) *</label>
+                    <textarea name="address" class="form-control" rows="2" placeholder="Address (House No. / Street / Purok)" required><?= e((string) ($step2['address'] ?? '')) ?></textarea>
                     <div class="form-text">Enter your address details (House No. / Street / Purok).</div>
                 </div>
                 <div class="col-12 col-md-6">
@@ -1046,10 +1136,10 @@ include __DIR__ . '/includes/header.php';
                             <label class="form-check-label small" for="motherNaToggle">Not Applicable</label>
                         </div>
                         <div class="row g-2" id="motherFields">
-                            <div class="col-12"><input type="text" class="form-control" name="mother_name" placeholder="Mother's Name" value="<?= e((string) ($step3['mother_name'] ?? '')) ?>"></div>
-                            <div class="col-4"><input type="number" class="form-control" name="mother_age" placeholder="Age" value="<?= e((string) ($step3['mother_age'] ?? '')) ?>"></div>
-                            <div class="col-8"><input type="text" class="form-control" name="mother_occupation" placeholder="Occupation" value="<?= e((string) ($step3['mother_occupation'] ?? '')) ?>"></div>
-                            <div class="col-12"><input type="number" step="0.01" class="form-control" name="mother_monthly_income" placeholder="Monthly Income" value="<?= e((string) ($step3['mother_monthly_income'] ?? '')) ?>"></div>
+                            <div class="col-12"><input type="text" class="form-control" name="mother_name" placeholder="Mother's Name" value="<?= e((string) ($step3['mother_name'] ?? '')) ?>" <?= $motherNa ? '' : 'required' ?>></div>
+                            <div class="col-4"><input type="number" class="form-control" name="mother_age" placeholder="Age" value="<?= e((string) ($step3['mother_age'] ?? '')) ?>" min="0" <?= $motherNa ? '' : 'required' ?>></div>
+                            <div class="col-8"><input type="text" class="form-control" name="mother_occupation" placeholder="Occupation" value="<?= e((string) ($step3['mother_occupation'] ?? '')) ?>" <?= $motherNa ? '' : 'required' ?>></div>
+                            <div class="col-12"><input type="number" step="0.01" class="form-control" name="mother_monthly_income" placeholder="Monthly Income" value="<?= e((string) ($step3['mother_monthly_income'] ?? '')) ?>" min="0" <?= $motherNa ? '' : 'required' ?>></div>
                         </div>
                     </div>
                     <div class="col-12 col-md-6">
@@ -1059,10 +1149,10 @@ include __DIR__ . '/includes/header.php';
                             <label class="form-check-label small" for="fatherNaToggle">Not Applicable</label>
                         </div>
                         <div class="row g-2" id="fatherFields">
-                            <div class="col-12"><input type="text" class="form-control" name="father_name" placeholder="Father's Name" value="<?= e((string) ($step3['father_name'] ?? '')) ?>"></div>
-                            <div class="col-4"><input type="number" class="form-control" name="father_age" placeholder="Age" value="<?= e((string) ($step3['father_age'] ?? '')) ?>"></div>
-                            <div class="col-8"><input type="text" class="form-control" name="father_occupation" placeholder="Occupation" value="<?= e((string) ($step3['father_occupation'] ?? '')) ?>"></div>
-                            <div class="col-12"><input type="number" step="0.01" class="form-control" name="father_monthly_income" placeholder="Monthly Income" value="<?= e((string) ($step3['father_monthly_income'] ?? '')) ?>"></div>
+                            <div class="col-12"><input type="text" class="form-control" name="father_name" placeholder="Father's Name" value="<?= e((string) ($step3['father_name'] ?? '')) ?>" <?= $fatherNa ? '' : 'required' ?>></div>
+                            <div class="col-4"><input type="number" class="form-control" name="father_age" placeholder="Age" value="<?= e((string) ($step3['father_age'] ?? '')) ?>" min="0" <?= $fatherNa ? '' : 'required' ?>></div>
+                            <div class="col-8"><input type="text" class="form-control" name="father_occupation" placeholder="Occupation" value="<?= e((string) ($step3['father_occupation'] ?? '')) ?>" <?= $fatherNa ? '' : 'required' ?>></div>
+                            <div class="col-12"><input type="number" step="0.01" class="form-control" name="father_monthly_income" placeholder="Monthly Income" value="<?= e((string) ($step3['father_monthly_income'] ?? '')) ?>" min="0" <?= $fatherNa ? '' : 'required' ?>></div>
                         </div>
                     </div>
                 </div>
@@ -1098,11 +1188,11 @@ include __DIR__ . '/includes/header.php';
                         <tbody id="siblingsTableBody" data-next-index="<?= (int) count($siblingsRows) ?>">
                             <?php foreach ($siblingsRows as $i => $row): ?>
                                 <tr>
-                                    <td data-label="Name"><div class="wizard-inline-field-label">Name</div><input type="text" class="form-control form-control-sm" name="siblings[<?= (int) $i ?>][name]" value="<?= e((string) ($row['name'] ?? '')) ?>" placeholder="Full name"></td>
-                                    <td data-label="Age"><div class="wizard-inline-field-label">Age</div><input type="number" class="form-control form-control-sm" name="siblings[<?= (int) $i ?>][age]" value="<?= e((string) ($row['age'] ?? '')) ?>" min="0"></td>
-                                    <td data-label="Highest Educational Attainment"><div class="wizard-inline-field-label">Highest Educational Attainment</div><input type="text" class="form-control form-control-sm" name="siblings[<?= (int) $i ?>][education]" value="<?= e((string) ($row['education'] ?? '')) ?>" placeholder="e.g., College"></td>
-                                    <td data-label="Occupation"><div class="wizard-inline-field-label">Occupation</div><input type="text" class="form-control form-control-sm" name="siblings[<?= (int) $i ?>][occupation]" value="<?= e((string) ($row['occupation'] ?? '')) ?>" placeholder="e.g., Student"></td>
-                                    <td data-label="Monthly Income"><div class="wizard-inline-field-label">Monthly Income</div><input type="number" step="0.01" class="form-control form-control-sm" name="siblings[<?= (int) $i ?>][income]" value="<?= e((string) ($row['income'] ?? '')) ?>" min="0"></td>
+                                    <td data-label="Name"><div class="wizard-inline-field-label">Name</div><input type="text" class="form-control form-control-sm" name="siblings[<?= (int) $i ?>][name]" value="<?= e((string) ($row['name'] ?? '')) ?>" placeholder="Full name" <?= $siblingsNa ? '' : 'required' ?>></td>
+                                    <td data-label="Age"><div class="wizard-inline-field-label">Age</div><input type="number" class="form-control form-control-sm" name="siblings[<?= (int) $i ?>][age]" value="<?= e((string) ($row['age'] ?? '')) ?>" min="0" <?= $siblingsNa ? '' : 'required' ?>></td>
+                                    <td data-label="Highest Educational Attainment"><div class="wizard-inline-field-label">Highest Educational Attainment</div><input type="text" class="form-control form-control-sm" name="siblings[<?= (int) $i ?>][education]" value="<?= e((string) ($row['education'] ?? '')) ?>" placeholder="e.g., College" <?= $siblingsNa ? '' : 'required' ?>></td>
+                                    <td data-label="Occupation"><div class="wizard-inline-field-label">Occupation</div><input type="text" class="form-control form-control-sm" name="siblings[<?= (int) $i ?>][occupation]" value="<?= e((string) ($row['occupation'] ?? '')) ?>" placeholder="e.g., Student" <?= $siblingsNa ? '' : 'required' ?>></td>
+                                    <td data-label="Monthly Income"><div class="wizard-inline-field-label">Monthly Income</div><input type="number" step="0.01" class="form-control form-control-sm" name="siblings[<?= (int) $i ?>][income]" value="<?= e((string) ($row['income'] ?? '')) ?>" min="0" <?= $siblingsNa ? '' : 'required' ?>></td>
                                     <td data-label="Action" class="text-end">
                                         <button type="button" class="btn btn-sm btn-outline-danger js-remove-sibling-row" aria-label="Remove sibling row">
                                             <i class="fa-solid fa-trash-can"></i>
@@ -1128,11 +1218,11 @@ include __DIR__ . '/includes/header.php';
                                 <input type="hidden" name="education[0][level]" value="Elementary">
                                 <div class="mb-2">
                                     <label class="form-label mb-1">School Name</label>
-                                    <input type="text" class="form-control form-control-sm" name="education[0][school]" value="<?= e((string) ($eduElementary['school'] ?? '')) ?>">
+                                    <input type="text" class="form-control form-control-sm" name="education[0][school]" value="<?= e((string) ($eduElementary['school'] ?? '')) ?>" required>
                                 </div>
                                 <div class="mb-2">
                                     <label class="form-label mb-1">Year Graduated</label>
-                                    <input type="number" class="form-control form-control-sm" name="education[0][year]" value="<?= e((string) ($eduElementary['year'] ?? '')) ?>" min="1900" max="2100" step="1" inputmode="numeric" placeholder="YYYY">
+                                    <input type="number" class="form-control form-control-sm" name="education[0][year]" value="<?= e((string) ($eduElementary['year'] ?? '')) ?>" min="1900" max="2100" step="1" inputmode="numeric" placeholder="YYYY" required>
                                 </div>
                                 <div>
                                     <label class="form-label mb-1">Honors/Awards</label>
@@ -1149,11 +1239,11 @@ include __DIR__ . '/includes/header.php';
                                 <input type="hidden" name="education[1][level]" value="High School">
                                 <div class="mb-2">
                                     <label class="form-label mb-1">School Name</label>
-                                    <input type="text" class="form-control form-control-sm" name="education[1][school]" value="<?= e((string) ($eduHighSchool['school'] ?? '')) ?>">
+                                    <input type="text" class="form-control form-control-sm" name="education[1][school]" value="<?= e((string) ($eduHighSchool['school'] ?? '')) ?>" required>
                                 </div>
                                 <div class="mb-2">
                                     <label class="form-label mb-1">Year Graduated</label>
-                                    <input type="number" class="form-control form-control-sm" name="education[1][year]" value="<?= e((string) ($eduHighSchool['year'] ?? '')) ?>" min="1900" max="2100" step="1" inputmode="numeric" placeholder="YYYY">
+                                    <input type="number" class="form-control form-control-sm" name="education[1][year]" value="<?= e((string) ($eduHighSchool['year'] ?? '')) ?>" min="1900" max="2100" step="1" inputmode="numeric" placeholder="YYYY" required>
                                 </div>
                                 <div>
                                     <label class="form-label mb-1">Honors/Awards</label>
@@ -1170,15 +1260,15 @@ include __DIR__ . '/includes/header.php';
                                 <input type="hidden" name="education[2][level]" value="College">
                                 <div class="mb-2">
                                     <label class="form-label mb-1">School Name (College)</label>
-                                    <input type="text" class="form-control form-control-sm" name="education[2][school]" value="<?= e((string) ($eduCollege['school'] ?? '')) ?>">
+                                    <input type="text" class="form-control form-control-sm" name="education[2][school]" value="<?= e((string) ($eduCollege['school'] ?? '')) ?>" required>
                                 </div>
                                 <div class="mb-2">
                                     <label class="form-label mb-1">Course</label>
-                                    <input type="text" class="form-control form-control-sm" name="education[2][course]" value="<?= e((string) ($eduCollege['course'] ?? '')) ?>">
+                                    <input type="text" class="form-control form-control-sm" name="education[2][course]" value="<?= e((string) ($eduCollege['course'] ?? '')) ?>" required>
                                 </div>
                                 <div class="mb-2">
                                     <label class="form-label mb-1">Year Level</label>
-                                    <select class="form-select form-select-sm" name="education[2][year]">
+                                    <select class="form-select form-select-sm" name="education[2][year]" required>
                                         <option value="">Select Year Level</option>
                                         <option value="1" <?= $collegeYearLevelValue === '1' ? 'selected' : '' ?>>1st Year</option>
                                         <option value="2" <?= $collegeYearLevelValue === '2' ? 'selected' : '' ?>>2nd Year</option>
@@ -1218,8 +1308,8 @@ include __DIR__ . '/includes/header.php';
                         <tbody id="grantsTableBody" data-next-index="<?= (int) count($grantsRows) ?>">
                             <?php foreach ($grantsRows as $i => $row): ?>
                                 <tr>
-                                    <td data-label="Scholarship Program"><div class="wizard-inline-field-label">Scholarship Program</div><input type="text" class="form-control form-control-sm" name="grants[<?= (int) $i ?>][program]" value="<?= e((string) ($row['program'] ?? '')) ?>" placeholder="Program name"></td>
-                                    <td data-label="Year/Period"><div class="wizard-inline-field-label">Year/Period</div><input type="text" class="form-control form-control-sm" name="grants[<?= (int) $i ?>][period]" value="<?= e((string) ($row['period'] ?? '')) ?>" placeholder="e.g., 2024-2025"></td>
+                                    <td data-label="Scholarship Program"><div class="wizard-inline-field-label">Scholarship Program</div><input type="text" class="form-control form-control-sm" name="grants[<?= (int) $i ?>][program]" value="<?= e((string) ($row['program'] ?? '')) ?>" placeholder="Program name" <?= $grantsNa ? '' : 'required' ?>></td>
+                                    <td data-label="Year/Period"><div class="wizard-inline-field-label">Year/Period</div><input type="text" class="form-control form-control-sm" name="grants[<?= (int) $i ?>][period]" value="<?= e((string) ($row['period'] ?? '')) ?>" placeholder="e.g., 2024-2025" <?= $grantsNa ? '' : 'required' ?>></td>
                                     <td data-label="Action" class="text-end">
                                         <button type="button" class="btn btn-sm btn-outline-danger js-remove-grants-row" aria-label="Remove grants row">
                                             <i class="fa-solid fa-trash-can"></i>
@@ -1275,7 +1365,7 @@ include __DIR__ . '/includes/header.php';
                                     <span class="badge text-bg-success"><i class="fa-solid fa-check me-1"></i>Uploaded</span>
                                 <?php endif; ?>
                             </div>
-                            <input type="file" name="<?= e($field) ?>" class="form-control mt-2" accept=".pdf,.jpg,.jpeg,.png">
+                            <input type="file" name="<?= e($field) ?>" class="form-control mt-2" accept=".pdf,.jpg,.jpeg,.png" <?= ((int) ($req['is_required'] ?? 1) === 1 && !$existing) ? 'required' : '' ?>>
                             <div class="small text-muted mt-1">Upload PDF/image file.</div>
                             <?php if ($existing): ?>
                                 <div class="small mt-2 text-muted">Current: <?= e((string) ($existing['original_name'] ?? basename((string) $existing['file_path']))) ?></div>
@@ -1309,7 +1399,20 @@ include __DIR__ . '/includes/header.php';
             }
 
             let isSubmitting = false;
-            form.addEventListener('submit', function () {
+            form.querySelectorAll('input[type="file"]').forEach(function (field) {
+                field.addEventListener('change', function () {
+                    if (typeof field.reportValidity === 'function') {
+                        field.reportValidity();
+                    }
+                });
+            });
+
+            form.addEventListener('submit', function (event) {
+                if (!form.checkValidity()) {
+                    event.preventDefault();
+                    form.reportValidity();
+                    return;
+                }
                 if (isSubmitting) {
                     return;
                 }
@@ -1378,6 +1481,10 @@ include __DIR__ . '/includes/header.php';
                                     <span class="review-kv-value"><?= e((string) ($step1['semester'] ?? '')) ?> / <?= e((string) ($step1['school_year'] ?? '')) ?></span>
                                 </div>
                                 <div class="review-kv-row">
+                                    <span class="review-kv-label">Email Address</span>
+                                    <span class="review-kv-value"><?= e((string) ($step1['email'] ?? '')) ?></span>
+                                </div>
+                                <div class="review-kv-row">
                                     <span class="review-kv-label">School</span>
                                     <span class="review-kv-value"><?= e((string) ($step1['school_name'] ?? '')) ?> (<?= e((string) ($step1['school_type'] ?? '')) ?>)</span>
                                 </div>
@@ -1420,6 +1527,7 @@ include __DIR__ . '/includes/header.php';
                     ?>
                     <div class="review-text-list">
                         <p class="mb-1"><strong>Applicant:</strong> <?= e((string) ($step2['last_name'] ?? '')) ?>, <?= e((string) ($step2['first_name'] ?? '')) ?> <?= e(trim((string) (($step2['middle_name'] ?? '') . ' ' . ($step2['suffix'] ?? '')))) ?></p>
+                        <p class="mb-1"><strong>Email:</strong> <?= e((string) ($step2['email'] ?? ($user['email'] ?? ''))) ?></p>
                         <p class="mb-1"><strong>Contact:</strong> <?= e((string) ($step2['contact_number'] ?? '')) ?></p>
                         <p class="mb-1"><strong>Address:</strong> <?= e(trim((string) (($step2['address'] ?? '') . ', ' . ($step2['barangay'] ?? '') . ', ' . ($step2['town'] ?? san_enrique_town()) . ', ' . ($step2['province'] ?? san_enrique_province())), ', ')) ?></p>
                         <p class="mb-0"><strong>Parents:</strong> <?= e($motherReview) ?> / <?= e($fatherReview) ?></p>
@@ -1547,6 +1655,7 @@ include __DIR__ . '/includes/header.php';
             }
 
             if (<?= (int) $step ?> === 1) {
+                const step1Form = document.getElementById('applyStep1Form');
                 const schoolSelect = document.getElementById('applySchoolNameSelect');
                 const otherWrapper = document.getElementById('applyOtherSchoolWrapper');
                 const otherInput = document.getElementById('applyOtherSchoolInput');
@@ -1577,21 +1686,73 @@ include __DIR__ . '/includes/header.php';
                     courseSelect.addEventListener('change', syncOtherCourseVisibility);
                     syncOtherCourseVisibility();
                 }
+                if (step1Form) {
+                    step1Form.querySelectorAll('input, select').forEach(function (field) {
+                        field.addEventListener('input', function () {
+                            if (typeof field.reportValidity === 'function') {
+                                field.reportValidity();
+                            }
+                        });
+                        field.addEventListener('change', function () {
+                            if (typeof field.reportValidity === 'function') {
+                                field.reportValidity();
+                            }
+                        });
+                    });
+                }
             }
 
             if (<?= (int) $step ?> === 2 && typeof window.SE_APPLY_WIZARD.initBirthdateAgeSync === 'function') {
+                const step2Form = document.getElementById('applyStep2Form');
                 window.SE_APPLY_WIZARD.initBirthdateAgeSync({
                     birthDateInputId: 'birthDateInput',
                     ageInputId: 'ageInput'
                 });
+                if (step2Form) {
+                    step2Form.querySelectorAll('input, select, textarea').forEach(function (field) {
+                        field.addEventListener('input', function () {
+                            if (typeof field.reportValidity === 'function') {
+                                field.reportValidity();
+                            }
+                        });
+                        field.addEventListener('change', function () {
+                            if (typeof field.reportValidity === 'function') {
+                                field.reportValidity();
+                            }
+                        });
+                    });
+                }
             }
 
             if (<?= (int) $step ?> === 3 && typeof window.SE_APPLY_WIZARD.initNaToggles === 'function') {
+                const step3Form = document.getElementById('applyStep3Form');
                 window.SE_APPLY_WIZARD.initNaToggles({
                     toggleSelector: '.js-na-toggle[data-target]',
                     honorsToggleId: 'honorsNaToggle',
                     honorsInputSelector: '.js-honors-input'
                 });
+
+                const syncToggleRequired = function (toggleId, fieldSelector) {
+                    const toggle = document.getElementById(toggleId);
+                    const fields = document.querySelectorAll(fieldSelector);
+                    if (!toggle || !fields.length) {
+                        return;
+                    }
+                    const sync = function () {
+                        fields.forEach(function (field) {
+                            field.required = !toggle.checked;
+                            if (toggle.checked && typeof field.setCustomValidity === 'function') {
+                                field.setCustomValidity('');
+                            }
+                        });
+                    };
+                    toggle.addEventListener('change', sync);
+                    sync();
+                };
+                syncToggleRequired('motherNaToggle', '#motherFields input');
+                syncToggleRequired('fatherNaToggle', '#fatherFields input');
+                syncToggleRequired('siblingsNaToggle', '#siblingsFields input');
+                syncToggleRequired('grantsNaToggle', '#grantsFields input');
 
                 const siblingsBody = document.getElementById('siblingsTableBody');
                 const addSiblingBtn = document.getElementById('addSiblingRowBtn');
@@ -1612,11 +1773,11 @@ include __DIR__ . '/includes/header.php';
                     const buildRow = function (index) {
                         const tr = document.createElement('tr');
                         tr.innerHTML = `
-                            <td data-label="Name"><div class="wizard-inline-field-label">Name</div><input type="text" class="form-control form-control-sm" name="siblings[${index}][name]" placeholder="Full name"></td>
-                            <td data-label="Age"><div class="wizard-inline-field-label">Age</div><input type="number" class="form-control form-control-sm" name="siblings[${index}][age]" min="0"></td>
-                            <td data-label="Highest Educational Attainment"><div class="wizard-inline-field-label">Highest Educational Attainment</div><input type="text" class="form-control form-control-sm" name="siblings[${index}][education]" placeholder="e.g., College"></td>
-                            <td data-label="Occupation"><div class="wizard-inline-field-label">Occupation</div><input type="text" class="form-control form-control-sm" name="siblings[${index}][occupation]" placeholder="e.g., Student"></td>
-                            <td data-label="Monthly Income"><div class="wizard-inline-field-label">Monthly Income</div><input type="number" step="0.01" class="form-control form-control-sm" name="siblings[${index}][income]" min="0"></td>
+                            <td data-label="Name"><div class="wizard-inline-field-label">Name</div><input type="text" class="form-control form-control-sm" name="siblings[${index}][name]" placeholder="Full name" ${siblingsNaToggle && !siblingsNaToggle.checked ? 'required' : ''}></td>
+                            <td data-label="Age"><div class="wizard-inline-field-label">Age</div><input type="number" class="form-control form-control-sm" name="siblings[${index}][age]" min="0" ${siblingsNaToggle && !siblingsNaToggle.checked ? 'required' : ''}></td>
+                            <td data-label="Highest Educational Attainment"><div class="wizard-inline-field-label">Highest Educational Attainment</div><input type="text" class="form-control form-control-sm" name="siblings[${index}][education]" placeholder="e.g., College" ${siblingsNaToggle && !siblingsNaToggle.checked ? 'required' : ''}></td>
+                            <td data-label="Occupation"><div class="wizard-inline-field-label">Occupation</div><input type="text" class="form-control form-control-sm" name="siblings[${index}][occupation]" placeholder="e.g., Student" ${siblingsNaToggle && !siblingsNaToggle.checked ? 'required' : ''}></td>
+                            <td data-label="Monthly Income"><div class="wizard-inline-field-label">Monthly Income</div><input type="number" step="0.01" class="form-control form-control-sm" name="siblings[${index}][income]" min="0" ${siblingsNaToggle && !siblingsNaToggle.checked ? 'required' : ''}></td>
                             <td data-label="Action" class="text-end">
                                 <button type="button" class="btn btn-sm btn-outline-danger js-remove-sibling-row" aria-label="Remove sibling row">
                                     <i class="fa-solid fa-trash-can"></i>
@@ -1729,8 +1890,8 @@ include __DIR__ . '/includes/header.php';
                     maxRows: 8,
                     rowHtml: function (index) {
                         return `
-                            <td data-label="Scholarship Program"><div class="wizard-inline-field-label">Scholarship Program</div><input type="text" class="form-control form-control-sm" name="grants[${index}][program]" placeholder="Program name"></td>
-                            <td data-label="Year/Period"><div class="wizard-inline-field-label">Year/Period</div><input type="text" class="form-control form-control-sm" name="grants[${index}][period]" placeholder="e.g., 2024-2025"></td>
+                            <td data-label="Scholarship Program"><div class="wizard-inline-field-label">Scholarship Program</div><input type="text" class="form-control form-control-sm" name="grants[${index}][program]" placeholder="Program name" ${grantsNaToggle && !grantsNaToggle.checked ? 'required' : ''}></td>
+                            <td data-label="Year/Period"><div class="wizard-inline-field-label">Year/Period</div><input type="text" class="form-control form-control-sm" name="grants[${index}][period]" placeholder="e.g., 2024-2025" ${grantsNaToggle && !grantsNaToggle.checked ? 'required' : ''}></td>
                             <td data-label="Action" class="text-end">
                                 <button type="button" class="btn btn-sm btn-outline-danger js-remove-grants-row" aria-label="Remove grants row">
                                     <i class="fa-solid fa-trash-can"></i>
@@ -1739,6 +1900,56 @@ include __DIR__ . '/includes/header.php';
                         `;
                     }
                 });
+                if (step3Form) {
+                    step3Form.addEventListener('submit', function (event) {
+                        const siblingsRequired = !(siblingsNaToggle && siblingsNaToggle.checked);
+                        const grantsRequired = !(grantsNaToggle && grantsNaToggle.checked);
+                        const siblingRows = Array.from(siblingsBody ? siblingsBody.querySelectorAll('tr') : []);
+                        const grantRows = Array.from(grantsBody ? grantsBody.querySelectorAll('tr') : []);
+                        const hasFilledSibling = siblingRows.some(function (row) {
+                            return Array.from(row.querySelectorAll('input')).every(function (input) {
+                                return String(input.value || '').trim() !== '';
+                            });
+                        });
+                        const hasFilledGrant = grantRows.some(function (row) {
+                            return Array.from(row.querySelectorAll('input')).every(function (input) {
+                                return String(input.value || '').trim() !== '';
+                            });
+                        });
+                        if (siblingsRequired && !hasFilledSibling) {
+                            event.preventDefault();
+                            const firstSiblingInput = siblingsBody ? siblingsBody.querySelector('input') : null;
+                            if (firstSiblingInput && typeof firstSiblingInput.reportValidity === 'function') {
+                                firstSiblingInput.reportValidity();
+                            }
+                            return;
+                        }
+                        if (grantsRequired && !hasFilledGrant) {
+                            event.preventDefault();
+                            const firstGrantInput = grantsBody ? grantsBody.querySelector('input') : null;
+                            if (firstGrantInput && typeof firstGrantInput.reportValidity === 'function') {
+                                firstGrantInput.reportValidity();
+                            }
+                            return;
+                        }
+                        if (!step3Form.checkValidity()) {
+                            event.preventDefault();
+                            step3Form.reportValidity();
+                        }
+                    });
+                    step3Form.querySelectorAll('input, select').forEach(function (field) {
+                        field.addEventListener('input', function () {
+                            if (typeof field.reportValidity === 'function') {
+                                field.reportValidity();
+                            }
+                        });
+                        field.addEventListener('change', function () {
+                            if (typeof field.reportValidity === 'function') {
+                                field.reportValidity();
+                            }
+                        });
+                    });
+                }
             }
 
             if (typeof window.SE_APPLY_WIZARD.initAutosave === 'function') {

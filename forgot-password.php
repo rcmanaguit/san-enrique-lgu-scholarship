@@ -174,9 +174,9 @@ include __DIR__ . '/includes/header.php';
 ?>
 
 <div class="row justify-content-center">
-    <div class="col-12 col-sm-11 col-md-8 col-lg-6">
+    <div class="col-12 col-sm-10 col-md-7 col-lg-5">
         <div class="card card-soft shadow-sm mb-3">
-            <div class="card-body p-4">
+            <div class="card-body p-4 auth-simple-card">
                 <div class="auth-logo-wrap">
                     <?php if ($hasAuthLogo): ?>
                         <img src="<?= e($authLogoRelativePath) ?>" alt="Municipality of San Enrique Official Seal" class="auth-card-logo">
@@ -184,13 +184,14 @@ include __DIR__ . '/includes/header.php';
                         <span class="auth-logo-fallback" aria-hidden="true"><i class="fa-solid fa-shield"></i></span>
                     <?php endif; ?>
                 </div>
-                <h1 class="h4 mb-2">Forgot Password</h1>
-                <p class="small text-muted mb-3">Enter your registered mobile number to receive a password reset verification code (OTP).</p>
-                <form method="post" class="row g-2">
+                <p class="public-kicker text-center mb-2">Password Reset</p>
+                <h1 class="h4 mb-2 text-center">Forgot your password?</h1>
+                <p class="text-muted small text-center mb-4">Enter your registered mobile number to receive a verification code and set a new password.</p>
+                <form method="post" class="row g-3" novalidate>
                     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                     <input type="hidden" name="action" value="request_otp">
                     <div class="col-12">
-                        <label class="form-label">Registered Mobile Number</label>
+                        <label class="form-label" for="forgotPhone">Registered Mobile Number</label>
                         <input
                             type="text"
                             class="form-control"
@@ -206,15 +207,19 @@ include __DIR__ . '/includes/header.php';
                         >
                     </div>
                     <div class="col-12 d-grid">
-                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane me-1"></i>Send Reset Verification Code (OTP)</button>
+                        <button type="submit" class="btn btn-primary">Send verification code</button>
                     </div>
                 </form>
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 small text-muted mt-3 mb-0">
+                    <span>Remembered your password? <a href="login.php">Login here</a>.</span>
+                    <a href="index.php"><i class="fa-solid fa-arrow-left me-1"></i>Back to Home</a>
+                </div>
             </div>
         </div>
 
         <?php if ($resetPayload): ?>
             <div class="card card-soft shadow-sm">
-                <div class="card-body p-4">
+                <div class="card-body p-4 auth-simple-card">
                     <div class="auth-logo-wrap">
                         <?php if ($hasAuthLogo): ?>
                             <img src="<?= e($authLogoRelativePath) ?>" alt="Municipality of San Enrique Official Seal" class="auth-card-logo">
@@ -222,19 +227,20 @@ include __DIR__ . '/includes/header.php';
                             <span class="auth-logo-fallback" aria-hidden="true"><i class="fa-solid fa-shield"></i></span>
                         <?php endif; ?>
                     </div>
-                    <h2 class="h5 mb-2">Verify Code (OTP) and Reset Password</h2>
-                    <p class="small text-muted mb-3">
-                        Verification Code (OTP) sent to <?= e(mask_mobile_number((string) ($resetPayload['phone'] ?? ''))) ?>.
+                    <p class="public-kicker text-center mb-2">Verify Reset Code</p>
+                    <h2 class="h5 mb-2 text-center">Set a new password</h2>
+                    <p class="small text-muted text-center mb-4">
+                        Enter the verification code sent to <?= e(mask_mobile_number((string) ($resetPayload['phone'] ?? ''))) ?> and choose a new password.
                         <?php if ($otpSecondsLeft > 0): ?>
-                            Expires in <?= (int) ceil($otpSecondsLeft / 60) ?> minute(s).
+                            Code expires in <?= (int) ceil($otpSecondsLeft / 60) ?> minute(s).
                         <?php endif; ?>
                     </p>
-                    <form method="post" class="row g-2">
+                    <form method="post" class="row g-3" novalidate>
                         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                         <input type="hidden" name="action" value="verify_reset">
                         <div class="col-12">
-                            <label class="form-label">Verification Code (OTP)</label>
-                            <input type="text" class="form-control" name="otp_code" maxlength="8" required>
+                            <label class="form-label">Verification Code</label>
+                            <input type="text" class="form-control" name="otp_code" maxlength="8" required placeholder="Enter code">
                         </div>
                         <div class="col-12">
                             <label class="form-label">New Password</label>
@@ -255,28 +261,24 @@ include __DIR__ . '/includes/header.php';
                             </div>
                         </div>
                         <div class="col-12 d-grid">
-                            <button type="submit" class="btn btn-success"><i class="fa-solid fa-check me-1"></i>Verify Code (OTP) & Reset Password</button>
+                            <button type="submit" class="btn btn-success">Verify code and reset password</button>
                         </div>
                     </form>
-                    <div class="d-flex flex-wrap gap-2 mt-2">
+                    <div class="d-flex justify-content-center flex-wrap gap-2 mt-3">
                         <form method="post">
                             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                             <input type="hidden" name="action" value="resend_otp">
-                            <button type="submit" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-rotate me-1"></i>Resend Verification Code (OTP)</button>
+                            <button type="submit" class="btn btn-outline-primary btn-sm">Resend code</button>
                         </form>
                         <form method="post">
                             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                             <input type="hidden" name="action" value="cancel_otp">
-                            <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-xmark me-1"></i>Cancel</button>
+                            <button type="submit" class="btn btn-outline-danger btn-sm">Start over</button>
                         </form>
                     </div>
                 </div>
             </div>
         <?php endif; ?>
-
-        <p class="small text-muted mt-3 mb-0 text-center">
-            Back to <a href="login.php">Login</a>
-        </p>
     </div>
 </div>
 

@@ -16,8 +16,8 @@ $schoolTypeFilter = trim((string) ($_GET['school_type'] ?? ''));
 $periodFilter = trim((string) ($_GET['period'] ?? ''));
 $statusFilter = trim((string) ($_GET['status'] ?? ''));
 
-$payoutStatuses = ['awaiting_payout'];
-$disbursedStatuses = ['disbursed'];
+$payoutStatuses = ['approved_for_release'];
+$disbursedStatuses = ['released'];
 $applicantStatuses = array_values(array_filter(application_status_options(), static function (string $status) use ($payoutStatuses, $disbursedStatuses): bool {
     return !in_array($status, $payoutStatuses, true) && !in_array($status, $disbursedStatuses, true);
 }));

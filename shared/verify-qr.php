@@ -49,23 +49,19 @@ $bulkStatusMap = [
     'draft' => ['under_review'],
     'under_review' => ['for_interview', 'rejected'],
     'needs_resubmission' => ['under_review', 'rejected'],
-    'for_interview' => ['interview_passed', 'rejected'],
-    'interview_passed' => ['for_soa'],
-    'for_soa' => ['soa_received'],
-    'soa_received' => ['awaiting_payout', 'disbursed'],
-    'awaiting_payout' => ['disbursed'],
-    'disbursed' => [],
+    'for_interview' => ['for_soa', 'rejected'],
+    'for_soa' => [],
+    'approved_for_release' => ['released'],
+    'released' => [],
     'rejected' => [],
 ];
 $statusActionLabels = [
     'under_review' => 'Mark Under Review',
     'for_interview' => 'Move to Interview',
     'needs_resubmission' => 'Request Resubmission',
-    'interview_passed' => 'Approve',
     'for_soa' => 'Move to SOA Submission',
-    'soa_received' => 'SOA Submitted',
-    'disbursed' => 'Mark Disbursed',
-    'awaiting_payout' => 'Mark Awaiting Approval',
+    'approved_for_release' => 'Approve for Payout',
+    'released' => 'Mark Released',
     'rejected' => 'Reject',
     'draft' => 'Mark Draft',
 ];
@@ -78,7 +74,7 @@ $quickActionsForStatus = static function (string $status) use ($bulkStatusMap, $
         }
         $actions[] = [
             'value' => $candidateStatus,
-            'label' => $statusActionLabels[$candidateStatus] ?? ucwords(str_replace('_', ' ', $candidateStatus)),
+            'label' => $statusActionLabels[$candidateStatus] ?? application_status_label($candidateStatus),
         ];
     }
     return $actions;
@@ -149,30 +145,24 @@ if ($isAjaxRequest && trim((string) ($_POST['action'] ?? '')) === 'update_status
         echo json_encode(['ok' => false, 'error' => 'Status transition is not allowed.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
-    if ($newStatus === 'interview_passed') {
+    if ($newStatus === 'for_soa') {
         $hasInterviewSchedule = trim((string) ($current['interview_date'] ?? '')) !== ''
             && trim((string) ($current['interview_location'] ?? '')) !== '';
-        if ($currentStatus !== 'for_interview' || !$hasInterviewSchedule) {
-            echo json_encode(['ok' => false, 'error' => 'Approve is only allowed after interview date/time and location are set.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            exit;
-        }
-    }
-    if ($newStatus === 'for_soa') {
         if (!$scannerIsAdmin) {
             echo json_encode(['ok' => false, 'error' => 'Only admin can move application to SOA stage.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             exit;
         }
-        if (!in_array($currentStatus, ['interview_passed', 'for_soa'], true)) {
-            echo json_encode(['ok' => false, 'error' => 'Only interview-passed applications can be moved to SOA stage.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (!in_array($currentStatus, ['for_interview', 'for_soa'], true) || !$hasInterviewSchedule) {
+            echo json_encode(['ok' => false, 'error' => 'Only scheduled interview applications can be moved to SOA stage.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             exit;
         }
     }
-    if ($newStatus === 'soa_received' && !in_array($currentStatus, ['for_soa', 'soa_received'], true)) {
-        echo json_encode(['ok' => false, 'error' => 'SOA can only be marked submitted after SOA request stage.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($newStatus === 'approved_for_release' && $currentStatus !== 'approved_for_release') {
+        echo json_encode(['ok' => false, 'error' => 'Confirm SOA received from the review page before approving this application for payout.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
-    if ($newStatus === 'disbursed' && !in_array($currentStatus, ['soa_received', 'awaiting_payout'], true)) {
-        echo json_encode(['ok' => false, 'error' => 'Only SOA Received or Awaiting Approval applications can be marked as disbursed.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($newStatus === 'released' && $currentStatus !== 'approved_for_release') {
+        echo json_encode(['ok' => false, 'error' => 'Only Approved for Release applications can be marked as released.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
 
@@ -185,8 +175,8 @@ if ($isAjaxRequest && trim((string) ($_POST['action'] ?? '')) === 'update_status
         echo json_encode(['ok' => false, 'error' => 'Set SOA deadline first before moving to SOA stage.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
-    if ($newStatus === 'soa_received' && $deadlineToSave === '') {
-        echo json_encode(['ok' => false, 'error' => 'Set SOA deadline first before marking SOA submitted.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($newStatus === 'approved_for_release' && $deadlineToSave === '') {
+        echo json_encode(['ok' => false, 'error' => 'Set SOA deadline first before approving this application for release.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
 
@@ -236,7 +226,7 @@ if ($isAjaxRequest && trim((string) ($_POST['action'] ?? '')) === 'update_status
     echo json_encode([
         'ok' => true,
         'status' => $newStatus,
-        'status_label' => strtoupper($newStatus),
+        'status_label' => application_status_label($newStatus),
         'quick_actions' => $quickActionsForStatus($newStatus),
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
@@ -386,7 +376,7 @@ if ($isAjaxRequest) {
             'school_name' => (string) ($application['school_name'] ?? ''),
             'school_type' => strtoupper((string) ($application['school_type'] ?? '')),
             'status' => (string) ($application['status'] ?? ''),
-            'status_label' => strtoupper((string) ($application['status'] ?? '')),
+            'status_label' => application_status_label((string) ($application['status'] ?? '')),
             'quick_actions' => $quickActionsForStatus((string) ($application['status'] ?? '')),
             'review_notes' => (string) ($application['review_notes'] ?? ''),
             'soa_submission_deadline' => (string) ($application['soa_submission_deadline'] ?? ''),
@@ -707,8 +697,11 @@ include __DIR__ . '/../includes/header.php';
             if (value === 'under_review' || value === 'needs_resubmission' || value === 'for_interview') {
                 return 'text-bg-warning';
             }
-            if (value === 'interview_passed' || value === 'for_soa' || value === 'soa_received' || value === 'disbursed') {
+            if (value === 'for_soa' || value === 'released') {
                 return 'text-bg-success';
+            }
+            if (value === 'approved_for_release') {
+                return 'text-bg-secondary';
             }
             if (value === 'rejected') {
                 return 'text-bg-danger';

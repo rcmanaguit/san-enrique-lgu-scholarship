@@ -6,6 +6,40 @@ require_once __DIR__ . '/includes/bootstrap.php';
 /** @var mixed $conn */
 $conn = $GLOBALS['conn'] ?? null;
 
+if (($_GET['check'] ?? '') === 'phone') {
+    header('Content-Type: application/json; charset=UTF-8');
+
+    if (!db_ready()) {
+        http_response_code(503);
+        echo json_encode([
+            'ok' => false,
+            'available' => false,
+            'message' => 'The system is not ready yet.',
+        ]);
+        exit;
+    }
+
+    $phone = trim((string) ($_GET['phone'] ?? ''));
+    if (!is_valid_mobile_number($phone)) {
+        echo json_encode([
+            'ok' => true,
+            'available' => false,
+            'message' => 'Use a valid mobile number in 09XXXXXXXXX format.',
+        ]);
+        exit;
+    }
+
+    $available = !mobile_number_exists($conn, $phone);
+    echo json_encode([
+        'ok' => true,
+        'available' => $available,
+        'message' => $available
+            ? 'Mobile number is available.'
+            : 'Mobile number is already registered.',
+    ]);
+    exit;
+}
+
 if (is_logged_in()) {
     redirect('dashboard.php');
 }
@@ -99,17 +133,13 @@ if (is_post()) {
 
         $firstName = trim((string) ($_POST['first_name'] ?? ''));
         $lastName = trim((string) ($_POST['last_name'] ?? ''));
-        $email = strtolower(trim((string) ($_POST['email'] ?? '')));
         $phoneInput = trim((string) ($_POST['phone'] ?? ''));
         $password = (string) ($_POST['password'] ?? '');
+        $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
         $phone = normalize_mobile_number($phoneInput);
 
-        if (!$firstName || !$lastName || !$email || !$phoneInput || !$password) {
+        if (!$firstName || !$lastName || !$phoneInput || !$password || !$confirmPassword) {
             set_flash('danger', 'Please fill in all required fields.');
-            redirect('register.php');
-        }
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            set_flash('danger', 'Please enter a valid email address.');
             redirect('register.php');
         }
         if (!is_valid_mobile_number($phoneInput)) {
@@ -120,27 +150,19 @@ if (is_post()) {
             set_flash('danger', 'Password must be at least 8 characters.');
             redirect('register.php');
         }
+        if ($password !== $confirmPassword) {
+            set_flash('danger', 'Password and confirm password do not match.');
+            redirect('register.php');
+        }
 
         if (mobile_number_exists($conn, $phone)) {
             set_flash('danger', 'Mobile number is already registered.');
             redirect('register.php');
         }
-        $stmtEmail = $conn->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
-        if ($stmtEmail) {
-            $stmtEmail->bind_param('s', $email);
-            $stmtEmail->execute();
-            $emailExists = $stmtEmail->get_result()->fetch_assoc();
-            $stmtEmail->close();
-            if ($emailExists) {
-                set_flash('danger', 'Email is already registered.');
-                redirect('register.php');
-            }
-        }
 
         $registrationPayload = [
             'first_name' => $firstName,
             'last_name' => $lastName,
-            'email' => $email,
             'phone' => $phone,
             'password_hash' => password_hash($password, PASSWORD_DEFAULT),
         ];
@@ -158,7 +180,7 @@ include __DIR__ . '/includes/header.php';
 ?>
 
 <div class="row justify-content-center">
-    <div class="col-12 col-lg-10">
+    <div class="col-12 col-lg-8">
         <?php if (!$isRegistrationOpen): ?>
             <div class="alert alert-warning">
                 <strong>Registration Closed:</strong>
@@ -178,7 +200,7 @@ include __DIR__ . '/includes/header.php';
         <?php endif; ?>
 
         <div class="card card-soft shadow-sm mb-3">
-            <div class="card-body p-4">
+            <div class="card-body p-4 auth-simple-card">
                 <div class="auth-logo-wrap">
                     <?php if ($hasAuthLogo): ?>
                         <img src="<?= e($authLogoRelativePath) ?>" alt="Municipality of San Enrique Official Seal" class="auth-card-logo">
@@ -186,27 +208,25 @@ include __DIR__ . '/includes/header.php';
                         <span class="auth-logo-fallback" aria-hidden="true"><i class="fa-solid fa-shield"></i></span>
                     <?php endif; ?>
                 </div>
-                <h1 class="h4 mb-3">Create Applicant Account</h1>
-                <p class="text-muted small mb-3">Step 1: Enter name, mobile number, and password. OTP verification is on the next page.</p>
+                <p class="public-kicker text-center mb-2">Applicant Registration</p>
+                <h1 class="h4 mb-2 text-center">Create your applicant account</h1>
+                <p class="text-muted small mb-4 text-center">Use your mobile number for login. You will provide your email address in Step 2 of the application form after account creation.</p>
                 <form method="post" class="row g-3" novalidate>
                     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                     <input type="hidden" name="action" value="request_otp">
 
                     <div class="col-12 col-md-6">
                         <label class="form-label">First Name *</label>
-                        <input type="text" class="form-control" name="first_name" required value="<?= e(old('first_name', (string) ($pendingRegistration['first_name'] ?? ''))) ?>">
+                        <input type="text" class="form-control" id="registerFirstName" name="first_name" required value="<?= e(old('first_name', (string) ($pendingRegistration['first_name'] ?? ''))) ?>">
                     </div>
                     <div class="col-12 col-md-6">
                         <label class="form-label">Last Name *</label>
-                        <input type="text" class="form-control" name="last_name" required value="<?= e(old('last_name', (string) ($pendingRegistration['last_name'] ?? ''))) ?>">
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label">Email Address *</label>
-                        <input type="email" class="form-control" name="email" required placeholder="you@example.com" value="<?= e(old('email', (string) ($pendingRegistration['email'] ?? ''))) ?>">
+                        <input type="text" class="form-control" id="registerLastName" name="last_name" required value="<?= e(old('last_name', (string) ($pendingRegistration['last_name'] ?? ''))) ?>">
                     </div>
                     <div class="col-12 col-md-6">
                         <label class="form-label">Mobile Number *</label>
-                        <input type="text" class="form-control" name="phone" required placeholder="09XXXXXXXXX" value="<?= e(old('phone', (string) ($pendingRegistration['phone'] ?? ''))) ?>">
+                        <input type="text" class="form-control" id="registerPhone" name="phone" required placeholder="09XXXXXXXXX" value="<?= e(old('phone', (string) ($pendingRegistration['phone'] ?? ''))) ?>" inputmode="numeric" pattern="[0-9]*" autocomplete="tel-national" maxlength="12">
+                        <div class="form-text" id="registerPhoneFeedback">Use 11 digits starting with 09.</div>
                     </div>
                     <div class="col-12 col-md-6">
                         <label class="form-label">Password *</label>
@@ -216,17 +236,29 @@ include __DIR__ . '/includes/header.php';
                                 <i class="fa-regular fa-eye"></i>
                             </button>
                         </div>
+                        <div class="form-text" id="registerPasswordFeedback">Use at least 8 characters.</div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label">Confirm Password *</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" name="confirm_password" id="registerConfirmPassword" required>
+                            <button class="btn btn-outline-secondary" type="button" data-password-toggle data-target="#registerConfirmPassword" aria-label="Show password">
+                                <i class="fa-regular fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="form-text" id="registerConfirmPasswordFeedback">Re-enter the same password.</div>
                     </div>
 
                     <div class="col-12 d-grid d-md-flex">
-                        <button type="submit" class="btn btn-primary px-4" <?= !$isRegistrationOpen ? 'disabled' : '' ?>>
+                        <button type="submit" class="btn btn-primary px-4 w-100" <?= !$isRegistrationOpen ? 'disabled' : '' ?>>
                             <i class="fa-solid fa-arrow-right me-1"></i>Continue to OTP
                         </button>
                     </div>
                 </form>
-                <p class="small text-muted mt-3 mb-0">
-                    Already registered? <a href="login.php">Login here</a>.
-                </p>
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 small text-muted mt-3">
+                    <span>Already registered? <a href="login.php">Login here</a>.</span>
+                    <a href="index.php"><i class="fa-solid fa-arrow-left me-1"></i>Back to Home</a>
+                </div>
             </div>
         </div>
 
@@ -245,6 +277,259 @@ include __DIR__ . '/includes/header.php';
         <?php endif; ?>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.querySelector('form[method="post"][novalidate]');
+    if (!form) {
+        return;
+    }
+
+    const firstNameInput = document.getElementById('registerFirstName');
+    const lastNameInput = document.getElementById('registerLastName');
+    const phoneInput = document.getElementById('registerPhone');
+    const passwordInput = document.getElementById('registerPassword');
+    const confirmPasswordInput = document.getElementById('registerConfirmPassword');
+
+    const phoneFeedback = document.getElementById('registerPhoneFeedback');
+    const passwordFeedback = document.getElementById('registerPasswordFeedback');
+    const confirmPasswordFeedback = document.getElementById('registerConfirmPasswordFeedback');
+    let phoneAvailabilityTimer = null;
+    let phoneAvailabilityController = null;
+    let lastCheckedPhone = '';
+    let phoneAvailabilityStatus = 'unknown';
+
+    const setFieldState = function (input, feedbackEl, status, message) {
+        if (!input || !feedbackEl) {
+            return;
+        }
+
+        input.classList.remove('is-valid', 'is-invalid');
+        feedbackEl.classList.remove('text-success', 'text-danger', 'text-muted');
+
+        if (status === 'valid') {
+            input.classList.add('is-valid');
+            feedbackEl.classList.add('text-success');
+        } else if (status === 'invalid') {
+            input.classList.add('is-invalid');
+            feedbackEl.classList.add('text-danger');
+        } else {
+            feedbackEl.classList.add('text-muted');
+        }
+
+        feedbackEl.textContent = message;
+    };
+
+    const sanitizePhone = function () {
+        if (!phoneInput) {
+            return;
+        }
+        phoneInput.value = String(phoneInput.value || '').replace(/\D+/g, '').slice(0, 12);
+    };
+
+    const validateRequiredText = function (input) {
+        if (!input) {
+            return true;
+        }
+        return String(input.value || '').trim() !== '';
+    };
+
+    const validatePhone = function () {
+        if (!phoneInput) {
+            return true;
+        }
+
+        sanitizePhone();
+        const value = String(phoneInput.value || '').trim();
+        if (value === '') {
+            setFieldState(phoneInput, phoneFeedback, 'neutral', 'Use 11 digits starting with 09.');
+            return false;
+        }
+
+        const ok = /^09\d{9}$/.test(value);
+        setFieldState(
+            phoneInput,
+            phoneFeedback,
+            ok ? 'valid' : 'invalid',
+            ok ? 'Mobile number format looks good.' : 'Use a valid mobile number in 09XXXXXXXXX format.'
+        );
+        if (!ok) {
+            phoneAvailabilityStatus = 'invalid';
+            lastCheckedPhone = '';
+        } else if (value !== lastCheckedPhone) {
+            phoneAvailabilityStatus = 'unknown';
+        }
+        return ok;
+    };
+
+    const checkPhoneAvailability = function () {
+        if (!phoneInput) {
+            return;
+        }
+
+        const value = String(phoneInput.value || '').trim();
+        if (!/^09\d{9}$/.test(value)) {
+            phoneAvailabilityStatus = 'invalid';
+            return;
+        }
+
+        if (value === lastCheckedPhone && phoneAvailabilityStatus !== 'unknown') {
+            return;
+        }
+
+        if (phoneAvailabilityController) {
+            phoneAvailabilityController.abort();
+        }
+
+        phoneAvailabilityStatus = 'checking';
+        setFieldState(phoneInput, phoneFeedback, 'neutral', 'Checking mobile number availability...');
+
+        phoneAvailabilityController = new AbortController();
+        fetch('register.php?check=phone&phone=' + encodeURIComponent(value), {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+            },
+            signal: phoneAvailabilityController.signal,
+        })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error('Request failed');
+                }
+                return response.json();
+            })
+            .then(function (payload) {
+                lastCheckedPhone = value;
+                const available = Boolean(payload && payload.ok && payload.available);
+                phoneAvailabilityStatus = available ? 'available' : 'taken';
+                setFieldState(
+                    phoneInput,
+                    phoneFeedback,
+                    available ? 'valid' : 'invalid',
+                    String((payload && payload.message) || (available ? 'Mobile number is available.' : 'Mobile number is already registered.'))
+                );
+            })
+            .catch(function (error) {
+                if (error && error.name === 'AbortError') {
+                    return;
+                }
+                phoneAvailabilityStatus = 'unknown';
+                setFieldState(phoneInput, phoneFeedback, 'neutral', 'Could not check availability right now.');
+            });
+    };
+
+    const validatePassword = function () {
+        if (!passwordInput) {
+            return true;
+        }
+
+        const value = String(passwordInput.value || '');
+        if (value === '') {
+            setFieldState(passwordInput, passwordFeedback, 'neutral', 'Use at least 8 characters.');
+            return false;
+        }
+
+        const ok = value.length >= 8;
+        setFieldState(
+            passwordInput,
+            passwordFeedback,
+            ok ? 'valid' : 'invalid',
+            ok ? 'Password length looks good.' : 'Password must be at least 8 characters.'
+        );
+        return ok;
+    };
+
+    const validateConfirmPassword = function () {
+        if (!confirmPasswordInput || !passwordInput) {
+            return true;
+        }
+
+        const confirmValue = String(confirmPasswordInput.value || '');
+        if (confirmValue === '') {
+            setFieldState(confirmPasswordInput, confirmPasswordFeedback, 'neutral', 'Re-enter the same password.');
+            return false;
+        }
+
+        const ok = confirmValue === String(passwordInput.value || '');
+        setFieldState(
+            confirmPasswordInput,
+            confirmPasswordFeedback,
+            ok ? 'valid' : 'invalid',
+            ok ? 'Passwords match.' : 'Confirm password must match the password.'
+        );
+        return ok;
+    };
+
+    if (phoneInput) {
+        phoneInput.addEventListener('input', function () {
+            validatePhone();
+            if (phoneAvailabilityTimer) {
+                clearTimeout(phoneAvailabilityTimer);
+            }
+            if (!/^09\d{9}$/.test(String(phoneInput.value || '').trim())) {
+                if (phoneAvailabilityController) {
+                    phoneAvailabilityController.abort();
+                }
+                return;
+            }
+            phoneAvailabilityTimer = setTimeout(checkPhoneAvailability, 350);
+        });
+        phoneInput.addEventListener('paste', function () {
+            setTimeout(function () {
+                validatePhone();
+                if (phoneAvailabilityTimer) {
+                    clearTimeout(phoneAvailabilityTimer);
+                }
+                if (/^09\d{9}$/.test(String(phoneInput.value || '').trim())) {
+                    phoneAvailabilityTimer = setTimeout(checkPhoneAvailability, 350);
+                }
+            }, 0);
+        });
+        phoneInput.addEventListener('blur', function () {
+            if (validatePhone()) {
+                checkPhoneAvailability();
+            }
+        });
+        phoneInput.addEventListener('keydown', function (event) {
+            const allowedKeys = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+            if (allowedKeys.includes(event.key) || event.ctrlKey || event.metaKey) {
+                return;
+            }
+            if (!/^\d$/.test(event.key)) {
+                event.preventDefault();
+            }
+        });
+    }
+
+    if (passwordInput) {
+        passwordInput.addEventListener('input', function () {
+            validatePassword();
+            validateConfirmPassword();
+        });
+        passwordInput.addEventListener('blur', validatePassword);
+    }
+
+    if (confirmPasswordInput) {
+        confirmPasswordInput.addEventListener('input', validateConfirmPassword);
+        confirmPasswordInput.addEventListener('blur', validateConfirmPassword);
+    }
+
+    form.addEventListener('submit', function (event) {
+        const requiredNamesOk = validateRequiredText(firstNameInput) && validateRequiredText(lastNameInput);
+        const phoneOk = validatePhone();
+        const passwordOk = validatePassword();
+        const confirmPasswordOk = validateConfirmPassword();
+        const phoneAvailable = phoneAvailabilityStatus === 'available';
+
+        if (!(requiredNamesOk && phoneOk && passwordOk && confirmPasswordOk && phoneAvailable)) {
+            event.preventDefault();
+            if (phoneOk && (phoneAvailabilityStatus === 'unknown' || phoneAvailabilityStatus === 'checking')) {
+                checkPhoneAvailability();
+            }
+        }
+    });
+});
+</script>
 
 <?php include __DIR__ . '/includes/footer.php'; ?>
 

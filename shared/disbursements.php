@@ -9,7 +9,7 @@ $conn = $GLOBALS['conn'] ?? null;
 require_login('../login.php');
 require_role(['admin', 'staff'], '../index.php');
 
-$pageTitle = 'Payout Queue';
+$pageTitle = 'Payout Events';
 $approvedApplications = [];
 $disbursements = [];
 $disbursementSummary = [
@@ -173,7 +173,7 @@ if (is_post() && db_ready()) {
                 redirect('disbursements.php');
             }
 
-            $where = ["a.status IN ('soa_received', 'awaiting_payout')"];
+            $where = ["a.status = 'approved_for_release'"];
             if ($hasSchoolTypeColumn && $selectedSchoolTypes) {
                 $escapedSchoolTypes = array_map(
                     static function ($value) use ($conn): string {
@@ -417,7 +417,7 @@ if (db_ready()) {
     $sql = "SELECT a.id, u.first_name, u.last_name, a.applicant_type
             FROM applications a
             INNER JOIN users u ON u.id = a.user_id
-            WHERE a.status IN ('soa_received', 'awaiting_payout')
+            WHERE a.status = 'approved_for_release'
             ORDER BY a.updated_at DESC";
     $result = $conn->query($sql);
     if ($result instanceof mysqli_result) {
@@ -447,16 +447,19 @@ if (db_ready()) {
 
 include __DIR__ . '/../includes/header.php';
 ?>
-
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <h1 class="h4 m-0">Payout Queue</h1>
-</div>
+<?php
+$pageHeaderEyebrow = 'Payout';
+$pageHeaderTitle = 'Payout Events';
+$pageHeaderDescription = 'Keep payout work event-based: schedule payout batches, schedule one-off releases, and review released history.';
+$pageHeaderSecondaryInfo = 'Ready to release: <strong>' . number_format((int) ($disbursementSummary['ready_candidates'] ?? 0)) . '</strong>. Scheduled: <strong>' . number_format((int) ($disbursementSummary['scheduled_records'] ?? 0)) . '</strong>. Released: <strong>' . number_format((int) ($disbursementSummary['released_records'] ?? 0)) . '</strong>.';
+include __DIR__ . '/../includes/partials/page-shell-header.php';
+?>
 
 <div class="row g-3 mb-3">
     <div class="col-6 col-md-4">
         <div class="card card-soft metric-card h-100">
             <div class="card-body">
-                <p class="small text-muted mb-1">Ready Candidates</p>
+                <p class="small text-muted mb-1">Ready to Release</p>
                 <h3><?= number_format((int) ($disbursementSummary['ready_candidates'] ?? 0)) ?></h3>
             </div>
         </div>
@@ -464,7 +467,7 @@ include __DIR__ . '/../includes/header.php';
     <div class="col-6 col-md-4">
         <div class="card card-soft metric-card h-100">
             <div class="card-body">
-                <p class="small text-muted mb-1">Scheduled Records</p>
+                <p class="small text-muted mb-1">Scheduled Payouts</p>
                 <h3><?= number_format((int) ($disbursementSummary['scheduled_records'] ?? 0)) ?></h3>
             </div>
         </div>
@@ -472,7 +475,7 @@ include __DIR__ . '/../includes/header.php';
     <div class="col-6 col-md-4">
         <div class="card card-soft metric-card h-100">
             <div class="card-body">
-                <p class="small text-muted mb-1">Released Records</p>
+                <p class="small text-muted mb-1">Released History</p>
                 <h3><?= number_format((int) ($disbursementSummary['released_records'] ?? 0)) ?></h3>
             </div>
         </div>
@@ -482,9 +485,9 @@ include __DIR__ . '/../includes/header.php';
 <div class="card card-soft shadow-sm mb-3">
     <div class="card-body py-2">
         <div class="d-flex flex-wrap gap-2" id="disbursementWorkflowTabs">
-            <button type="button" class="btn btn-sm btn-outline-primary active" data-workflow-tab="bulk">Bulk Schedule</button>
+            <button type="button" class="btn btn-sm btn-outline-primary active" data-workflow-tab="bulk">Ready to Release</button>
             <button type="button" class="btn btn-sm btn-outline-primary" data-workflow-tab="single">Single Schedule</button>
-            <button type="button" class="btn btn-sm btn-outline-primary" data-workflow-tab="records">Records</button>
+            <button type="button" class="btn btn-sm btn-outline-primary" data-workflow-tab="records">Released History</button>
         </div>
     </div>
 </div>
@@ -492,10 +495,10 @@ include __DIR__ . '/../includes/header.php';
 <div id="disbursementBulkSection" data-workflow-section="bulk" class="card card-soft shadow-sm mb-4">
     <div class="card-body">
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
-            <h2 class="h6 mb-0">Create Bulk Payout Schedule</h2>
+            <h2 class="h6 mb-0">Schedule payout batch</h2>
             <span class="badge text-bg-info">Recommended for payout batches</span>
         </div>
-        <p class="small text-muted mb-3">Create one payout schedule for multiple payout-ready applicants using school type and/or barangay filters.</p>
+        <p class="small text-muted mb-3">Create one payout event for multiple payout-ready applicants using school type and/or barangay filters.</p>
         <form method="post" class="row g-3" data-crud-modal="1" data-crud-title="Create Bulk Payout Schedule?" data-crud-message="Create payout schedule for all matching applicants?" data-crud-confirm-text="Create Schedule" data-crud-kind="primary">
             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
             <input type="hidden" name="action" value="create_bulk_disbursement">
@@ -588,7 +591,7 @@ include __DIR__ . '/../includes/header.php';
 
 <div id="disbursementSingleSection" data-workflow-section="single" class="card card-soft shadow-sm mb-4 d-none">
     <div class="card-body">
-        <h2 class="h6">Create Single Payout Schedule (Optional)</h2>
+        <h2 class="h6">Schedule one payout record</h2>
         <form method="post" class="row g-3" data-crud-modal="1" data-crud-title="Create Single Payout Schedule?" data-crud-message="Create payout schedule for this applicant?" data-crud-confirm-text="Create Schedule" data-crud-kind="primary">
             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
             <input type="hidden" name="action" value="create_disbursement">
@@ -639,7 +642,7 @@ include __DIR__ . '/../includes/header.php';
 
 <div id="disbursementRecordsSection" data-workflow-section="records" data-live-table class="card card-soft shadow-sm">
     <div class="card-body border-bottom table-controls">
-        <h2 class="h6">Disbursement Records</h2>
+        <h2 class="h6">Payout history and scheduled records</h2>
         <?php if ($disbursements): ?>
             <div class="row g-2 align-items-end mt-1">
                 <div class="col-12 col-md-5">
@@ -724,7 +727,7 @@ include __DIR__ . '/../includes/header.php';
                                     <?php if ($hasDisbursementTime): ?>
                                         <input type="time" class="form-control form-control-sm" name="disbursement_time" value="<?= e(substr((string) ($row['disbursement_time'] ?? ''), 0, 5)) ?>">
                                     <?php endif; ?>
-                                    <button type="submit" class="btn btn-sm btn-primary">Update</button>
+                                    <button type="submit" class="btn btn-sm btn-primary">Update Schedule</button>
                                 </form>
                             </td>
                         </tr>

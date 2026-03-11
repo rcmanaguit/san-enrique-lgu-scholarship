@@ -11,10 +11,14 @@ $bodyClass = 'public-landing';
 $announcements = [];
 $openPeriod = null;
 $isPublicApplyOpen = false;
+$openPeriodRequirements = [];
 
 if (db_ready()) {
     $openPeriod = current_open_application_period($conn);
     $isPublicApplyOpen = $openPeriod !== null;
+    if ($isPublicApplyOpen) {
+        $openPeriodRequirements = current_period_requirements($conn, null, null);
+    }
 
     $sql = "SELECT id, title, content, created_at
             FROM announcements
@@ -29,54 +33,61 @@ if (db_ready()) {
 
 include __DIR__ . '/includes/header.php';
 ?>
-
-<section class="hero p-4 p-md-5 mb-4">
-    <div class="row align-items-center g-4">
-        <div class="col-12 col-md-7">
-            <h1 class="fw-bold mb-3">San Enrique LGU Scholarship Records Management System</h1>
-            <p class="text-muted mb-4">
-                A mobile-friendly scholarship portal for the LGU of San Enrique, Negros Occidental.
-                Submit applications online, track status, and get updates faster.
+<section class="public-hero-section mb-4">
+    <div class="public-hero-card">
+        <div class="public-hero-copy">
+            <p class="public-kicker mb-2">Scholarship Application Portal</p>
+            <h1 class="public-hero-title mb-3">San Enrique LGU Scholarship</h1>
+            <p class="public-hero-text mb-4">
+                Apply for the current scholarship period, upload your requirements, and log in to track your application status in one place.
             </p>
-            <div class="d-flex flex-wrap gap-2">
+            <div class="d-flex flex-wrap gap-2 mb-3 public-hero-actions">
                 <?php if (!is_logged_in()): ?>
                     <?php if ($isPublicApplyOpen): ?>
-                        <a href="register.php" class="btn btn-primary"><i class="fa-solid fa-user-plus me-1"></i>Create Applicant Account</a>
+                        <a href="register.php" class="btn btn-primary"><i class="fa-solid fa-user-plus me-1"></i>Apply Now</a>
                     <?php else: ?>
-                        <button class="btn btn-secondary" disabled><i class="fa-solid fa-lock me-1"></i>Application Period Closed</button>
+                        <button class="btn btn-secondary" disabled><i class="fa-solid fa-lock me-1"></i>Applications Closed</button>
                     <?php endif; ?>
-                    <a href="login.php" class="btn btn-outline-primary"><i class="fa-solid fa-right-to-bracket me-1"></i>Login</a>
+                    <a href="login.php" class="btn btn-outline-primary"><i class="fa-solid fa-right-to-bracket me-1"></i>Login to Track Application</a>
                 <?php else: ?>
-                    <a href="<?= user_has_role(['admin', 'staff']) ? 'shared/dashboard.php' : 'dashboard.php' ?>" class="btn btn-primary">
-                        Open Dashboard
+                    <a href="<?= user_has_role(['admin', 'staff']) ? 'shared/dashboard.php' : 'my-application.php' ?>" class="btn btn-primary">
+                        <?= user_has_role(['admin', 'staff']) ? 'Open Dashboard' : 'Open My Application' ?>
                     </a>
                 <?php endif; ?>
             </div>
-        </div>
-        <div class="col-12 col-md-5">
-            <div class="card card-soft shadow-sm">
-                <div class="card-body">
-                    <h5 class="card-title">What you can do here</h5>
-                    <?php if ($isPublicApplyOpen): ?>
-                        <p class="small text-success mb-2"><i class="fa-solid fa-circle-check me-1"></i><?= e(format_application_period($openPeriod)) ?></p>
-                    <?php else: ?>
-                        <p class="small text-warning mb-2"><i class="fa-solid fa-triangle-exclamation me-1"></i>Application period is currently closed.</p>
-                    <?php endif; ?>
-                    <ul class="small mb-0 ps-3">
-                        <li>View scholarship announcements</li>
-                        <li>Submit digital application and documents</li>
-                        <li>Track application and interview schedule</li>
-                        <li>See disbursement updates</li>
-                    </ul>
-                </div>
+            <div class="public-period-pill">
+                <?php if ($isPublicApplyOpen): ?>
+                    <i class="fa-solid fa-circle-check me-1 text-success"></i>Open now: <?= e(format_application_period($openPeriod)) ?>
+                <?php else: ?>
+                    <i class="fa-solid fa-circle-exclamation me-1 text-warning"></i>No open application period right now
+                <?php endif; ?>
             </div>
+            <?php if ($isPublicApplyOpen && $openPeriodRequirements): ?>
+                <div class="public-action-list public-requirements-list mt-3">
+                    <p class="small text-muted mb-1">Requirements for this period</p>
+                    <div class="small public-requirements-inline">
+                        <?php foreach ($openPeriodRequirements as $index => $requirement): ?>
+                            <?= $index > 0 ? '<span class="text-muted"> • </span>' : '' ?>
+                            <span>
+                                <?= e((string) ($requirement['requirement_name'] ?? 'Requirement')) ?>
+                                <?php if (trim((string) ($requirement['description'] ?? '')) !== ''): ?>
+                                    <span class="text-muted">(<?= e((string) ($requirement['description'] ?? '')) ?>)</span>
+                                <?php endif; ?>
+                            </span>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 </section>
 
 <section>
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2 class="h4 m-0">Latest Announcements</h2>
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <h2 class="h4 m-0">Latest Announcements</h2>
+            <p class="small text-muted mb-0">Read the newest public updates from the LGU scholarship office.</p>
+        </div>
         <a href="announcements.php" class="small">View all</a>
     </div>
 
@@ -92,7 +103,7 @@ include __DIR__ . '/includes/header.php';
         <div class="row g-3">
             <?php foreach ($announcements as $item): ?>
                 <div class="col-12 col-md-6 col-lg-4">
-                    <article class="card card-soft h-100">
+                    <article class="card card-soft h-100 public-announcement-card">
                         <div class="card-body">
                             <h3 class="h6"><?= e($item['title']) ?></h3>
                             <p class="text-muted small mb-2">

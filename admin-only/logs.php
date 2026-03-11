@@ -273,7 +273,7 @@ include __DIR__ . '/../includes/header.php';
         </div>
         <div class="col-12 col-md-4 d-flex gap-2 align-items-center">
             <span class="small text-muted">Live filter enabled</span>
-            <a href="logs.php" class="btn btn-outline-secondary btn-sm">Reset</a>
+            <a href="logs.php" class="btn btn-outline-secondary btn-sm">Clear</a>
         </div>
     </div>
 </form>

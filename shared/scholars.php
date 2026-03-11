@@ -10,9 +10,10 @@ require_login('../login.php');
 require_role(['admin', 'staff'], '../index.php');
 
 $pageTitle = 'Applicants & Scholars List';
+$bodyClass = 'is-reference-page';
 $rows = [];
-$payoutScholarStatuses = ['awaiting_payout'];
-$disbursedScholarStatuses = ['disbursed'];
+$payoutScholarStatuses = ['approved_for_release'];
+$disbursedScholarStatuses = ['released'];
 $applicantStatuses = array_values(array_filter(application_status_options(), static function (string $status) use ($payoutScholarStatuses, $disbursedScholarStatuses): bool {
     return !in_array($status, $payoutScholarStatuses, true) && !in_array($status, $disbursedScholarStatuses, true);
 }));
@@ -118,6 +119,7 @@ if (db_ready()) {
 
     $sql = "SELECT
                 a.id AS application_id,
+                a.user_id,
                 a.application_no,
                 a.applicant_type,
                 a.school_year,
@@ -177,31 +179,41 @@ $exportQuery = http_build_query(array_filter($exportQueryParams, static fn($v): 
 
 include __DIR__ . '/../includes/header.php';
 ?>
+<?php
+$pageHeaderEyebrow = 'Reference';
+$pageHeaderTitle = '<i class="fa-solid fa-list-ol me-2 text-primary"></i>Applicants and Scholars';
+$pageHeaderDescription = 'Use this page as a printable and exportable reference list. Queue work and status decisions stay in the Application Queue.';
+$pageHeaderActions = '<div class="btn-group btn-group-sm">'
+    . '<a href="export-scholars.php?' . e($exportQuery) . '&format=pdf" class="btn btn-outline-primary">PDF</a>'
+    . '<a href="export-scholars.php?' . e($exportQuery) . '&format=docx" class="btn btn-outline-primary">DOCX</a>'
+    . '<a href="export-scholars.php?' . e($exportQuery) . '&format=xlsx" class="btn btn-outline-primary">XLSX</a>'
+    . '</div>';
+include __DIR__ . '/../includes/partials/page-shell-header.php';
+?>
 
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <h1 class="h4 m-0"><i class="fa-solid fa-list-ol me-2 text-primary"></i>Generated Name List</h1>
-    <div class="d-flex flex-wrap align-items-center gap-2">
-        <span class="small text-muted">Filter first, then use this as your printable roll list.</span>
-        <div class="btn-group btn-group-sm">
-            <a href="export-scholars.php?<?= e($exportQuery) ?>&format=pdf" class="btn btn-outline-primary">PDF</a>
-            <a href="export-scholars.php?<?= e($exportQuery) ?>&format=docx" class="btn btn-outline-primary">DOCX</a>
-            <a href="export-scholars.php?<?= e($exportQuery) ?>&format=xlsx" class="btn btn-outline-primary">XLSX</a>
-        </div>
-    </div>
-</div>
+<style>
+    .reference-click-row {
+        cursor: pointer;
+    }
+    .reference-click-row:hover,
+    .reference-click-row:focus-visible {
+        background: #f8fbff;
+        outline: 1px solid rgba(45, 143, 213, 0.24);
+        outline-offset: -1px;
+    }
+</style>
 
 <div class="card card-soft shadow-sm" data-live-table>
     <div class="card-body border-bottom">
         <form method="get" class="row g-2 align-items-end" data-live-filter-form data-live-filter-debounce="250">
             <div class="col-12 col-md-3">
                 <label class="form-label form-label-sm">Type</label>
-                <input type="hidden" name="type" id="typeFilterInput" value="<?= e($typeFilter) ?>">
-                <div class="d-flex flex-wrap gap-2" role="tablist" aria-label="Type tabs">
-                    <button type="button" class="btn btn-outline-primary<?= $typeFilter === '' ? ' active' : '' ?>" data-type-tab="" aria-pressed="<?= $typeFilter === '' ? 'true' : 'false' ?>">All</button>
-                    <button type="button" class="btn btn-outline-primary<?= $typeFilter === 'applicant' ? ' active' : '' ?>" data-type-tab="applicant" aria-pressed="<?= $typeFilter === 'applicant' ? 'true' : 'false' ?>">Applicants</button>
-                    <button type="button" class="btn btn-outline-primary<?= $typeFilter === 'payout' ? ' active' : '' ?>" data-type-tab="payout" aria-pressed="<?= $typeFilter === 'payout' ? 'true' : 'false' ?>">Scholars for Payout</button>
-                    <button type="button" class="btn btn-outline-primary<?= $typeFilter === 'disbursed' ? ' active' : '' ?>" data-type-tab="disbursed" aria-pressed="<?= $typeFilter === 'disbursed' ? 'true' : 'false' ?>">Disbursed Scholars</button>
-                </div>
+                <select name="type" id="typeFilterInput" class="form-select form-select-sm" data-live-submit="immediate">
+                    <option value="" <?= $typeFilter === '' ? 'selected' : '' ?>>All</option>
+                    <option value="applicant" <?= $typeFilter === 'applicant' ? 'selected' : '' ?>>Applicants</option>
+                    <option value="payout" <?= $typeFilter === 'payout' ? 'selected' : '' ?>>Approved for Release</option>
+                    <option value="disbursed" <?= $typeFilter === 'disbursed' ? 'selected' : '' ?>>Released Scholars</option>
+                </select>
             </div>
             <div class="col-6 col-md-2">
                 <label class="form-label form-label-sm">Barangay</label>
@@ -240,7 +252,7 @@ include __DIR__ . '/../includes/header.php';
                 <select name="status" id="applicantStatusFilter" class="form-select form-select-sm" data-live-submit="immediate">
                     <option value="" <?= $statusFilter === '' ? 'selected' : '' ?>>All</option>
                     <?php foreach ($applicantStatuses as $status): ?>
-                        <option value="<?= e($status) ?>" <?= $statusFilter === $status ? 'selected' : '' ?>><?= e(ucwords(str_replace('_', ' ', $status))) ?></option>
+                        <option value="<?= e($status) ?>" <?= $statusFilter === $status ? 'selected' : '' ?>><?= e(application_status_label($status)) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -253,7 +265,7 @@ include __DIR__ . '/../includes/header.php';
                 </div>
             </div>
             <div class="col-6 col-md-1 d-grid">
-                <a href="scholars.php" class="btn btn-sm btn-outline-secondary">Reset</a>
+                <a href="scholars.php" class="btn btn-sm btn-outline-secondary">Clear</a>
             </div>
         </form>
     </div>
@@ -262,7 +274,7 @@ include __DIR__ . '/../includes/header.php';
         <div class="row g-2 align-items-end">
             <div class="col-6 col-md-2">
                 <label class="form-label form-label-sm">Rows</label>
-                <select class="form-select form-select-sm" onchange="window.location.href='scholars.php?<?= e($basePageQuery) ?>page=1&per_page=' + this.value;">
+                <select class="form-select form-select-sm" data-table-per-page onchange="window.location.href='scholars.php?<?= e($basePageQuery) ?>page=1&per_page=' + this.value;">
                     <?php foreach ($perPageOptions as $option): ?>
                         <option value="<?= (int) $option ?>" <?= $perPage === $option ? 'selected' : '' ?>><?= (int) $option ?></option>
                     <?php endforeach; ?>
@@ -308,9 +320,12 @@ include __DIR__ . '/../includes/header.php';
                         </tr>
                     <?php endif; ?>
                     <?php $counter += 1; ?>
-                    <tr>
+                    <?php $reviewUrl = 'application-review.php?id=' . (int) ($row['application_id'] ?? 0) . '&return_to=' . urlencode('scholars.php' . ($basePageQuery !== '' ? '?' . rtrim($basePageQuery, '&') : '')); ?>
+                    <tr class="reference-click-row" tabindex="0" data-review-url="<?= e($reviewUrl) ?>">
                         <td><?= (int) $counter ?></td>
-                        <td><?= e(strtoupper(trim((string) (($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? ''))))) ?></td>
+                        <td>
+                            <div><?= e(strtoupper(trim((string) (($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? ''))))) ?></div>
+                        </td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
@@ -337,10 +352,9 @@ include __DIR__ . '/../includes/header.php';
 document.addEventListener('DOMContentLoaded', function () {
     const form = document.querySelector('form[data-live-filter-form]');
     const typeInput = document.getElementById('typeFilterInput');
-    const typeTabs = Array.from(document.querySelectorAll('[data-type-tab]'));
     const applicantStatusWrap = document.getElementById('applicantStatusFilterWrap');
     const applicantStatusSelect = document.getElementById('applicantStatusFilter');
-    if (!(form instanceof HTMLFormElement) || !(typeInput instanceof HTMLInputElement) || !typeTabs.length) {
+    if (!(form instanceof HTMLFormElement) || !(typeInput instanceof HTMLSelectElement)) {
         return;
     }
 
@@ -355,21 +369,31 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    typeTabs.forEach(function (tab) {
-        tab.addEventListener('click', function () {
-            const value = String(tab.getAttribute('data-type-tab') || '');
-            typeInput.value = value;
-            typeTabs.forEach(function (btn) {
-                const active = String(btn.getAttribute('data-type-tab') || '') === value;
-                btn.classList.toggle('active', active);
-                btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-            });
-            syncApplicantStatusVisibility();
-            form.requestSubmit();
-        });
+    typeInput.addEventListener('change', function () {
+        syncApplicantStatusVisibility();
     });
 
     syncApplicantStatusVisibility();
+
+    document.querySelectorAll('.reference-click-row').forEach(function (row) {
+        row.addEventListener('click', function () {
+            const reviewUrl = String(row.getAttribute('data-review-url') || '').trim();
+            if (reviewUrl !== '') {
+                window.location.href = reviewUrl;
+            }
+        });
+
+        row.addEventListener('keydown', function (event) {
+            if (event.key !== 'Enter' && event.key !== ' ') {
+                return;
+            }
+            event.preventDefault();
+            const reviewUrl = String(row.getAttribute('data-review-url') || '').trim();
+            if (reviewUrl !== '') {
+                window.location.href = reviewUrl;
+            }
+        });
+    });
 });
 </script>
 

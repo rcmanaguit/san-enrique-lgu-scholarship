@@ -13,6 +13,10 @@ $format = strtolower(trim((string) ($_GET['format'] ?? 'xlsx')));
 $dataset = strtolower(trim((string) ($_GET['dataset'] ?? 'status_summary')));
 $fromDate = trim((string) ($_GET['from_date'] ?? ''));
 $toDate = trim((string) ($_GET['to_date'] ?? ''));
+$periodScope = normalize_period_scope((string) ($_GET['period_scope'] ?? 'all'), 'all');
+$periodIdFilter = (int) ($_GET['period_id'] ?? 0);
+$statusFilter = trim((string) ($_GET['status'] ?? ''));
+$queueFilter = trim((string) ($_GET['queue'] ?? ''));
 
 $isValidDate = static function (string $value): bool {
     return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1;
@@ -57,6 +61,10 @@ if ($dataset === 'status_summary') {
             ORDER BY total DESC, status ASC";
     $result = $conn->query($sql);
     $rows = $result instanceof mysqli_result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+    foreach ($rows as &$row) {
+        $row['status'] = application_status_label((string) ($row['status'] ?? ''));
+    }
+    unset($row);
 
     $columns = [
         'status' => 'Status',
@@ -64,6 +72,123 @@ if ($dataset === 'status_summary') {
     ];
     $title = 'San Enrique LGU Scholarship - Application Status Summary' . $rangeSuffix;
     $filenameBase = 'san_enrique_lgu_scholarship_status_summary_' . date('Ymd_His');
+} elseif ($dataset === 'applications_scope') {
+    $activePeriod = current_open_application_period($conn);
+    $hasApplicationPeriodColumn = table_exists($conn, 'applications') && table_column_exists($conn, 'applications', 'application_period_id');
+    $selectedPeriodForFilter = null;
+    if ($periodIdFilter > 0 && table_exists($conn, 'application_periods')) {
+        $stmtPeriod = $conn->prepare(
+            "SELECT id, period_name, semester, academic_year
+             FROM application_periods
+             WHERE id = ?
+             LIMIT 1"
+        );
+        if ($stmtPeriod) {
+            $stmtPeriod->bind_param('i', $periodIdFilter);
+            $stmtPeriod->execute();
+            $selectedPeriodForFilter = $stmtPeriod->get_result()->fetch_assoc() ?: null;
+            $stmtPeriod->close();
+        }
+    }
+
+    $whereParts = [];
+    if ($fromDate !== '' && $toDate !== '') {
+        $whereParts[] = "COALESCE(a.submitted_at, a.created_at) BETWEEN " . $esc($fromDate . ' 00:00:00') . " AND " . $esc($toDate . ' 23:59:59');
+    }
+    if ($statusFilter !== '' && in_array($statusFilter, application_status_options(), true)) {
+        $whereParts[] = "a.status = " . $esc($statusFilter);
+    }
+
+    $queueMap = [
+        'under_review' => ['under_review', 'needs_resubmission'],
+        'for_interview' => ['for_interview'],
+        'for_soa' => ['for_soa'],
+        'approved_for_release' => ['approved_for_release'],
+        'completed' => ['released'],
+    ];
+    if (isset($queueMap[$queueFilter])) {
+        $queueStatuses = $queueMap[$queueFilter];
+        if ($queueStatuses) {
+            $escapedStatuses = array_map($esc, $queueStatuses);
+            $whereParts[] = "a.status IN (" . implode(', ', $escapedStatuses) . ")";
+        }
+    }
+
+    if ($periodIdFilter > 0) {
+        if ($selectedPeriodForFilter) {
+            if ($hasApplicationPeriodColumn) {
+                $whereParts[] = "a.application_period_id = " . (int) $periodIdFilter;
+            } else {
+                $filterSemester = trim((string) ($selectedPeriodForFilter['semester'] ?? ''));
+                $filterSchoolYear = trim((string) ($selectedPeriodForFilter['academic_year'] ?? ''));
+                if ($filterSemester !== '' && $filterSchoolYear !== '') {
+                    $whereParts[] = "a.semester = " . $esc($filterSemester) . " AND a.school_year = " . $esc($filterSchoolYear);
+                } else {
+                    $whereParts[] = "1 = 0";
+                }
+            }
+        } else {
+            $whereParts[] = "1 = 0";
+        }
+    }
+
+    $activePeriodId = (int) ($activePeriod['id'] ?? 0);
+    $activeSemester = trim((string) ($activePeriod['semester'] ?? ''));
+    $activeSchoolYear = trim((string) ($activePeriod['academic_year'] ?? ''));
+    if ($periodScope === 'active') {
+        if ($activePeriod) {
+            if ($hasApplicationPeriodColumn && $activePeriodId > 0) {
+                $whereParts[] = "a.application_period_id = " . $activePeriodId;
+            } elseif ($activeSemester !== '' && $activeSchoolYear !== '') {
+                $whereParts[] = "a.semester = " . $esc($activeSemester) . " AND a.school_year = " . $esc($activeSchoolYear);
+            } else {
+                $whereParts[] = "1 = 0";
+            }
+        } else {
+            $whereParts[] = "1 = 0";
+        }
+    } elseif ($periodScope === 'archived' && $activePeriod) {
+        if ($hasApplicationPeriodColumn && $activePeriodId > 0) {
+            $whereParts[] = "(a.application_period_id IS NULL OR a.application_period_id <> " . $activePeriodId . ")";
+        } elseif ($activeSemester !== '' && $activeSchoolYear !== '') {
+            $whereParts[] = "(a.semester <> " . $esc($activeSemester) . " OR a.school_year <> " . $esc($activeSchoolYear) . ")";
+        }
+    }
+
+    $whereSql = $whereParts ? (' WHERE ' . implode(' AND ', $whereParts)) : '';
+    $sql = "SELECT
+                a.application_no,
+                CONCAT(u.last_name, ', ', u.first_name) AS applicant_name,
+                CONCAT(COALESCE(a.semester, '-'), ' / ', COALESCE(a.school_year, '-')) AS period_label,
+                a.status,
+                a.school_name,
+                a.applicant_type,
+                a.updated_at
+            FROM applications a
+            INNER JOIN users u ON u.id = a.user_id
+            " . $whereSql . "
+            ORDER BY a.updated_at DESC
+            LIMIT 5000";
+    $result = $conn->query($sql);
+    $rows = $result instanceof mysqli_result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+    foreach ($rows as &$row) {
+        $row['status'] = application_status_label((string) ($row['status'] ?? ''));
+        $row['applicant_type'] = ucfirst((string) ($row['applicant_type'] ?? ''));
+    }
+    unset($row);
+
+    $columns = [
+        'application_no' => 'Application No',
+        'applicant_name' => 'Applicant',
+        'period_label' => 'Period',
+        'status' => 'Status',
+        'school_name' => 'School',
+        'applicant_type' => 'Applicant Type',
+        'updated_at' => 'Last Updated',
+    ];
+    $scopeLabel = ucfirst($periodScope);
+    $title = 'San Enrique LGU Scholarship - Applications (' . $scopeLabel . ')' . $rangeSuffix;
+    $filenameBase = 'san_enrique_lgu_scholarship_applications_' . strtolower($scopeLabel) . '_' . date('Ymd_His');
 } elseif ($dataset === 'monthly_disbursements' || $dataset === 'semester_disbursements') {
     $sql = "SELECT
                 CASE
@@ -112,7 +237,7 @@ if ($dataset === 'status_summary') {
     $title = 'San Enrique LGU Scholarship - Semester Disbursement Summary' . $rangeSuffix;
     $filenameBase = 'san_enrique_lgu_scholarship_semester_disbursements_' . date('Ymd_His');
 } elseif ($dataset === 'approved_scholars') {
-    $where = "a.status = 'disbursed'";
+    $where = "a.status = 'released'";
     if ($fromDate !== '' && $toDate !== '') {
         $where .= " AND COALESCE(a.submitted_at, a.created_at) BETWEEN " . $esc($fromDate . ' 00:00:00') . " AND " . $esc($toDate . ' 23:59:59');
     }
@@ -147,9 +272,9 @@ if ($dataset === 'status_summary') {
         'course' => 'Course',
         'applicant_type' => 'Applicant Type',
         'school_year' => 'School Year',
-        'total_disbursed' => 'Total Disbursed (PHP)',
+        'total_disbursed' => 'Total Released (PHP)',
     ];
-    $title = 'San Enrique LGU Scholarship - Disbursed Scholars' . $rangeSuffix;
+    $title = 'San Enrique LGU Scholarship - Released Scholars' . $rangeSuffix;
     $filenameBase = 'san_enrique_lgu_scholarship_approved_scholars_' . date('Ymd_His');
 } elseif ($dataset === 'scholarship_summary') {
     $sql = "SELECT applicant_type, COUNT(*) AS total

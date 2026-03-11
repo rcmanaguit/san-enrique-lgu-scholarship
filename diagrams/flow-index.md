@@ -5,3 +5,4 @@
 - [Applicant Application Flow](./flow-applicant-application.mmd)
 - [Admin/Staff Processing Flow](./flow-admin-staff-processing.mmd)
 - [Notifications and SMS Flow](./flow-notifications-and-sms.mmd)
+- [Application and Updating Process](./flow-application-and-updating-process.md)

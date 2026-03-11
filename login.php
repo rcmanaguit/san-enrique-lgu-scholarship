@@ -125,7 +125,7 @@ include __DIR__ . '/includes/header.php';
 <div class="row justify-content-center">
     <div class="col-12 col-sm-10 col-md-7 col-lg-5">
         <div class="card card-soft shadow-sm">
-            <div class="card-body p-4">
+            <div class="card-body p-4 auth-simple-card">
                 <div class="auth-logo-wrap">
                     <?php if ($hasAuthLogo): ?>
                         <img src="<?= e($authLogoRelativePath) ?>" alt="Municipality of San Enrique Official Seal" class="auth-card-logo">
@@ -133,8 +133,9 @@ include __DIR__ . '/includes/header.php';
                         <span class="auth-logo-fallback" aria-hidden="true"><i class="fa-solid fa-shield"></i></span>
                     <?php endif; ?>
                 </div>
-                <h1 class="h4 mb-3">Login</h1>
-                <p class="text-muted small">Use your mobile number and password.</p>
+                <p class="public-kicker text-center mb-2">Portal Login</p>
+                <h1 class="h4 mb-2 text-center">Login to your account</h1>
+                <p class="text-muted small text-center mb-4">Applicants can log in here to track their application. Staff, admin, and scholars can also use the same login page.</p>
                 <form method="post" novalidate>
                     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                     <div class="mb-3">
@@ -166,7 +167,7 @@ include __DIR__ . '/includes/header.php';
                 </form>
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 small text-muted mt-3 mb-0">
                     <?php if ($isRegistrationOpen): ?>
-                        <a href="register.php">Apply for Scholarship</a>
+                        <a href="register.php">Create applicant account</a>
                     <?php else: ?>
                         <span class="text-muted" aria-disabled="true">Application Period Closed</span>
                     <?php endif; ?>

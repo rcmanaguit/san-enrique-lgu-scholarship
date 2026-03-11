@@ -144,46 +144,26 @@ if (is_post()) {
         $firstName = trim((string) ($data['first_name'] ?? ''));
         $middleName = trim((string) ($data['middle_name'] ?? ''));
         $lastName = trim((string) ($data['last_name'] ?? ''));
-        $email = strtolower(trim((string) ($data['email'] ?? '')));
         $phone = normalize_mobile_number((string) ($data['phone'] ?? ''));
         $passwordHash = trim((string) ($data['password_hash'] ?? ''));
         $schoolName = trim((string) ($data['school_name'] ?? ''));
         $schoolType = trim((string) ($data['school_type'] ?? ''));
         $course = trim((string) ($data['course'] ?? ''));
 
-        if ($firstName === '' || $lastName === '' || $email === '' || $phone === '' || $passwordHash === '') {
+        if ($firstName === '' || $lastName === '' || $phone === '' || $passwordHash === '') {
             set_flash('danger', 'Registration data is incomplete. Please register again.');
             redirect('register.php');
         }
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            set_flash('danger', 'Email in registration data is invalid. Please register again.');
-            redirect('register.php');
-        }
-
         if (mobile_number_exists($conn, $phone)) {
             set_flash('danger', 'Mobile number is already registered.');
-            redirect('register.php');
-        }
-        $stmtEmail = $conn->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
-        if ($stmtEmail) {
-            $stmtEmail->bind_param('s', $email);
-            $stmtEmail->execute();
-            $emailExists = $stmtEmail->get_result()->fetch_assoc();
-            $stmtEmail->close();
-            if ($emailExists) {
-                set_flash('danger', 'Email is already registered.');
-                redirect('register.php');
-            }
-        } else {
-            set_flash('danger', 'Unable to validate email right now. Please try again.');
             redirect('register.php');
         }
 
         $stmt = $conn->prepare(
             "INSERT INTO users (role, first_name, middle_name, last_name, email, phone, password_hash, school_name, school_type, course, status)
-             VALUES ('applicant', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')"
+             VALUES ('applicant', ?, ?, ?, NULL, ?, ?, ?, ?, ?, 'active')"
         );
-        $stmt->bind_param('sssssssss', $firstName, $middleName, $lastName, $email, $phone, $passwordHash, $schoolName, $schoolType, $course);
+        $stmt->bind_param('ssssssss', $firstName, $middleName, $lastName, $phone, $passwordHash, $schoolName, $schoolType, $course);
         $ok = $stmt->execute();
         $errorNo = (int) ($stmt->errno ?? 0);
         $stmt->close();
@@ -198,7 +178,7 @@ if (is_post()) {
                 'first_name' => $firstName,
                 'middle_name' => $middleName,
                 'last_name' => $lastName,
-                'email' => $email,
+                'email' => null,
                 'phone' => $phone,
                 'status' => 'active',
             ];
@@ -234,7 +214,7 @@ if (is_post()) {
         }
 
         if ($errorNo === 1062) {
-            set_flash('danger', 'Registration conflict detected. Mobile number or email is already registered.');
+            set_flash('danger', 'Registration conflict detected. Mobile number is already registered.');
             redirect('register.php');
         }
         set_flash('danger', 'Registration failed. Please try again.');
@@ -264,9 +244,9 @@ include __DIR__ . '/includes/header.php';
 ?>
 
 <div class="row justify-content-center">
-    <div class="col-12 col-md-8 col-lg-6">
+    <div class="col-12 col-sm-10 col-md-7 col-lg-5">
         <div class="card card-soft shadow-sm">
-            <div class="card-body p-4">
+            <div class="card-body p-4 auth-simple-card">
                 <div class="auth-logo-wrap">
                     <?php if ($hasAuthLogo): ?>
                         <img src="<?= e($authLogoRelativePath) ?>" alt="Municipality of San Enrique Official Seal" class="auth-card-logo">
@@ -275,46 +255,41 @@ include __DIR__ . '/includes/header.php';
                     <?php endif; ?>
                 </div>
 
-                <h1 class="h4 mb-2">Verify Code (OTP)</h1>
-                <p class="small text-muted mb-3">
+                <p class="public-kicker text-center mb-2">Applicant Registration</p>
+                <h1 class="h4 mb-2 text-center">Verify your mobile number</h1>
+                <p class="small text-muted text-center mb-4">
                     Enter the verification code sent to <?= e(mask_mobile_number((string) ($pendingRegistration['phone'] ?? ''))) ?>.
                     <?php if ($otpSecondsLeft > 0): ?>
                         Code expires in <?= (int) ceil($otpSecondsLeft / 60) ?> minute(s).
                     <?php endif; ?>
                 </p>
 
-                <form method="post" class="row g-2">
+                <form method="post" class="row g-3" novalidate>
                     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                     <input type="hidden" name="action" value="verify_otp">
                     <div class="col-12">
-                        <label class="form-label">Verification Code (OTP)</label>
+                        <label class="form-label">Verification Code</label>
                         <input type="text" name="otp_code" class="form-control" maxlength="8" required placeholder="6-digit code">
                     </div>
-                    <div class="col-12 d-grid d-md-flex">
-                        <button type="submit" class="btn btn-success">
-                            <i class="fa-solid fa-check me-1"></i>Verify & Create Account
-                        </button>
+                    <div class="col-12 d-grid">
+                        <button type="submit" class="btn btn-success">Verify and create account</button>
                     </div>
                 </form>
 
-                <div class="d-flex flex-wrap gap-2 mt-2">
+                <div class="d-flex justify-content-center flex-wrap gap-2 mt-3">
                     <form method="post">
                         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                         <input type="hidden" name="action" value="resend_otp">
-                        <button type="submit" class="btn btn-outline-primary btn-sm">
-                            <i class="fa-solid fa-rotate me-1"></i>Resend Verification Code (OTP)
-                        </button>
+                        <button type="submit" class="btn btn-outline-primary btn-sm">Resend code</button>
                     </form>
                     <form method="post">
                         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                         <input type="hidden" name="action" value="cancel_otp">
-                        <button type="submit" class="btn btn-outline-danger btn-sm">
-                            <i class="fa-solid fa-xmark me-1"></i>Cancel
-                        </button>
+                        <button type="submit" class="btn btn-outline-danger btn-sm">Start over</button>
                     </form>
                 </div>
 
-                <p class="small text-muted mt-3 mb-0">
+                <p class="small text-muted mt-3 mb-0 text-center">
                     Need to change details? <a href="register.php">Go back to registration</a>.
                 </p>
             </div>

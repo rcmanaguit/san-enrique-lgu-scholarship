@@ -36,8 +36,12 @@ $toDateTime = $toDate . ' 23:59:59';
 
 $summary = [
     'applications_total' => 0,
-    'applications_approved' => 0,
-    'applications_pending' => 0,
+    'under_review' => 0,
+    'needs_resubmission' => 0,
+    'for_interview' => 0,
+    'for_soa' => 0,
+    'approved_for_release' => 0,
+    'released' => 0,
     'disbursement_amount' => 0.0,
     'disbursement_records' => 0,
 ];
@@ -72,30 +76,6 @@ if (db_ready()) {
     }
 
     $stmt = $conn->prepare(
-        "SELECT COUNT(*) AS total
-         FROM applications
-         WHERE COALESCE(submitted_at, created_at) BETWEEN ? AND ?
-           AND status IN ('interview_passed', 'for_soa', 'soa_received', 'awaiting_payout', 'disbursed')"
-    );
-    if ($stmt) {
-        $stmt->bind_param('ss', $fromDateTime, $toDateTime);
-        $stmt->execute();
-        $summary['applications_approved'] = (int) (($stmt->get_result()->fetch_assoc()['total'] ?? 0));
-        $stmt->close();
-    }
-
-    $stmt = $conn->prepare(
-        "SELECT COUNT(*) AS total
-         FROM applications
-         WHERE status IN ('under_review', 'needs_resubmission', 'for_interview', 'for_soa')"
-    );
-    if ($stmt) {
-        $stmt->execute();
-        $summary['applications_pending'] = (int) (($stmt->get_result()->fetch_assoc()['total'] ?? 0));
-        $stmt->close();
-    }
-
-    $stmt = $conn->prepare(
         "SELECT COUNT(*) AS total_records, COALESCE(SUM(amount), 0) AS total_amount
          FROM disbursements
          WHERE disbursement_date BETWEEN ? AND ?"
@@ -122,6 +102,12 @@ if (db_ready()) {
         $result = $stmt->get_result();
         $statusBreakdown = $result instanceof mysqli_result ? $result->fetch_all(MYSQLI_ASSOC) : [];
         $stmt->close();
+    }
+    foreach ($statusBreakdown as $row) {
+        $status = (string) ($row['status'] ?? '');
+        if (array_key_exists($status, $summary)) {
+            $summary[$status] = (int) ($row['total'] ?? 0);
+        }
     }
 
     $stmt = $conn->prepare(
@@ -179,14 +165,10 @@ if (db_ready()) {
     }
 }
 
-$approvalRate = $summary['applications_total'] > 0
-    ? ($summary['applications_approved'] / $summary['applications_total']) * 100
-    : 0;
-
 $statusChartLabels = [];
 $statusChartData = [];
 foreach ($statusBreakdown as $row) {
-    $statusChartLabels[] = ucwords(str_replace('_', ' ', (string) ($row['status'] ?? '')));
+    $statusChartLabels[] = application_status_label((string) ($row['status'] ?? ''));
     $statusChartData[] = (int) ($row['total'] ?? 0);
 }
 
@@ -298,7 +280,7 @@ $baseQuery = http_build_query([
         </div>
         <div class="col-12 col-md-6 d-flex gap-2 align-items-center">
             <span class="small text-muted">Live filter enabled</span>
-            <a href="analytics.php" class="btn btn-outline-secondary btn-sm">Reset</a>
+            <a href="analytics.php" class="btn btn-outline-secondary btn-sm">Clear</a>
         </div>
     </div>
 </form>
@@ -313,13 +295,25 @@ $baseQuery = http_build_query([
             <div class="card card-soft metric-card h-100"><div class="card-body"><p class="small text-muted mb-1">Applications</p><h3><?= number_format($summary['applications_total']) ?></h3></div></div>
         </div>
         <div class="col-6 col-lg-3">
-            <div class="card card-soft metric-card h-100"><div class="card-body"><p class="small text-muted mb-1">Approved</p><h3><?= number_format($summary['applications_approved']) ?></h3><div class="small text-muted"><?= number_format($approvalRate, 1) ?>% approval rate</div></div></div>
+            <div class="card card-soft metric-card h-100"><div class="card-body"><p class="small text-muted mb-1">Under Review</p><h3><?= number_format($summary['under_review']) ?></h3><div class="small text-muted">Current review queue</div></div></div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card card-soft metric-card h-100"><div class="card-body"><p class="small text-muted mb-1">Needs Resubmission</p><h3><?= number_format($summary['needs_resubmission']) ?></h3><div class="small text-muted">Applicant action needed</div></div></div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card card-soft metric-card h-100"><div class="card-body"><p class="small text-muted mb-1">For Interview</p><h3><?= number_format($summary['for_interview']) ?></h3><div class="small text-muted">Interview stage</div></div></div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card card-soft metric-card h-100"><div class="card-body"><p class="small text-muted mb-1">Pending SOA</p><h3><?= number_format($summary['for_soa']) ?></h3><div class="small text-muted">SOA submission stage</div></div></div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card card-soft metric-card h-100"><div class="card-body"><p class="small text-muted mb-1">Ready for Payout</p><h3><?= number_format($summary['approved_for_release']) ?></h3><div class="small text-muted">Approved for release</div></div></div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card card-soft metric-card h-100"><div class="card-body"><p class="small text-muted mb-1">Released</p><h3><?= number_format($summary['released']) ?></h3><div class="small text-muted">Completed payouts</div></div></div>
         </div>
         <div class="col-6 col-lg-3">
             <div class="card card-soft metric-card h-100"><div class="card-body"><p class="small text-muted mb-1">Disbursement</p><h3>PHP <?= number_format($summary['disbursement_amount'], 2) ?></h3><div class="small text-muted"><?= number_format($summary['disbursement_records']) ?> record(s)</div></div></div>
-        </div>
-        <div class="col-6 col-lg-3">
-            <div class="card card-soft metric-card h-100"><div class="card-body"><p class="small text-muted mb-1">Pending Queue</p><h3><?= number_format($summary['applications_pending']) ?></h3><div class="small text-muted">Current active pipeline</div></div></div>
         </div>
     </div>
 

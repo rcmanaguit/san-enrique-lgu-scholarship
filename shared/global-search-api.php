@@ -92,7 +92,7 @@ $searchApplications = static function (mysqli $conn, string $like, int $limit): 
             'subtitle' => $fullName !== '' ? $fullName : '-',
             'meta' => trim(implode(' | ', array_filter([
                 strtoupper((string) ($row['applicant_type'] ?? '')),
-                strtoupper((string) ($row['status'] ?? '')),
+                application_status_label((string) ($row['status'] ?? '')),
                 (string) ($row['school_name'] ?? ''),
                 (string) ($row['school_year'] ?? ''),
             ]))),

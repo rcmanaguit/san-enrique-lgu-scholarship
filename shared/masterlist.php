@@ -11,6 +11,7 @@ require_role(['admin', 'staff'], '../index.php');
 
 $pageTitle = 'Masterlist';
 $rows = [];
+$bodyClass = 'is-reference-page';
 
 $statusFilter = trim((string) ($_GET['status'] ?? ''));
 $schoolTypeFilter = trim((string) ($_GET['school_type'] ?? ''));
@@ -81,36 +82,17 @@ $exportQuery = http_build_query([
 
 include __DIR__ . '/../includes/header.php';
 ?>
-
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <h1 class="h4 m-0"><i class="fa-solid fa-table-list me-2 text-primary"></i>San Enrique LGU Scholarship Masterlist</h1>
-    <div class="d-flex gap-2">
-        <a
-            href="export-masterlist.php?<?= e($exportQuery) ?>&format=pdf"
-            class="btn btn-outline-primary btn-sm"
-            data-masterlist-export-link
-            data-export-format="pdf"
-        >
-            <i class="fa-solid fa-file-pdf me-1"></i>Export PDF
-        </a>
-        <a
-            href="export-masterlist.php?<?= e($exportQuery) ?>&format=docx"
-            class="btn btn-outline-primary btn-sm"
-            data-masterlist-export-link
-            data-export-format="docx"
-        >
-            <i class="fa-solid fa-file-word me-1"></i>Export DOCX
-        </a>
-        <a
-            href="export-masterlist.php?<?= e($exportQuery) ?>&format=xlsx"
-            class="btn btn-primary btn-sm"
-            data-masterlist-export-link
-            data-export-format="xlsx"
-        >
-            <i class="fa-solid fa-file-excel me-1"></i>Export XLSX
-        </a>
-    </div>
-</div>
+<?php
+$pageHeaderEyebrow = 'Reference';
+$pageHeaderTitle = '<i class="fa-solid fa-table-list me-2 text-primary"></i>Masterlist';
+$pageHeaderDescription = 'Use this page for record lookup and export only. Operational work stays in the Application Queue.';
+$pageHeaderActions = '<div class="d-flex gap-2">'
+    . '<a href="export-masterlist.php?' . e($exportQuery) . '&format=pdf" class="btn btn-outline-primary btn-sm" data-masterlist-export-link data-export-format="pdf"><i class="fa-solid fa-file-pdf me-1"></i>PDF</a>'
+    . '<a href="export-masterlist.php?' . e($exportQuery) . '&format=docx" class="btn btn-outline-primary btn-sm" data-masterlist-export-link data-export-format="docx"><i class="fa-solid fa-file-word me-1"></i>DOCX</a>'
+    . '<a href="export-masterlist.php?' . e($exportQuery) . '&format=xlsx" class="btn btn-primary btn-sm" data-masterlist-export-link data-export-format="xlsx"><i class="fa-solid fa-file-excel me-1"></i>XLSX</a>'
+    . '</div>';
+include __DIR__ . '/../includes/partials/page-shell-header.php';
+?>
 
 <?php if (!$rows): ?>
     <div class="card card-soft"><div class="card-body text-muted">No records found for selected filters.</div></div>
@@ -128,7 +110,7 @@ include __DIR__ . '/../includes/header.php';
                         <option value="">All</option>
                         <?php foreach ($allowedStatus as $status): ?>
                             <option value="<?= e($status) ?>" <?= $statusFilter === $status ? 'selected' : '' ?>>
-                                <?= e(ucwords(str_replace('_', ' ', $status))) ?>
+                                <?= e(application_status_label($status)) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
@@ -141,23 +123,6 @@ include __DIR__ . '/../includes/header.php';
                         <option value="private" <?= $schoolTypeFilter === 'private' ? 'selected' : '' ?>>Private</option>
                     </select>
                 </div>
-                <div class="col-6 col-md-2">
-                    <label class="form-label form-label-sm">School Year</label>
-                    <input type="text" class="form-control form-control-sm" data-table-filter data-filter-key="school-year" data-filter-mode="contains" value="<?= e($schoolYearFilter) ?>" placeholder="2026-2027">
-                </div>
-                <div class="col-6 col-md-2">
-                    <label class="form-label form-label-sm">Barangay</label>
-                    <select class="form-select form-select-sm" data-table-filter data-filter-key="barangay" <?= $hasBarangayColumn ? '' : 'disabled' ?>>
-                        <option value="">All</option>
-                        <?php if ($hasBarangayColumn): ?>
-                            <?php foreach ($allowedBarangays as $barangay): ?>
-                                <option value="<?= e($barangay) ?>" <?= $barangayFilter === $barangay ? 'selected' : '' ?>><?= e($barangay) ?></option>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                            <option value="">Unavailable in current setup</option>
-                        <?php endif; ?>
-                    </select>
-                </div>
                 <div class="col-6 col-md-1">
                     <label class="form-label form-label-sm">Rows</label>
                     <select data-table-per-page class="form-select form-select-sm">
@@ -167,7 +132,7 @@ include __DIR__ . '/../includes/header.php';
                     </select>
                 </div>
                 <div class="col-6 col-md-1 d-grid">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" id="masterlistLiveReset">Reset</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="masterlistLiveReset">Clear</button>
                 </div>
                 <div class="col-12 col-md-12 text-md-end">
                     <span class="page-legend" data-table-summary></span>
@@ -178,15 +143,13 @@ include __DIR__ . '/../includes/header.php';
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead>
-                    <tr>
-                        <th>Application</th>
-                        <th>Applicant</th>
-                        <th>Applicant Type</th>
-                        <th>School</th>
-                        <th>Status</th>
-                        <th>Total Disbursed</th>
-                        <th class="text-end">Actions</th>
-                    </tr>
+                        <tr>
+                            <th>Record</th>
+                            <th>Applicant</th>
+                            <th>School</th>
+                            <th>Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($rows as $row): ?>
@@ -209,8 +172,6 @@ include __DIR__ . '/../includes/header.php';
                             data-filter="<?= e((string) $row['status']) ?>"
                             data-status="<?= e((string) $row['status']) ?>"
                             data-school-type="<?= e((string) $row['school_type']) ?>"
-                            data-school-year="<?= e((string) $row['school_year']) ?>"
-                            data-barangay="<?= e((string) ($row['barangay'] ?? '')) ?>"
                         >
                             <td>
                                 <strong><?= e((string) $row['application_no']) ?></strong>
@@ -222,22 +183,18 @@ include __DIR__ . '/../includes/header.php';
                                 <div class="small text-muted"><?= e((string) ($row['barangay'] ?? '')) ?>, <?= e((string) ($row['town'] ?? san_enrique_town())) ?>, <?= e((string) ($row['province'] ?? san_enrique_province())) ?></div>
                             </td>
                             <td>
-                                <?= e(strtoupper((string) $row['applicant_type'])) ?>
-                            </td>
-                            <td>
                                 <?= e((string) $row['school_name']) ?>
                                 <div class="small text-muted"><?= e(strtoupper((string) $row['school_type'])) ?></div>
                             </td>
                             <td>
-                                <span class="badge <?= status_badge_class((string) $row['status']) ?>"><?= e(strtoupper((string) $row['status'])) ?></span>
+                                <span class="badge <?= status_badge_class((string) $row['status']) ?>"><?= e(strtoupper(application_status_label((string) $row['status']))) ?></span>
                                 <?php if ((string) $row['status'] === 'for_soa' && !empty($row['soa_submission_deadline'])): ?>
                                     <div class="small text-muted">SOA deadline: <?= date('M d, Y', strtotime((string) $row['soa_submission_deadline'])) ?></div>
                                 <?php endif; ?>
-                                <?php if ((string) $row['status'] === 'soa_received' && !empty($row['soa_submitted_at'])): ?>
+                                <?php if (in_array((string) $row['status'], ['approved_for_release', 'released'], true) && !empty($row['soa_submitted_at'])): ?>
                                     <div class="small text-muted">SOA received: <?= date('M d, Y', strtotime((string) $row['soa_submitted_at'])) ?></div>
                                 <?php endif; ?>
                             </td>
-                            <td>PHP <?= number_format((float) $row['total_disbursed'], 2) ?></td>
                             <td class="text-end">
                                 <a href="../print-application.php?id=<?= (int) $row['id'] ?>" class="btn btn-sm btn-outline-primary">
                                     <i class="fa-solid fa-print"></i>

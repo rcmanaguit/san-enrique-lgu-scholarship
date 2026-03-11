@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
     middle_name VARCHAR(100) NULL,
     suffix VARCHAR(20) NULL,
     last_name VARCHAR(100) NOT NULL,
-    email VARCHAR(150) NOT NULL UNIQUE,
+    email VARCHAR(150) NULL UNIQUE,
     phone VARCHAR(25) NULL,
     password_hash VARCHAR(255) NOT NULL,
     school_name VARCHAR(180) NULL,
@@ -75,6 +75,20 @@ CREATE TABLE IF NOT EXISTS application_periods (
         ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS application_period_requirements (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    application_period_id INT UNSIGNED NOT NULL,
+    requirement_template_id INT UNSIGNED NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_application_period_requirement (application_period_id, requirement_template_id),
+    CONSTRAINT fk_application_period_requirements_period
+        FOREIGN KEY (application_period_id) REFERENCES application_periods(id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_application_period_requirements_template
+        FOREIGN KEY (requirement_template_id) REFERENCES requirement_templates(id)
+        ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS applications (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     application_no VARCHAR(40) NOT NULL UNIQUE,
@@ -118,12 +132,10 @@ CREATE TABLE IF NOT EXISTS applications (
         'under_review',
         'needs_resubmission',
         'for_interview',
-        'interview_passed',
         'for_soa',
-        'soa_received',
-        'disbursed',
-        'rejected',
-        'awaiting_payout'
+        'approved_for_release',
+        'released',
+        'rejected'
     ) NOT NULL DEFAULT 'under_review',
     review_notes TEXT NULL,
     interview_date DATETIME NULL,
@@ -281,6 +293,7 @@ CREATE TABLE IF NOT EXISTS application_no_sequences (
 CREATE INDEX idx_applications_status ON applications(status);
 CREATE INDEX idx_applications_school_year ON applications(school_year);
 CREATE INDEX idx_applications_barangay ON applications(barangay);
+CREATE INDEX idx_applications_period_status_updated ON applications(application_period_id, status, updated_at);
 CREATE INDEX idx_documents_application_id ON application_documents(application_id);
 CREATE INDEX idx_application_periods_open ON application_periods(is_open, start_date, end_date);
 CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at);
@@ -305,7 +318,7 @@ VALUES (
     'Administrator',
     'admin@sanenrique.gov.ph',
     '09170000000',
-    '$2y$10$ANkIZQDZUi87YobLpPdhxebKPSvb29jHDWarOyYWMHjqhcCbNFOme',
+    '$2y$10$noW2CDhcCABpkmQJZA5xj.YHbAIsHRocNqwaF.fFI7Ywdz8huqgF6',
     'active'
 )
 ON DUPLICATE KEY UPDATE email = VALUES(email);
@@ -361,9 +374,8 @@ FROM (
     SELECT 'Report Card / Previous Semester (Photocopy)' AS requirement_name, 'Latest available academic performance record' AS description, NULL AS applicant_type, NULL AS school_type, 1 AS is_required, 1 AS is_active, 10 AS sort_order
     UNION ALL SELECT '1 pc 2x2 Picture', 'Recent 2x2 ID photo', NULL, NULL, 0, 1, 20
     UNION ALL SELECT 'Barangay Residency', 'Proof of residency in San Enrique', NULL, NULL, 1, 1, 30
-    UNION ALL SELECT 'Original Student Copy / Statement of Account (SOA)', 'School-issued statement of account', NULL, NULL, 0, 1, 40
+    UNION ALL SELECT 'Original Student Copy / Statement of Account (SOA)', 'Schedule to be announced later', NULL, NULL, 0, 1, 40
     UNION ALL SELECT 'Certificate of Enrollment', 'Current semester enrollment certificate', NULL, NULL, 1, 1, 50
-    UNION ALL SELECT 'Certificate of Good Moral', 'Issued by the school', 'new', NULL, 0, 1, 60
 ) AS s
 WHERE NOT EXISTS (
     SELECT 1
@@ -372,6 +384,30 @@ WHERE NOT EXISTS (
       AND COALESCE(r.applicant_type, '') = COALESCE(s.applicant_type, '')
       AND COALESCE(r.school_type, '') = COALESCE(s.school_type, '')
 );
+
+SET @default_period_id := (
+    SELECT id
+    FROM application_periods
+    ORDER BY id ASC
+    LIMIT 1
+);
+
+INSERT INTO application_period_requirements (
+    application_period_id,
+    requirement_template_id
+)
+SELECT
+    @default_period_id,
+    rt.id
+FROM requirement_templates rt
+WHERE @default_period_id IS NOT NULL
+  AND rt.is_active = 1
+  AND NOT EXISTS (
+      SELECT 1
+      FROM application_period_requirements apr
+      WHERE apr.application_period_id = @default_period_id
+        AND apr.requirement_template_id = rt.id
+  );
 
 INSERT INTO sms_templates (
     template_name,
@@ -431,7 +467,7 @@ INSERT INTO sms_templates (
 ),
 (
     'Application Under Review',
-    'San Enrique LGU Scholarship: Application [Application No] is currently under review.',
+    'San Enrique LGU Scholarship: Application [Application No] has been submitted and is currently under review. Please wait for further updates.',
     'Application',
     1,
     @default_admin_id,
@@ -439,16 +475,8 @@ INSERT INTO sms_templates (
 ),
 (
     'Documents Verified',
-    'San Enrique LGU Scholarship: Application [Application No] is scheduled for interview.',
+    'San Enrique LGU Scholarship: Application [Application No] documents have been verified. Please wait for further updates.',
     'Interview',
-    1,
-    @default_admin_id,
-    @default_admin_id
-),
-(
-    'Interview Passed',
-    'San Enrique LGU Scholarship: Application [Application No] has passed the interview stage.',
-    'Application',
     1,
     @default_admin_id,
     @default_admin_id
@@ -462,16 +490,8 @@ INSERT INTO sms_templates (
     @default_admin_id
 ),
 (
-    'SOA Submitted Confirmation',
-    'San Enrique LGU Scholarship: The SOA for application [Application No] has been received.',
-    'SOA',
-    1,
-    @default_admin_id,
-    @default_admin_id
-),
-(
-    'Awaiting Approval',
-    'San Enrique LGU Scholarship: Application [Application No] is awaiting final approval.',
+    'Approved for Release',
+    'San Enrique LGU Scholarship: Application [Application No] is approved for release. Please wait for the payout schedule.',
     'Application',
     1,
     @default_admin_id,

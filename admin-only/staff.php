@@ -291,17 +291,14 @@ $displayPhone = static function (?string $phone): string {
 
 include __DIR__ . '/../includes/header.php';
 ?>
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <h1 class="h4 m-0"><i class="fa-solid fa-user-shield me-2 text-primary"></i>Staff Management</h1>
-    <div class="d-flex gap-2">
-        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createStaffModal">
-            <i class="fa-solid fa-user-plus me-1"></i>Add Staff
-        </button>
-        <a href="../shared/dashboard.php" class="btn btn-outline-secondary btn-sm">
-            <i class="fa-solid fa-arrow-left me-1"></i>Dashboard
-        </a>
-    </div>
-</div>
+<?php
+$pageHeaderEyebrow = 'Settings';
+$pageHeaderTitle = '<i class="fa-solid fa-user-shield me-2 text-primary"></i>Users';
+$pageHeaderDescription = 'Manage staff access here. This page is for user administration only, not workflow operations.';
+$pageHeaderActions = '<button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createStaffModal"><i class="fa-solid fa-user-plus me-1"></i>Add Staff</button>'
+    . '<a href="../shared/dashboard.php" class="btn btn-outline-secondary btn-sm"><i class="fa-solid fa-arrow-left me-1"></i>Dashboard</a>';
+include __DIR__ . '/../includes/partials/page-shell-header.php';
+?>
 
 <?php if (!db_ready()): ?>
     <div class="card card-soft shadow-sm">

@@ -758,15 +758,13 @@ $filterQuery = $buildFilterQuery($filters);
 include __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <h1 class="h4 m-0"><i class="fa-solid fa-comments me-2 text-primary"></i>SMS</h1>
-    <div class="d-flex align-items-center gap-2 flex-wrap">
-        <span class="badge <?= $providerEnabled ? 'text-bg-success' : 'text-bg-secondary' ?>">
-            <?= e($providerEnabled ? 'SMS Ready' : 'SMS Disabled') ?>
-        </span>
-        <span class="small text-muted">Provider: <?= e($providerLabel) ?></span>
-    </div>
-</div>
+<?php
+$pageHeaderEyebrow = 'Communication';
+$pageHeaderTitle = '<i class="fa-solid fa-comments me-2 text-primary"></i>SMS';
+$pageHeaderDescription = 'Keep reminders and status updates distinct. Filter recipients, preview the target list, review the message, then send.';
+$pageHeaderSecondaryInfo = '<span class="badge ' . ($providerEnabled ? 'text-bg-success' : 'text-bg-secondary') . '">' . e($providerEnabled ? 'SMS Ready' : 'SMS Disabled') . '</span> <span class="ms-2">Provider: <strong>' . e($providerLabel) . '</strong></span>';
+include __DIR__ . '/../includes/partials/page-shell-header.php';
+?>
 
 <?php if (!db_ready() || !$hasUsersTable): ?>
     <div class="card card-soft shadow-sm">
@@ -784,6 +782,20 @@ include __DIR__ . '/../includes/header.php';
             <section class="card card-soft shadow-sm h-100">
                 <div class="card-body">
                     <h2 class="h6 mb-3">Send SMS</h2>
+                    <div class="row g-2 mb-3">
+                        <div class="col-12 col-md-6">
+                            <div class="compact-kpi-card h-100">
+                                <small>Status Updates</small>
+                                <div class="page-shell-note mt-2">Use for application stage changes like interview notice, SOA submission required, approved for payout, and released payout.</div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <div class="compact-kpi-card h-100">
+                                <small>Reminders</small>
+                                <div class="page-shell-note mt-2">Use for follow-ups like missing requirements, deadline reminders, and office advisories.</div>
+                            </div>
+                        </div>
+                    </div>
                     <form id="smsSendForm" method="post" class="row g-3" data-crud-modal="1" data-crud-title="Send SMS Message?" data-crud-message="Send this message to the selected recipient scope now?" data-crud-confirm-text="Send Message">
                         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                         <input type="hidden" name="action" id="smsAction" value="send_bulk">
@@ -816,7 +828,7 @@ include __DIR__ . '/../includes/header.php';
                                 <option value="">All Status</option>
                                 <?php foreach ($allowedStatus as $status): ?>
                                     <option value="<?= e($status) ?>" <?= $filters['status'] === $status ? 'selected' : '' ?>>
-                                        <?= e(ucwords(str_replace('_', ' ', $status))) ?>
+                                        <?= e(application_status_label($status)) ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
@@ -881,7 +893,7 @@ include __DIR__ . '/../includes/header.php';
                             <label class="form-label">SMS Message</label>
                             <textarea class="form-control" name="message" id="smsMessage" rows="5" maxlength="480" placeholder="Type your SMS here..." required><?= e(trim((string) ($_POST['message'] ?? ''))) ?></textarea>
                             <div class="d-flex justify-content-between align-items-center mt-1">
-                                <span class="form-text">Use clear and short wording for applicants.</span>
+                                <span class="form-text">Preview the recipient scope at the right before sending important interview, SOA, or payout messages.</span>
                                 <span class="small text-muted" id="smsCharCount">0 / 480</span>
                             </div>
                         </div>
@@ -936,7 +948,7 @@ include __DIR__ . '/../includes/header.php';
                     <?php endif; ?>
                     <hr>
                     <div class="small text-muted">
-                        <div><strong>Status:</strong> <?= e($filters['status'] !== '' ? ucwords(str_replace('_', ' ', $filters['status'])) : 'All') ?></div>
+                        <div><strong>Status:</strong> <?= e($filters['status'] !== '' ? application_status_label($filters['status']) : 'All') ?></div>
                         <div><strong>Barangay:</strong> <?= e($filters['barangay'] !== '' ? $filters['barangay'] : 'All') ?></div>
                         <div><strong>School Type:</strong> <?= e($filters['school_type'] !== '' ? ucfirst($filters['school_type']) : 'All') ?></div>
                         <div><strong>Scope:</strong> <?= $filters['has_application'] === '1' ? 'Applicants with matching application' : 'All active applicants' ?></div>
@@ -963,7 +975,7 @@ include __DIR__ . '/../includes/header.php';
                         <select data-table-filter class="form-select form-select-sm">
                             <option value="">All</option>
                             <?php foreach ($allowedStatus as $status): ?>
-                                <option value="<?= e($status) ?>"><?= e(ucwords(str_replace('_', ' ', $status))) ?></option>
+                                <option value="<?= e($status) ?>"><?= e(application_status_label($status)) ?></option>
                             <?php endforeach; ?>
                             <option value="no_status">No Status</option>
                         </select>
@@ -1042,7 +1054,7 @@ include __DIR__ . '/../includes/header.php';
                                             <?= e((string) ($recipient['semester'] ?? '')) ?> <?= e((string) ($recipient['school_year'] ?? '')) ?>
                                         </div>
                                         <div class="small">
-                                            <span class="badge <?= status_badge_class($status) ?>"><?= e($status !== '' ? strtoupper($status) : 'NO STATUS') ?></span>
+                                            <span class="badge <?= status_badge_class($status) ?>"><?= e($status !== '' ? strtoupper(application_status_label($status)) : 'NO STATUS') ?></span>
                                         </div>
                                     <?php else: ?>
                                         <span class="text-muted">No application record</span>

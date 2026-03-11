@@ -63,11 +63,9 @@ final class FunctionsTest extends TestCase
         $this->assertContains('under_review', $statuses);
         $this->assertContains('needs_resubmission', $statuses);
         $this->assertContains('for_interview', $statuses);
-        $this->assertContains('interview_passed', $statuses);
         $this->assertContains('for_soa', $statuses);
-        $this->assertContains('soa_received', $statuses);
-        $this->assertContains('awaiting_payout', $statuses);
-        $this->assertContains('disbursed', $statuses);
+        $this->assertContains('approved_for_release', $statuses);
+        $this->assertContains('released', $statuses);
         $this->assertContains('rejected', $statuses);
     }
 
@@ -85,9 +83,9 @@ final class FunctionsTest extends TestCase
     {
         $this->assertSame('text-bg-info', status_badge_class('under_review'));
         $this->assertSame('text-bg-warning', status_badge_class('needs_resubmission'));
-        $this->assertSame('text-bg-success', status_badge_class('disbursed'));
+        $this->assertSame('text-bg-success', status_badge_class('released'));
         $this->assertSame('text-bg-danger', status_badge_class('rejected'));
-        $this->assertSame('text-bg-secondary', status_badge_class('awaiting_payout'));
+        $this->assertSame('text-bg-secondary', status_badge_class('approved_for_release'));
         $this->assertSame('text-bg-light', status_badge_class('unknown_status'));
     }
 
@@ -131,5 +129,44 @@ final class FunctionsTest extends TestCase
 
         $this->assertNull(calculate_age_from_birth_date('invalid-date'));
         $this->assertNull(calculate_age_from_birth_date($future));
+    }
+
+    public function testNormalizePeriodScopeFallsBackToActive(): void
+    {
+        $this->assertSame('active', normalize_period_scope(''));
+        $this->assertSame('active', normalize_period_scope('unknown'));
+        $this->assertSame('archived', normalize_period_scope('ARCHIVED'));
+        $this->assertSame('all', normalize_period_scope('all'));
+    }
+
+    public function testApplicationMatchesPeriodScopeUsingApplicationPeriodId(): void
+    {
+        $activePeriod = ['id' => 10, 'semester' => 'First Semester', 'academic_year' => '2026-2027'];
+        $activeRow = ['application_period_id' => 10, 'semester' => 'First Semester', 'school_year' => '2026-2027'];
+        $archivedRow = ['application_period_id' => 9, 'semester' => 'Second Semester', 'school_year' => '2025-2026'];
+
+        $this->assertTrue(application_matches_period_scope($activeRow, 'active', $activePeriod, true));
+        $this->assertFalse(application_matches_period_scope($activeRow, 'archived', $activePeriod, true));
+        $this->assertTrue(application_matches_period_scope($archivedRow, 'archived', $activePeriod, true));
+        $this->assertTrue(application_matches_period_scope($archivedRow, 'all', $activePeriod, true));
+    }
+
+    public function testApplicationMatchesPeriodScopeUsingSemesterSchoolYearFallback(): void
+    {
+        $activePeriod = ['id' => 0, 'semester' => 'First Semester', 'academic_year' => '2026-2027'];
+        $activeRow = ['semester' => 'First Semester', 'school_year' => '2026-2027'];
+        $archivedRow = ['semester' => 'Second Semester', 'school_year' => '2025-2026'];
+
+        $this->assertTrue(application_matches_period_scope($activeRow, 'active', $activePeriod, false));
+        $this->assertFalse(application_matches_period_scope($archivedRow, 'active', $activePeriod, false));
+        $this->assertTrue(application_matches_period_scope($archivedRow, 'archived', $activePeriod, false));
+    }
+
+    public function testNoOpenPeriodTreatsRecordsAsArchived(): void
+    {
+        $row = ['application_period_id' => 10, 'semester' => 'First Semester', 'school_year' => '2026-2027'];
+        $this->assertFalse(application_matches_period_scope($row, 'active', null, true));
+        $this->assertTrue(application_matches_period_scope($row, 'archived', null, true));
+        $this->assertTrue(application_matches_period_scope($row, 'all', null, true));
     }
 }
