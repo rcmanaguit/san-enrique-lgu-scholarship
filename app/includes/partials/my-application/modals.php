@@ -48,7 +48,7 @@ declare(strict_types=1);
                         <div class="review-kv-value" id="modalSoaDeadline">-</div>
                     </div>
                     <div class="review-kv-row" id="modalSoaSubmittedRow">
-                        <div class="review-kv-label">SOA Submitted</div>
+                        <div class="review-kv-label">SOA Uploaded</div>
                         <div class="review-kv-value" id="modalSoaSubmitted">-</div>
                     </div>
                 </div>

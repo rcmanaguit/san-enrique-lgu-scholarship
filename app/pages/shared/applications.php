@@ -14,7 +14,7 @@ $bodyClass = 'application-review-board-page';
 $applications = [];
 $documentsByApplication = [];
 $queueFilter = trim((string) ($_GET['queue'] ?? 'under_review'));
-$rowsPerPage = (int) ($_GET['rows'] ?? 20);
+$rowsPerPage = (int) ($_GET['rows'] ?? 10);
 $currentPage = (int) ($_GET['page'] ?? 1);
 $periodScope = trim((string) ($_GET['period_scope'] ?? 'active'));
 $isAdmin = is_admin();
@@ -22,10 +22,10 @@ $periodIdFilter = 0;
 $allowArchivedUpdates = $isAdmin && trim((string) ($_GET['allow_archived_updates'] ?? '')) === '1';
 $allowedStatus = application_status_options();
 $approvedPhaseStatuses = approved_phase_statuses();
-$bulkStatusButtons = [];
 $activePeriod = db_ready() ? current_active_application_period($conn) : null;
 $openPeriod = db_ready() ? current_open_application_period($conn) : null;
 $activePeriodLabel = format_application_period($activePeriod);
+$allowedBarangays = san_enrique_barangays();
 $isApplicantIntakeOpen = $openPeriod !== null
     && (int) ($openPeriod['id'] ?? 0) > 0
     && (int) ($openPeriod['id'] ?? 0) === (int) ($activePeriod['id'] ?? 0);
@@ -34,8 +34,9 @@ $periodOptions = [];
 $selectedPeriodForFilter = null;
 $queueMap = [
     'under_review' => ['under_review'],
-    'compliance' => ['needs_resubmission', 'for_soa'],
+    'needs_resubmission' => ['needs_resubmission'],
     'for_interview' => ['for_interview'],
+    'for_soa' => ['for_soa'],
     'approved_for_release' => ['approved_for_release'],
     'completed' => ['released'],
     'all' => [],
@@ -54,7 +55,7 @@ $statusToQueue = static function (string $status) use ($queueMap): string {
 $queueCounts = array_fill_keys(array_keys($queueMap), 0);
 $rowsPerPageOptions = [10, 20, 50];
 if (!in_array($rowsPerPage, $rowsPerPageOptions, true)) {
-    $rowsPerPage = 20;
+    $rowsPerPage = 10;
 }
 if ($currentPage < 1) {
     $currentPage = 1;
@@ -68,61 +69,11 @@ if ($periodScope !== 'active') {
     $periodScope = 'active';
 }
 
-$bulkStatusMap = [
-    '__default__' => ['under_review'],
-    'draft' => ['under_review'],
-    'under_review' => ['for_interview', 'rejected'],
-    'needs_resubmission' => ['under_review', 'rejected'],
-    'for_interview' => ['for_soa'],
-    'for_soa' => [],
-    'approved_for_release' => ['released'],
-    'released' => [],
-    'rejected' => [],
-];
-$queueBulkStatusMap = [
-    'under_review' => [],
-    'compliance' => [],
-    'for_interview' => ['for_soa'],
-    'approved_for_release' => ['released'],
-    'completed' => [],
-    'all' => ['under_review'],
-];
-$statusActionLabels = [
-    'under_review' => 'Mark Under Review',
-    'for_interview' => 'Move to Interview',
-    'needs_resubmission' => 'Request Resubmission',
-    'for_soa' => 'Move to SOA Submission',
-    'approved_for_release' => 'Approve for Payout',
-    'released' => 'Mark Released',
-    'rejected' => 'Reject',
-    'draft' => 'Mark Draft',
-];
-$candidateBulkStatuses = [];
-foreach ($queueBulkStatusMap as $queueStatuses) {
-    foreach ((array) $queueStatuses as $candidateStatus) {
-        if (!in_array($candidateStatus, $allowedStatus, true)) {
-            continue;
-        }
-        if (in_array($candidateStatus, $candidateBulkStatuses, true)) {
-            continue;
-        }
-        $candidateBulkStatuses[] = $candidateStatus;
-    }
-}
-foreach ($candidateBulkStatuses as $candidateStatus) {
-    if (!in_array($candidateStatus, $allowedStatus, true)) {
-        continue;
-    }
-    $bulkStatusButtons[] = [
-        'value' => $candidateStatus,
-        'label' => $statusActionLabels[$candidateStatus] ?? ucwords(str_replace('_', ' ', $candidateStatus)),
-    ];
-}
 $redirectQuery = [];
 if ($queueFilter !== '' && $queueFilter !== 'under_review') {
     $redirectQuery['queue'] = $queueFilter;
 }
-$redirectQuery['rows'] = $rowsPerPage !== 20 ? $rowsPerPage : '';
+$redirectQuery['rows'] = $rowsPerPage !== 10 ? $rowsPerPage : '';
 $redirectQuery['page'] = $currentPage > 1 ? $currentPage : '';
 $redirectQuery['period_scope'] = $periodScope;
 $redirectQuery['period_id'] = $periodIdFilter > 0 ? $periodIdFilter : '';
@@ -135,8 +86,6 @@ $redirectTargetFromPost = trim((string) ($_POST['redirect_to'] ?? ''));
 if ($redirectTargetFromPost !== '' && preg_match('/^(applications|application-review)\.php(\?.*)?$/', $redirectTargetFromPost) === 1) {
     $redirectUrl = $redirectTargetFromPost;
 }
-$selectionEnabledQueues = ['for_interview', 'approved_for_release'];
-$isSelectionEnabled = in_array($queueFilter, $selectionEnabledQueues, true);
 $isArchivedApplication = static function (array $row) use ($activePeriod, $hasApplicationPeriodColumn): bool {
     return application_is_archived_for_active_period($row, $activePeriod, $hasApplicationPeriodColumn);
 };
@@ -169,6 +118,34 @@ $renderSmsTemplate = static function (string $templateBody, array $replacements)
     }
     return trim($message);
 };
+$formatApplicantReference = static function (array $current): string {
+    $applicationNo = trim((string) ($current['application_no'] ?? ''));
+    $lastName = trim((string) ($current['last_name'] ?? ''));
+    if ($lastName !== '' && $applicationNo !== '') {
+        return 'Mr./Ms. ' . $lastName . ', Application No. ' . $applicationNo;
+    }
+    if ($applicationNo !== '') {
+        return 'Application No. ' . $applicationNo;
+    }
+    if ($lastName !== '') {
+        return 'Mr./Ms. ' . $lastName;
+    }
+    return '';
+};
+$prependApplicantReference = static function (string $message, array $current) use ($formatApplicantReference): string {
+    $reference = $formatApplicantReference($current);
+    $message = trim($message);
+    if ($reference === '' || $message === '') {
+        return $message;
+    }
+    if (str_starts_with($message, $reference)) {
+        return $message;
+    }
+    if (preg_match('/^(San Enrique LGU Scholarship:)\s*(.*)$/', $message, $matches) === 1) {
+        return $matches[1] . ' ' . $reference . '. ' . ltrim((string) ($matches[2] ?? ''));
+    }
+    return $reference . ': ' . $message;
+};
 $upsertSoaDeadlineAnnouncement = static function (mysqli $conn, string $deadline, ?array $periodContext = null): void {
     if (
         !db_ready()
@@ -196,13 +173,13 @@ $upsertSoaDeadlineAnnouncement = static function (mysqli $conn, string $deadline
         $title .= ' - ' . $periodLabel;
     }
 
-    $content = 'The San Enrique LGU Scholarship Office announces that scholars/applicants who are required to submit their Original Student\'s Copy / Statement of Account (SOA) must do so on or before '
+    $content = 'The San Enrique LGU Scholarship Office announces that scholars/applicants who are required to submit their Original Student\'s Copy / Statement of Account (SOA) must upload it online on or before '
         . $deadlineLabel
-        . ' at the Mayor\'s Office, San Enrique, Negros Occidental.'
+        . '.'
         . "\n\n"
-        . 'Please bring your complete SOA/Student\'s Copy and submit within the stated period for proper processing of your scholarship application.'
+        . 'Please upload a clear and complete SOA/Student\'s Copy within the stated period for proper processing of your scholarship application.'
         . "\n\n"
-        . 'For questions or clarification, please visit the Mayor\'s Office during working hours.';
+        . 'After upload, the scholarship office will review and confirm your submission. For questions or clarification, please contact or visit the Mayor\'s Office during working hours.';
 
     $currentUser = current_user();
     $currentUserId = (int) ($currentUser['id'] ?? 0);
@@ -281,7 +258,7 @@ $statusSmsTemplateConfig = [
     ],
     'for_soa' => [
         'template' => 'SOA Submission Required',
-        'fallback' => 'San Enrique LGU Scholarship: Please submit the SOA for application [Application No] on or before [Deadline].',
+        'fallback' => 'San Enrique LGU Scholarship: Please upload the SOA online for application [Application No] on or before [Deadline].',
     ],
     'approved_for_release' => [
         'template' => 'Approved for Release',
@@ -296,12 +273,18 @@ $statusSmsTemplateConfig = [
         'fallback' => 'San Enrique LGU Scholarship: Application [Application No] was not approved.',
     ],
 ];
-$buildStatusSmsMessage = static function (string $newStatus, array $current, ?string $deadline = null) use ($conn, $statusSmsTemplateConfig, $resolveSmsTemplate, $renderSmsTemplate): string {
+$buildStatusSmsMessage = static function (string $newStatus, array $current, ?string $deadline = null) use ($conn, $statusSmsTemplateConfig, $resolveSmsTemplate, $renderSmsTemplate, $prependApplicantReference): string {
     $applicationNo = (string) ($current['application_no'] ?? '');
     $statusText = strtoupper(str_replace('_', ' ', $newStatus));
     $deadlineText = 'the announced deadline';
     if ($deadline !== null && trim($deadline) !== '') {
         $deadlineText = date('M d, Y', strtotime($deadline));
+    }
+    if ($newStatus === 'for_soa' && ($deadline === null || trim($deadline) === '')) {
+        return $prependApplicantReference(
+            'San Enrique LGU Scholarship: Please wait for the SOA submission deadline and further instructions.',
+            $current
+        );
     }
 
     $config = $statusSmsTemplateConfig[$newStatus] ?? null;
@@ -311,14 +294,15 @@ $buildStatusSmsMessage = static function (string $newStatus, array $current, ?st
             (string) ($config['template'] ?? ''),
             (string) ($config['fallback'] ?? '')
         );
-        return $renderSmsTemplate($templateBody, [
+        return $prependApplicantReference($renderSmsTemplate($templateBody, [
             '[Application No]' => $applicationNo,
+            '[Last Name]' => (string) ($current['last_name'] ?? ''),
             '[Status]' => $statusText,
             '[Deadline]' => $deadlineText,
-        ]);
+        ]), $current);
     }
 
-    return 'San Enrique LGU Scholarship: Application ' . $applicationNo . ' has been updated.';
+    return $prependApplicantReference('San Enrique LGU Scholarship: Application ' . $applicationNo . ' has been updated.', $current);
 };
 $statusNotificationConfig = [
     'under_review' => 'Application [Application No] under review.',
@@ -328,14 +312,20 @@ $statusNotificationConfig = [
     'released' => 'Payout released for application [Application No].',
     'rejected' => 'Application [Application No] not approved.',
 ];
-$buildStatusNotificationMessage = static function (string $newStatus, array $current, ?string $deadline = null) use ($statusNotificationConfig): string {
+$buildStatusNotificationMessage = static function (string $newStatus, array $current, ?string $deadline = null) use ($statusNotificationConfig, $prependApplicantReference): string {
     $applicationNo = (string) ($current['application_no'] ?? '');
     $template = (string) ($statusNotificationConfig[$newStatus] ?? 'Application [Application No] updated.');
     $deadlineText = $deadline !== null && trim($deadline) !== '' ? date('M d, Y', strtotime($deadline)) : 'the announced deadline';
-    return strtr($template, [
+    if ($newStatus === 'for_soa' && ($deadline === null || trim($deadline) === '')) {
+        return $prependApplicantReference(
+            'Please wait for the SOA submission deadline and further instructions.',
+            $current
+        );
+    }
+    return $prependApplicantReference(strtr($template, [
         '[Application No]' => $applicationNo,
         '[Deadline]' => $deadlineText,
-    ]);
+    ]), $current);
 };
 
 if (is_post() && db_ready()) {
@@ -361,7 +351,7 @@ if (is_post() && db_ready()) {
             }
 
             $stmtCurrent = $conn->prepare(
-                "SELECT a.application_no, a.status, a.application_period_id, a.semester, a.school_year, u.id AS user_id, u.phone
+                "SELECT a.application_no, a.status, a.application_period_id, a.semester, a.school_year, u.id AS user_id, u.phone, u.last_name
                  FROM applications a
                  INNER JOIN users u ON u.id = a.user_id
                  WHERE a.id = ?
@@ -446,17 +436,19 @@ if (is_post() && db_ready()) {
                 $message = 'San Enrique LGU Scholarship: Application [Application No] requires resubmission of the following: [Missing Documents].';
                 $message = $renderSmsTemplate($message, [
                     '[Application No]' => (string) ($current['application_no'] ?? ''),
+                    '[Last Name]' => (string) ($current['last_name'] ?? ''),
                     '[Missing Documents]' => $missingListText,
                 ]);
                 if ($reviewNotes !== '') {
                     $message .= ' Notes: ' . $reviewNotes;
                 }
+                $message = $prependApplicantReference($message, $current);
                 sms_send((string) ($current['phone'] ?? ''), $message, (int) ($current['user_id'] ?? 0), 'status_update');
                 create_notification(
                     $conn,
                     (int) ($current['user_id'] ?? 0),
                     'Document Resubmission Required',
-                    'Application ' . (string) ($current['application_no'] ?? '') . ' needs resubmission: ' . $missingListText . '.',
+                    $prependApplicantReference('Needs resubmission: ' . $missingListText . '.', $current),
                     'application_status',
                     'my-application.php',
                     (int) (current_user()['id'] ?? 0)
@@ -469,13 +461,15 @@ if (is_post() && db_ready()) {
                 );
                 $message = $renderSmsTemplate($templateBody, [
                     '[Application No]' => (string) ($current['application_no'] ?? ''),
+                    '[Last Name]' => (string) ($current['last_name'] ?? ''),
                 ]);
+                $message = $prependApplicantReference($message, $current);
                 sms_send((string) ($current['phone'] ?? ''), $message, (int) ($current['user_id'] ?? 0), 'status_update');
                 create_notification(
                     $conn,
                     (int) ($current['user_id'] ?? 0),
                     'Document Review Passed',
-                    'Application ' . (string) ($current['application_no'] ?? '') . ' documents have been verified. Please wait for further updates.',
+                    $prependApplicantReference('Documents have been verified. Please wait for further updates.', $current),
                     'application_status',
                     'my-application.php',
                     (int) (current_user()['id'] ?? 0)
@@ -546,7 +540,7 @@ if (is_post() && db_ready()) {
             foreach ($applicationIds as $applicationId) {
                 $stmtCurrent = $conn->prepare(
                     "SELECT a.application_no, a.status, a.soa_submission_deadline, a.soa_submitted_at, a.interview_date, a.interview_location,
-                            a.application_period_id, a.semester, a.school_year, u.id AS user_id, u.phone
+                            a.application_period_id, a.semester, a.school_year, u.id AS user_id, u.phone, u.last_name
                      FROM applications a
                      INNER JOIN users u ON u.id = a.user_id
                      WHERE a.id = ?
@@ -597,11 +591,6 @@ if (is_post() && db_ready()) {
                 if ($isAdmin && $soaDeadline !== null) {
                     $deadlineToSave = $soaDeadline;
                 }
-                if ($newStatus === 'for_soa' && $deadlineToSave === null) {
-                    $skippedCount++;
-                    continue;
-                }
-
                 $currentSubmittedAt = trim((string) ($current['soa_submitted_at'] ?? ''));
                 $soaSubmittedAt = $currentSubmittedAt !== '' ? $currentSubmittedAt : null;
                 if ($newStatus === 'for_soa') {
@@ -625,21 +614,21 @@ if (is_post() && db_ready()) {
                     if ($statusChanged) {
                         $message = $buildStatusSmsMessage($newStatus, $current, $deadlineToSave);
                     } else {
-                        $message = 'San Enrique LGU Scholarship: SOA/Student\'s Copy deadline for application ' . $current['application_no'] . ' has been updated.';
+                        $message = $prependApplicantReference('San Enrique LGU Scholarship: SOA/Student\'s Copy upload deadline has been updated.', $current);
                     }
 
                     if ($newStatus === 'for_soa' && $deadlineToSave !== null) {
                         $message .= ' Deadline: ' . date('M d, Y', strtotime((string) $deadlineToSave))
-                            . '. Please submit your SOA/Student\'s Copy at the Mayor\'s Office.';
+                            . '. Please upload your SOA/Student\'s Copy online.';
                     }
                     sms_send((string) ($current['phone'] ?? ''), $message, (int) ($current['user_id'] ?? 0), 'status_update');
 
                     $notificationTitle = $statusChanged ? 'Application Status Updated' : 'SOA Deadline Updated';
                     $notificationMessage = $statusChanged
                         ? $buildStatusNotificationMessage($newStatus, $current, $deadlineToSave)
-                        : 'SOA/Student\'s Copy deadline for application ' . (string) ($current['application_no'] ?? '') . ' has been updated.';
+                        : $prependApplicantReference('SOA/Student\'s Copy upload deadline has been updated.', $current);
                     if ($newStatus === 'for_soa' && $deadlineToSave !== null) {
-                        $notificationMessage .= ' Deadline: ' . date('M d, Y', strtotime((string) $deadlineToSave)) . '. Please submit your SOA/Student\'s Copy at the Mayor\'s Office.';
+                        $notificationMessage .= ' Deadline: ' . date('M d, Y', strtotime((string) $deadlineToSave)) . '. Please upload your SOA/Student\'s Copy online.';
                     }
                     create_notification(
                         $conn,
@@ -676,7 +665,7 @@ if (is_post() && db_ready()) {
                 if ($skippedCount > 0) {
                     $message .= ', skipped ' . $skippedCount . '.';
                     if ($newStatus === 'for_soa') {
-                        $message .= ' Move to SOA requires interview date/time and location to be set first.';
+                        $message .= ' Interview completion requires interview date/time and location to be set first.';
                     }
                 } else {
                     $message .= '.';
@@ -692,24 +681,99 @@ if (is_post() && db_ready()) {
             $interviewDate = trim((string) ($_POST['interview_date'] ?? ''));
             $interviewTime = trim((string) ($_POST['interview_time'] ?? ''));
             $interviewLocation = trim((string) ($_POST['interview_location'] ?? 'Mayor\'s Office, San Enrique'));
-            $selectedIdsRaw = $_POST['application_ids'] ?? [];
-            if (!is_array($selectedIdsRaw)) {
-                $selectedIdsRaw = [];
+            $selectedSchoolTypes = $_POST['school_types'] ?? [];
+            if (!is_array($selectedSchoolTypes)) {
+                $selectedSchoolTypes = [];
             }
-            $applicationIds = array_values(array_unique(array_filter(array_map('intval', $selectedIdsRaw), static function ($id): bool {
-                return $id > 0;
-            })));
+            $selectedSchoolTypes = array_values(array_unique(array_filter(array_map(
+                static fn($value): string => strtolower(trim((string) $value)),
+                $selectedSchoolTypes
+            ), static fn($value): bool => in_array($value, ['public', 'private'], true))));
+            $selectedBarangays = $_POST['barangays'] ?? [];
+            if (!is_array($selectedBarangays)) {
+                $selectedBarangays = [];
+            }
+            $selectedBarangays = array_values(array_unique(array_filter(array_map(
+                static fn($value): string => trim((string) $value),
+                $selectedBarangays
+            ), static fn($value): bool => in_array($value, $allowedBarangays, true))));
 
             if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $interviewDate) !== 1 || preg_match('/^\d{2}:\d{2}$/', $interviewTime) !== 1) {
                 set_flash('danger', 'Provide a valid interview date and time.');
                 redirect($redirectUrl);
             }
-            if (!$applicationIds) {
-                set_flash('danger', 'Select at least one application for interview scheduling.');
+            if (!$selectedSchoolTypes) {
+                set_flash('warning', 'Please select at least one school type for batch interview scheduling.');
                 redirect($redirectUrl);
             }
             if ($interviewLocation === '') {
                 $interviewLocation = 'Mayor\'s Office, San Enrique';
+            }
+
+            $targetWhereClauses = ["a.status = 'for_interview'", "(a.interview_date IS NULL OR a.interview_location IS NULL OR a.interview_location = '')"];
+            $targetParamTypes = '';
+            $targetParamValues = [];
+
+            if ($periodScope === 'active') {
+                $activePeriodId = (int) ($activePeriod['id'] ?? 0);
+                $activeSemester = trim((string) ($activePeriod['semester'] ?? ''));
+                $activeSchoolYear = trim((string) ($activePeriod['academic_year'] ?? ''));
+                if ($activePeriod) {
+                    if ($hasApplicationPeriodColumn && $activePeriodId > 0) {
+                        $targetWhereClauses[] = 'a.application_period_id = ?';
+                        $targetParamTypes .= 'i';
+                        $targetParamValues[] = $activePeriodId;
+                    } elseif ($activeSemester !== '' && $activeSchoolYear !== '') {
+                        $targetWhereClauses[] = 'a.semester = ? AND a.school_year = ?';
+                        $targetParamTypes .= 'ss';
+                        $targetParamValues[] = $activeSemester;
+                        $targetParamValues[] = $activeSchoolYear;
+                    }
+                }
+            }
+
+            $schoolTypePlaceholders = implode(', ', array_fill(0, count($selectedSchoolTypes), '?'));
+            $targetWhereClauses[] = 'a.school_type IN (' . $schoolTypePlaceholders . ')';
+            $targetParamTypes .= str_repeat('s', count($selectedSchoolTypes));
+            foreach ($selectedSchoolTypes as $selectedSchoolType) {
+                $targetParamValues[] = $selectedSchoolType;
+            }
+
+            if ($selectedBarangays) {
+                $barangayPlaceholders = implode(', ', array_fill(0, count($selectedBarangays), '?'));
+                $targetWhereClauses[] = 'a.barangay IN (' . $barangayPlaceholders . ')';
+                $targetParamTypes .= str_repeat('s', count($selectedBarangays));
+                foreach ($selectedBarangays as $selectedBarangay) {
+                    $targetParamValues[] = $selectedBarangay;
+                }
+            }
+
+            $targetSql = "SELECT a.id
+                          FROM applications a
+                          WHERE " . implode(' AND ', $targetWhereClauses) . "
+                          ORDER BY a.updated_at DESC, a.id DESC";
+            $applicationIds = [];
+            $targetStmt = $conn->prepare($targetSql);
+            if ($targetStmt) {
+                if ($targetParamTypes !== '') {
+                    $bindArgs = [$targetParamTypes];
+                    foreach ($targetParamValues as $index => $value) {
+                        $bindArgs[] = &$targetParamValues[$index];
+                    }
+                    call_user_func_array([$targetStmt, 'bind_param'], $bindArgs);
+                }
+                $targetStmt->execute();
+                $targetResult = $targetStmt->get_result();
+                $targetRows = $targetResult instanceof mysqli_result ? $targetResult->fetch_all(MYSQLI_ASSOC) : [];
+                $targetStmt->close();
+                $applicationIds = array_values(array_unique(array_filter(array_map(static function (array $row): int {
+                    return (int) ($row['id'] ?? 0);
+                }, $targetRows), static fn($id): bool => $id > 0)));
+            }
+
+            if (!$applicationIds) {
+                set_flash('warning', 'No not-scheduled interview applicants matched the selected batch filters.');
+                redirect($redirectUrl);
             }
 
             $interviewDateTime = $interviewDate . ' ' . $interviewTime . ':00';
@@ -718,14 +782,14 @@ if (is_post() && db_ready()) {
             $templateBody = $resolveSmsTemplate(
                 $conn,
                 'Interview Notice',
-                'San Enrique LGU Scholarship Notice: Your interview is scheduled on [Date] at [Time], [Location]. Please arrive early and bring your valid ID.'
+                'San Enrique LGU Scholarship Notice: Your interview is scheduled on [Date] at [Time], at [Location]. Please arrive early and bring a valid ID. First come, first served.'
             );
 
             $scheduledCount = 0;
             $skippedCount = 0;
             foreach ($applicationIds as $applicationId) {
                 $stmtCurrent = $conn->prepare(
-                    "SELECT a.application_no, a.status, a.application_period_id, a.semester, a.school_year, u.id AS user_id, u.phone
+                    "SELECT a.application_no, a.status, a.application_period_id, a.semester, a.school_year, u.id AS user_id, u.phone, u.last_name
                      FROM applications a
                      INNER JOIN users u ON u.id = a.user_id
                      WHERE a.id = ?
@@ -756,16 +820,19 @@ if (is_post() && db_ready()) {
                 $stmtUpdate->close();
 
                 $message = $renderSmsTemplate($templateBody, [
+                    '[Application No]' => (string) ($current['application_no'] ?? ''),
+                    '[Last Name]' => (string) ($current['last_name'] ?? ''),
                     '[Date]' => $readableDate,
                     '[Time]' => $readableTime,
                     '[Location]' => $interviewLocation,
                 ]);
+                $message = $prependApplicantReference($message, $current);
                 sms_send((string) ($current['phone'] ?? ''), $message, (int) ($current['user_id'] ?? 0), 'status_update');
                 create_notification(
                     $conn,
                     (int) ($current['user_id'] ?? 0),
                     'Interview Schedule Updated',
-                    'Your scholarship interview is scheduled on ' . $readableDate . ' at ' . $readableTime . ', ' . $interviewLocation . '.',
+                    $prependApplicantReference('Your scholarship interview is scheduled on ' . $readableDate . ' at ' . $readableTime . ', ' . $interviewLocation . '. First come, first served.', $current),
                     'interview',
                     'my-application.php',
                     (int) (current_user()['id'] ?? 0)
@@ -795,6 +862,113 @@ if (is_post() && db_ready()) {
                 set_flash('success', $message);
             } else {
                 set_flash('warning', 'No applications were scheduled. Use this action only for For Interview records.');
+            }
+            redirect($redirectUrl);
+        }
+
+        if ($action === 'bulk_complete_interview') {
+            if (!$isAdmin) {
+                set_flash('danger', 'Only admin can mark interviews as completed in bulk.');
+                redirect($redirectUrl);
+            }
+
+            $applicationIds = $_POST['application_ids'] ?? [];
+            if (!is_array($applicationIds)) {
+                $applicationIds = [];
+            }
+            $applicationIds = array_values(array_unique(array_map('intval', $applicationIds)));
+            $applicationIds = array_values(array_filter($applicationIds, static fn(int $id): bool => $id > 0));
+
+            if (!$applicationIds) {
+                set_flash('warning', 'No scheduled interview applicants are available in the current view.');
+                redirect($redirectUrl);
+            }
+
+            $updatedCount = 0;
+            $skippedCount = 0;
+            foreach ($applicationIds as $applicationId) {
+                $stmtCurrent = $conn->prepare(
+                    "SELECT a.application_no, a.status, a.soa_submission_deadline, a.soa_submitted_at, a.interview_date, a.interview_location,
+                            a.application_period_id, a.semester, a.school_year, u.id AS user_id, u.phone, u.last_name
+                     FROM applications a
+                     INNER JOIN users u ON u.id = a.user_id
+                     WHERE a.id = ?
+                     LIMIT 1"
+                );
+                $stmtCurrent->bind_param('i', $applicationId);
+                $stmtCurrent->execute();
+                $current = $stmtCurrent->get_result()->fetch_assoc();
+                $stmtCurrent->close();
+
+                if (!$current) {
+                    $skippedCount++;
+                    continue;
+                }
+                if (!$allowArchivedUpdates && $isArchivedApplication($current)) {
+                    $skippedCount++;
+                    continue;
+                }
+
+                $currentStatus = (string) ($current['status'] ?? '');
+                $hasInterviewSchedule = trim((string) ($current['interview_date'] ?? '')) !== ''
+                    && trim((string) ($current['interview_location'] ?? '')) !== '';
+                if ($currentStatus !== 'for_interview' || !$hasInterviewSchedule) {
+                    $skippedCount++;
+                    continue;
+                }
+
+                $soaSubmittedAt = null;
+                $stmt = $conn->prepare(
+                    "UPDATE applications
+                     SET status = 'for_soa', soa_submitted_at = ?, updated_at = NOW()
+                     WHERE id = ?"
+                );
+                $stmt->bind_param('si', $soaSubmittedAt, $applicationId);
+                $stmt->execute();
+                $stmt->close();
+
+                $message = $buildStatusSmsMessage('for_soa', $current, null);
+                sms_send((string) ($current['phone'] ?? ''), $message, (int) ($current['user_id'] ?? 0), 'status_update');
+
+                $notificationMessage = $buildStatusNotificationMessage('for_soa', $current, null);
+                create_notification(
+                    $conn,
+                    (int) ($current['user_id'] ?? 0),
+                    'Application Status Updated',
+                    $notificationMessage,
+                    'application_status',
+                    'my-application.php',
+                    (int) (current_user()['id'] ?? 0)
+                );
+
+                audit_log(
+                    $conn,
+                    'application_interview_bulk_completed',
+                    null,
+                    null,
+                    'application',
+                    (string) $applicationId,
+                    'Interview marked completed via bulk action.',
+                    [
+                        'application_no' => (string) ($current['application_no'] ?? ''),
+                        'previous_status' => $currentStatus,
+                        'new_status' => 'for_soa',
+                    ]
+                );
+
+                $updatedCount++;
+            }
+
+            if ($updatedCount > 0) {
+                $message = 'Bulk interview completion complete. Updated ' . $updatedCount . ' application(s)';
+                if ($skippedCount > 0) {
+                    $message .= ', skipped ' . $skippedCount . '.';
+                } else {
+                    $message .= '.';
+                }
+                set_flash('success', $message);
+            } else {
+                set_flash('warning', 'No scheduled interview applications were updated.');
             }
             redirect($redirectUrl);
         }
@@ -871,7 +1045,7 @@ if (is_post() && db_ready()) {
             }
 
             $stmtTargets = $conn->prepare(
-                "SELECT a.id, a.application_no, a.soa_submission_deadline, a.application_period_id, a.semester, a.school_year, u.id AS user_id, u.phone
+                "SELECT a.id, a.application_no, a.soa_submission_deadline, a.application_period_id, a.semester, a.school_year, u.id AS user_id, u.phone, u.last_name
                  FROM applications a
                  INNER JOIN users u ON u.id = a.user_id
                  WHERE {$targetWhereSql}"
@@ -889,7 +1063,7 @@ if (is_post() && db_ready()) {
             $templateBody = $resolveSmsTemplate(
                 $conn,
                 'SOA / Student Copy Reminder',
-                'San Enrique LGU Scholarship Reminder: Kindly submit your SOA/Student\'s Copy at the Mayor\'s Office on or before [Deadline]. If you have already submitted it, please disregard this message.'
+                'San Enrique LGU Scholarship Reminder: Kindly upload your SOA/Student\'s Copy online on or before [Deadline]. If you have already submitted it, please disregard this message.'
             );
             $hasDisregard = stripos($templateBody, 'disregard') !== false;
             $disregardText = $hasDisregard ? '' : ' If you have already submitted it, please disregard this message.';
@@ -902,15 +1076,18 @@ if (is_post() && db_ready()) {
                 $deadlineRaw = trim((string) ($current['soa_submission_deadline'] ?? ''));
                 $deadlineText = $deadlineRaw !== '' ? date('M d, Y', strtotime($deadlineRaw)) : 'the announced deadline';
                 $message = $renderSmsTemplate($templateBody, [
+                    '[Application No]' => (string) ($current['application_no'] ?? ''),
+                    '[Last Name]' => (string) ($current['last_name'] ?? ''),
                     '[Deadline]' => $deadlineText,
                 ]) . $disregardText;
+                $message = $prependApplicantReference($message, $current);
 
                 sms_send((string) ($current['phone'] ?? ''), $message, (int) ($current['user_id'] ?? 0), 'status_update');
                 create_notification(
                     $conn,
                     (int) ($current['user_id'] ?? 0),
                     'SOA Reminder',
-                    'Please submit your SOA/Student\'s Copy on or before ' . $deadlineText . '. If already submitted, disregard this reminder.',
+                    $prependApplicantReference('Please upload your SOA/Student\'s Copy online on or before ' . $deadlineText . '. If already submitted, disregard this reminder.', $current),
                     'application_status',
                     'my-application.php',
                     (int) (current_user()['id'] ?? 0)
@@ -980,7 +1157,7 @@ if (is_post() && db_ready()) {
             $skippedCount = 0;
             foreach ($applicationIds as $applicationId) {
                 $stmtCurrent = $conn->prepare(
-                    "SELECT a.application_no, a.status, a.application_period_id, a.semester, a.school_year, u.id AS user_id, u.phone
+                    "SELECT a.application_no, a.status, a.application_period_id, a.semester, a.school_year, u.id AS user_id, u.phone, u.last_name
                      FROM applications a
                      INNER JOIN users u ON u.id = a.user_id
                      WHERE a.id = ?
@@ -1018,15 +1195,16 @@ if (is_post() && db_ready()) {
                 $stmtUpdate->close();
 
                 $deadlineLabel = date('M d, Y', strtotime($soaDeadline));
-                $message = 'San Enrique LGU Scholarship: Application ' . (string) ($current['application_no'] ?? '')
-                    . ' SOA/Student\'s Copy deadline is set to ' . $deadlineLabel
-                    . '. Please submit at the Mayor\'s Office.';
+                $message = $prependApplicantReference(
+                    'San Enrique LGU Scholarship: SOA/Student\'s Copy upload deadline is set to ' . $deadlineLabel . '. Please upload your SOA online.',
+                    $current
+                );
                 sms_send((string) ($current['phone'] ?? ''), $message, (int) ($current['user_id'] ?? 0), 'status_update');
                 create_notification(
                     $conn,
                     (int) ($current['user_id'] ?? 0),
                     'SOA Submission Deadline Set',
-                    'SOA/Student\'s Copy deadline is set to ' . $deadlineLabel . ' for application ' . (string) ($current['application_no'] ?? '') . '.',
+                    $prependApplicantReference('SOA/Student\'s Copy deadline is set to ' . $deadlineLabel . '.', $current),
                     'application_status',
                     'my-application.php',
                     (int) (current_user()['id'] ?? 0)
@@ -1080,7 +1258,7 @@ if (is_post() && db_ready()) {
             }
 
             $stmtCurrent = $conn->prepare(
-                "SELECT a.application_no, a.status, a.soa_submitted_at, a.application_period_id, a.semester, a.school_year, u.id AS user_id, u.phone
+                "SELECT a.application_no, a.status, a.soa_submitted_at, a.application_period_id, a.semester, a.school_year, u.id AS user_id, u.phone, u.last_name
                  FROM applications a
                  INNER JOIN users u ON u.id = a.user_id
                  WHERE a.id = ?
@@ -1106,10 +1284,6 @@ if (is_post() && db_ready()) {
 
             $updatedStatus = (string) $current['status'];
             $soaSubmittedAt = (string) ($current['soa_submitted_at'] ?? '');
-            if ($updatedStatus === 'for_interview') {
-                $updatedStatus = 'for_soa';
-                $soaSubmittedAt = '';
-            }
             $soaSubmittedAt = $soaSubmittedAt !== '' ? $soaSubmittedAt : null;
 
             $stmt = $conn->prepare(
@@ -1121,16 +1295,18 @@ if (is_post() && db_ready()) {
             $stmt->execute();
             $stmt->close();
 
-            $message = 'San Enrique LGU Scholarship: Application ' . $current['application_no']
-                . ' SOA/Student\'s Copy submission deadline is set to '
+            $message = $prependApplicantReference(
+                'San Enrique LGU Scholarship: SOA/Student\'s Copy upload deadline is set to '
                 . date('M d, Y', strtotime($soaDeadline))
-                . '. Please submit your SOA/Student\'s Copy at the Mayor\'s Office.';
+                . '. Please upload your SOA/Student\'s Copy online.',
+                $current
+            );
             sms_send((string) ($current['phone'] ?? ''), $message, (int) ($current['user_id'] ?? 0), 'status_update');
             create_notification(
                 $conn,
                 (int) ($current['user_id'] ?? 0),
                 'SOA Submission Deadline Set',
-                'Application ' . (string) ($current['application_no'] ?? '') . ' deadline: ' . date('M d, Y', strtotime($soaDeadline)) . '. Please submit your SOA/Student\'s Copy at the Mayor\'s Office.',
+                $prependApplicantReference('Deadline: ' . date('M d, Y', strtotime($soaDeadline)) . '. Please upload your SOA/Student\'s Copy online.', $current),
                 'application_status',
                 'my-application.php',
                 (int) (current_user()['id'] ?? 0)
@@ -1171,7 +1347,7 @@ if (is_post() && db_ready()) {
             }
 
             $stmtCurrent = $conn->prepare(
-                "SELECT a.application_no, a.status, a.soa_submitted_at, a.application_period_id, a.semester, a.school_year, u.id AS user_id, u.phone
+                "SELECT a.application_no, a.status, a.soa_submitted_at, a.application_period_id, a.semester, a.school_year, u.id AS user_id, u.phone, u.last_name
                  FROM applications a
                  INNER JOIN users u ON u.id = a.user_id
                  WHERE a.id = ?
@@ -1214,14 +1390,16 @@ if (is_post() && db_ready()) {
             $stmt->close();
 
             if ((string) $current['status'] !== $newStatus) {
-                $message = 'San Enrique LGU Scholarship: Application ' . $current['application_no']
-                    . ' SOA/Student\'s Copy has been received by the scholarship office.';
+                $message = $prependApplicantReference(
+                    'San Enrique LGU Scholarship: Your uploaded SOA/Student\'s Copy has been received by the scholarship office.',
+                    $current
+                );
                 sms_send((string) ($current['phone'] ?? ''), $message, (int) ($current['user_id'] ?? 0), 'status_update');
                 create_notification(
                     $conn,
                     (int) ($current['user_id'] ?? 0),
                     'Approved for Release',
-                    'Your application ' . (string) ($current['application_no'] ?? '') . ' has completed SOA review and is approved for release.',
+                    $prependApplicantReference('Your application has completed SOA review and is approved for release.', $current),
                     'application_status',
                     'my-application.php',
                     (int) (current_user()['id'] ?? 0)
@@ -1242,6 +1420,123 @@ if (is_post() && db_ready()) {
             );
 
             set_flash('success', 'Application approved for release.');
+            redirect($redirectUrl);
+        }
+
+        if ($action === 'request_soa_resubmission') {
+            $applicationId = (int) ($_POST['application_id'] ?? 0);
+            $soaReviewNotes = trim((string) ($_POST['soa_review_notes'] ?? ''));
+            if ($applicationId <= 0) {
+                set_flash('danger', 'Invalid application update.');
+                redirect($redirectUrl);
+            }
+            if ($soaReviewNotes === '') {
+                set_flash('danger', 'Provide a reason before requesting SOA resubmission.');
+                redirect($redirectUrl);
+            }
+
+            $stmtCurrent = $conn->prepare(
+                "SELECT a.application_no, a.status, a.application_period_id, a.semester, a.school_year,
+                        u.id AS user_id, u.phone, u.last_name
+                 FROM applications a
+                 INNER JOIN users u ON u.id = a.user_id
+                 WHERE a.id = ?
+                 LIMIT 1"
+            );
+            $stmtCurrent->bind_param('i', $applicationId);
+            $stmtCurrent->execute();
+            $current = $stmtCurrent->get_result()->fetch_assoc();
+            $stmtCurrent->close();
+
+            if (!$current) {
+                set_flash('danger', 'Application not found.');
+                redirect($redirectUrl);
+            }
+            if (!$allowArchivedUpdates && $isArchivedApplication($current)) {
+                set_flash('warning', 'This application belongs to an archived period. Enable archived updates to modify it.');
+                redirect($redirectUrl);
+            }
+            if ((string) $current['status'] !== 'for_soa') {
+                set_flash('danger', 'Application is not currently waiting for SOA submission.');
+                redirect($redirectUrl);
+            }
+
+            $stmtSoaDoc = $conn->prepare(
+                "SELECT id
+                 FROM application_documents
+                 WHERE application_id = ?
+                   AND requirement_name = 'Original Student Copy / Statement of Account (SOA)'
+                 ORDER BY id ASC
+                 LIMIT 1"
+            );
+            $stmtSoaDoc->bind_param('i', $applicationId);
+            $stmtSoaDoc->execute();
+            $soaDoc = $stmtSoaDoc->get_result()->fetch_assoc();
+            $stmtSoaDoc->close();
+
+            if (!$soaDoc) {
+                set_flash('danger', 'No uploaded SOA was found for this application.');
+                redirect($redirectUrl);
+            }
+
+            $remarks = 'SOA resubmission requested on ' . date('M d, Y h:i A');
+            if ($soaReviewNotes !== '') {
+                $remarks .= '. ' . $soaReviewNotes;
+            }
+
+            $stmt = $conn->prepare(
+                "UPDATE application_documents
+                 SET verification_status = 'rejected', remarks = ?, uploaded_at = uploaded_at
+                 WHERE id = ?
+                   AND application_id = ?
+                 LIMIT 1"
+            );
+            $soaDocId = (int) ($soaDoc['id'] ?? 0);
+            $stmt->bind_param('sii', $remarks, $soaDocId, $applicationId);
+            $stmt->execute();
+            $stmt->close();
+
+            $message = $prependApplicantReference(
+                'San Enrique LGU Scholarship: Your uploaded SOA/Student\'s Copy needs correction. Please replace it with a corrected file.',
+                $current
+            );
+            if ($soaReviewNotes !== '') {
+                $message .= ' Note: ' . $soaReviewNotes;
+            }
+            sms_send((string) ($current['phone'] ?? ''), $message, (int) ($current['user_id'] ?? 0), 'status_update');
+
+            $notificationMessage = $prependApplicantReference(
+                'Your uploaded SOA/Student\'s Copy needs correction. Please replace it with a corrected file.',
+                $current
+            );
+            if ($soaReviewNotes !== '') {
+                $notificationMessage .= ' Note: ' . $soaReviewNotes;
+            }
+            create_notification(
+                $conn,
+                (int) ($current['user_id'] ?? 0),
+                'SOA Resubmission Requested',
+                $notificationMessage,
+                'application_status',
+                'my-application.php',
+                (int) (current_user()['id'] ?? 0)
+            );
+
+            audit_log(
+                $conn,
+                'application_request_soa_resubmission',
+                null,
+                null,
+                'application',
+                (string) $applicationId,
+                'SOA resubmission requested.',
+                [
+                    'application_no' => (string) ($current['application_no'] ?? ''),
+                    'remarks' => $soaReviewNotes !== '' ? $soaReviewNotes : null,
+                ]
+            );
+
+            set_flash('success', 'SOA resubmission requested from the applicant.');
             redirect($redirectUrl);
         }
 
@@ -1269,7 +1564,7 @@ if (is_post() && db_ready()) {
 
         $stmtCurrent = $conn->prepare(
             "SELECT a.application_no, a.status, a.soa_submission_deadline, a.soa_submitted_at, a.interview_date, a.interview_location,
-                    a.application_period_id, a.semester, a.school_year, u.id AS user_id, u.phone
+                    a.application_period_id, a.semester, a.school_year, u.id AS user_id, u.phone, u.last_name
              FROM applications a
              INNER JOIN users u ON u.id = a.user_id
              WHERE a.id = ?
@@ -1325,7 +1620,7 @@ if (is_post() && db_ready()) {
         }
         if ($newStatus === 'for_soa') {
             if (!$isAdmin) {
-                set_flash('danger', 'Only admin can move application to SOA submission stage.');
+                set_flash('danger', 'Only admin can mark the interview as completed and move the application to SOA submission.');
                 redirect($redirectUrl);
             }
             $hasInterviewSchedule = $interviewDateTimeToSave !== null
@@ -1333,7 +1628,7 @@ if (is_post() && db_ready()) {
                 && $interviewLocationToSave !== null
                 && trim((string) $interviewLocationToSave) !== '';
             if (!in_array($currentStatus, ['for_interview', 'for_soa'], true) || !$hasInterviewSchedule) {
-                set_flash('danger', 'Only scheduled interview applications can be moved to SOA submission stage.');
+                set_flash('danger', 'Set the interview schedule first before marking the interview as completed.');
                 redirect($redirectUrl);
             }
         }
@@ -1354,10 +1649,6 @@ if (is_post() && db_ready()) {
         $deadlineToSave = $currentDeadline !== '' ? $currentDeadline : null;
         if ($isAdmin && $soaDeadline !== null) {
             $deadlineToSave = $soaDeadline;
-        }
-        if ($newStatus === 'for_soa' && $deadlineToSave === null) {
-            set_flash('danger', 'Set an SOA submission deadline before moving to SOA submission stage.');
-            redirect($redirectUrl);
         }
 
         $currentSubmittedAt = trim((string) ($current['soa_submitted_at'] ?? ''));
@@ -1388,20 +1679,23 @@ if (is_post() && db_ready()) {
                 $interviewTemplateBody = $resolveSmsTemplate(
                     $conn,
                     'Interview Notice',
-                    'San Enrique LGU Scholarship Notice: Your interview is scheduled on [Date] at [Time], [Location]. Please arrive early and bring your valid ID.'
+                    'San Enrique LGU Scholarship Notice: Your interview is scheduled on [Date] at [Time], at [Location]. Please arrive early and bring a valid ID. First come, first served.'
                 );
                 $message = $renderSmsTemplate($interviewTemplateBody, [
+                    '[Application No]' => (string) ($current['application_no'] ?? ''),
+                    '[Last Name]' => (string) ($current['last_name'] ?? ''),
                     '[Date]' => date('M d, Y', strtotime((string) $interviewDateTimeToSave)),
                     '[Time]' => date('h:i A', strtotime((string) $interviewDateTimeToSave)),
                     '[Location]' => (string) $interviewLocationToSave,
                 ]);
+                $message = $prependApplicantReference($message, $current);
             } else {
-                $message = 'San Enrique LGU Scholarship: SOA/Student\'s Copy deadline for application ' . $current['application_no'] . ' has been updated.';
+                $message = $prependApplicantReference('San Enrique LGU Scholarship: SOA/Student\'s Copy upload deadline has been updated.', $current);
             }
 
             if ($newStatus === 'for_soa' && $deadlineToSave !== null) {
                 $message .= ' Deadline: ' . date('M d, Y', strtotime($deadlineToSave))
-                    . '. Please submit your SOA/Student\'s Copy at the Mayor\'s Office.';
+                    . '. Please upload your SOA/Student\'s Copy online.';
             }
             sms_send((string) ($current['phone'] ?? ''), $message, (int) ($current['user_id'] ?? 0), 'status_update');
 
@@ -1409,10 +1703,10 @@ if (is_post() && db_ready()) {
             $notificationMessage = $statusChanged
                 ? $buildStatusNotificationMessage($newStatus, $current, $deadlineToSave)
                 : ($scheduleChanged && $newStatus === 'for_interview' && $interviewDateTimeToSave !== null && $interviewLocationToSave !== null
-                    ? 'Your scholarship interview is scheduled on ' . date('M d, Y', strtotime((string) $interviewDateTimeToSave)) . ' at ' . date('h:i A', strtotime((string) $interviewDateTimeToSave)) . ', ' . (string) $interviewLocationToSave . '.'
-                    : 'SOA/Student\'s Copy deadline for application ' . (string) ($current['application_no'] ?? '') . ' has been updated.');
+                    ? $prependApplicantReference('Your scholarship interview is scheduled on ' . date('M d, Y', strtotime((string) $interviewDateTimeToSave)) . ' at ' . date('h:i A', strtotime((string) $interviewDateTimeToSave)) . ', ' . (string) $interviewLocationToSave . '. First come, first served.', $current)
+                    : $prependApplicantReference('SOA/Student\'s Copy upload deadline has been updated.', $current));
             if ($newStatus === 'for_soa' && $deadlineToSave !== null) {
-                $notificationMessage .= ' Deadline: ' . date('M d, Y', strtotime((string) $deadlineToSave)) . '. Please submit your SOA/Student\'s Copy at the Mayor\'s Office.';
+                $notificationMessage .= ' Deadline: ' . date('M d, Y', strtotime((string) $deadlineToSave)) . '. Please upload your SOA/Student\'s Copy online.';
             }
             create_notification(
                 $conn,
@@ -1589,13 +1883,28 @@ if ($currentPage > $tableTotalPages) {
 $tableOffset = ($currentPage - 1) * $rowsPerPage;
 $tableApplications = array_slice($tableApplications, $tableOffset, $rowsPerPage);
 
+$toolbarBarangayOptions = [];
+$toolbarSchoolTypeOptions = [];
+foreach ($tableApplications as $row) {
+    $barangayValue = trim((string) ($row['barangay'] ?? ''));
+    if ($barangayValue !== '') {
+        $toolbarBarangayOptions[$barangayValue] = $barangayValue;
+    }
+    $schoolTypeValue = strtolower(trim((string) ($row['school_type'] ?? '')));
+    if ($schoolTypeValue !== '') {
+        $toolbarSchoolTypeOptions[$schoolTypeValue] = ucfirst($schoolTypeValue);
+    }
+}
+ksort($toolbarBarangayOptions, SORT_NATURAL | SORT_FLAG_CASE);
+ksort($toolbarSchoolTypeOptions, SORT_NATURAL | SORT_FLAG_CASE);
+
 $buildQueuePageUrl = static function (int $page, ?int $rows = null) use ($queueFilter, $periodScope, $allowArchivedUpdates, $rowsPerPage): string {
     $query = [];
     if ($queueFilter !== '' && $queueFilter !== 'under_review') {
         $query['queue'] = $queueFilter;
     }
     $effectiveRows = $rows ?? $rowsPerPage;
-    if ($effectiveRows !== 20) {
+    if ($effectiveRows !== 10) {
         $query['rows'] = $effectiveRows;
     }
     if ($page > 1) {
@@ -1616,8 +1925,9 @@ include __DIR__ . '/../../includes/header.php';
 
 <style>
     .applications-hero {
-        border: 1px solid rgba(13, 110, 253, 0.12);
-        background: linear-gradient(140deg, #f6f9ff 0%, #ffffff 55%, #eef5ff 100%);
+        border: 1px solid rgba(33, 76, 108, 0.08);
+        background: #fff;
+        box-shadow: none;
     }
     .applications-hero .hero-note {
         font-size: 0.82rem;
@@ -1716,14 +2026,14 @@ include __DIR__ . '/../../includes/header.php';
     }
     .review-board-shell {
         display: grid;
-        gap: 1rem;
+        gap: 0.75rem;
     }
     .review-board-panel {
-        border: 1px solid rgba(33, 76, 108, 0.08);
-        border-radius: 1rem;
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 250, 255, 0.96));
-        box-shadow: 0 14px 28px rgba(33, 76, 108, 0.05);
-        overflow: hidden;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        overflow: visible;
     }
     .review-board-panel-head {
         display: flex;
@@ -1746,7 +2056,7 @@ include __DIR__ . '/../../includes/header.php';
         color: #6b7280;
     }
     .review-board-panel-body {
-        padding: 1rem;
+        padding: 0.85rem 1rem;
     }
     .review-board-summary {
         display: inline-flex;
@@ -1777,13 +2087,14 @@ include __DIR__ . '/../../includes/header.php';
     }
     .review-board-actions {
         display: grid;
-        gap: 0.85rem;
+        gap: 0.6rem;
     }
     .review-board-action-block {
-        border: 1px dashed rgba(45, 143, 213, 0.2);
-        border-radius: 0.9rem;
-        padding: 0.85rem 0.9rem;
-        background: rgba(255, 255, 255, 0.82);
+        border: 0;
+        border-top: 1px solid rgba(33, 76, 108, 0.08);
+        border-radius: 0;
+        padding: 0.75rem 0;
+        background: transparent;
         display: grid;
         grid-template-columns: repeat(12, minmax(0, 1fr));
         gap: 0.75rem;
@@ -1802,7 +2113,8 @@ include __DIR__ . '/../../includes/header.php';
     .review-board-action-block--interview {
         display: flex;
         flex-wrap: nowrap;
-        align-items: flex-end;
+        align-items: center;
+        justify-content: flex-end;
         gap: 0.75rem;
     }
     .review-board-action-block--interview > * {
@@ -1839,7 +2151,7 @@ include __DIR__ . '/../../includes/header.php';
     }
     .review-board-filters {
         display: grid;
-        gap: 0.75rem;
+        gap: 0.35rem;
     }
     .review-board-filter-bar {
         display: flex;
@@ -1852,6 +2164,11 @@ include __DIR__ . '/../../includes/header.php';
         display: grid;
         grid-template-columns: repeat(12, minmax(0, 1fr));
         gap: 0.75rem;
+        align-items: end;
+    }
+    .review-board-filter-grid > .is-search,
+    .review-board-filter-grid > .is-clear {
+        align-self: end;
     }
     .review-board-filter-grid > div {
         grid-column: span 2;
@@ -1862,9 +2179,152 @@ include __DIR__ . '/../../includes/header.php';
     .review-board-filter-grid > .is-search {
         grid-column: span 4;
     }
+    .review-board-filter-grid > .is-barangay,
+    .review-board-filter-grid > .is-school-type {
+        grid-column: span 3;
+    }
+    .review-board-filter-grid > .is-interview-tabs {
+        grid-column: span 12;
+    }
     .review-board-filter-grid > .is-rows,
     .review-board-filter-grid > .is-clear {
-        grid-column: span 1;
+        grid-column: span 2;
+    }
+    .review-board-filter-grid.review-board-filter-grid--search-inline {
+        display: flex;
+        align-items: end;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+    }
+    .review-board-filter-grid.review-board-filter-grid--search-inline > .is-interview-tabs {
+        flex: 0 0 100%;
+    }
+    .review-board-filter-grid.review-board-filter-grid--search-inline > .is-search {
+        flex: 1 1 300px;
+        min-width: 0;
+    }
+    .review-board-filter-grid.review-board-filter-grid--search-inline > .is-barangay,
+    .review-board-filter-grid.review-board-filter-grid--search-inline > .is-school-type {
+        flex: 0 1 180px;
+        min-width: 160px;
+    }
+    .review-board-filter-grid.review-board-filter-grid--search-inline > .is-clear {
+        flex: 0 0 auto;
+    }
+    .review-board-filter-grid.review-board-filter-grid--search-only {
+        display: inline-flex;
+        align-items: end;
+        gap: 0.6rem;
+        width: auto;
+        max-width: 100%;
+        flex-wrap: wrap;
+    }
+    .review-board-filter-grid.review-board-filter-grid--search-only > .is-search {
+        flex: 1 1 300px;
+        min-width: 0;
+    }
+    .review-board-filter-grid.review-board-filter-grid--search-only > .is-barangay,
+    .review-board-filter-grid.review-board-filter-grid--search-only > .is-school-type {
+        flex: 0 1 180px;
+        min-width: 160px;
+    }
+    .review-board-filter-grid.review-board-filter-grid--search-only > .is-clear {
+        flex: 0 0 auto;
+    }
+    .review-board-filter-grid .form-label.form-label-sm {
+        margin-bottom: 0.35rem;
+        font-weight: 700;
+        color: #214c6c;
+    }
+    .review-board-search-group {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+        max-width: 420px;
+    }
+    .review-board-search-icon {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1rem;
+        color: #5f7890;
+        font-size: 0.9rem;
+    }
+    .review-board-search-group .form-control {
+        border: 0;
+        border-bottom: 1px solid rgba(33, 76, 108, 0.14);
+        box-shadow: none;
+        min-height: 38px;
+        padding-left: 0;
+        padding-right: 0.25rem;
+        background: transparent;
+        font-size: 0.92rem;
+        border-radius: 0;
+    }
+    .review-board-search-group .form-control::placeholder {
+        color: #7b8a99;
+    }
+    .review-board-search-group .form-control:focus {
+        box-shadow: none;
+    }
+    .review-board-filter-grid .is-clear .btn {
+        min-height: 34px;
+        border-radius: 0.35rem;
+        font-weight: 600;
+        padding: 0.35rem 0.8rem;
+        justify-self: start;
+        width: auto;
+        min-width: 0;
+        line-height: 1.15;
+    }
+    .interview-subqueue-tabs {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        padding: 0 0 0.1rem;
+        border-bottom: 1px solid rgba(33, 76, 108, 0.14);
+        border-radius: 0;
+        background: transparent;
+        margin-bottom: -1px;
+    }
+    .interview-subqueue-tabs .btn {
+        min-height: 40px;
+        border-radius: 0.85rem 0.85rem 0 0;
+        font-weight: 600;
+        padding: 0.6rem 1rem 0.55rem;
+        border: 1px solid rgba(33, 76, 108, 0.16);
+        border-bottom-color: transparent;
+        background: #eef3f8;
+        color: #35556f;
+        position: relative;
+        top: 1px;
+    }
+    .interview-subqueue-tabs .btn.active {
+        color: #173b57;
+        background: #fff;
+        border-color: rgba(33, 76, 108, 0.16);
+        border-bottom-color: #fff;
+        box-shadow: none;
+    }
+    .is-interview-tabs {
+        display: flex;
+        align-items: end;
+        margin-bottom: 0.15rem;
+    }
+    .applications-table-wrap {
+        background: #fff;
+        border-radius: 0.75rem;
+        overflow: hidden;
+        border-top: 1px solid rgba(33, 76, 108, 0.08);
+    }
+    .applications-table-toolbar {
+        padding: 0.7rem 1rem 0.55rem;
+        border-bottom: 1px solid rgba(33, 76, 108, 0.08);
+        background: transparent;
     }
     .queue-table-caption {
         padding: 0.9rem 1rem 0.3rem;
@@ -1885,18 +2345,31 @@ include __DIR__ . '/../../includes/header.php';
         text-transform: uppercase;
         letter-spacing: 0.03em;
         color: #5d7288;
-        background: rgba(247, 250, 255, 0.96);
+        background: #f7f9fc;
         border-bottom-width: 1px;
+        padding-top: 0.85rem;
+        padding-bottom: 0.85rem;
     }
     .applications-table-wrap .table td {
         vertical-align: top;
         padding-top: 0.9rem;
         padding-bottom: 0.9rem;
     }
+    .applications-table-wrap .table tbody tr.application-row-link {
+        cursor: pointer;
+        transition: background-color 0.16s ease;
+    }
+    .applications-table-wrap .table tbody tr.application-row-link:hover {
+        background: #f8fbff;
+    }
     .queue-app-code {
         font-size: 0.95rem;
         color: #1e4263;
         font-weight: 700;
+    }
+    .period-badge.badge {
+        border-radius: 0.35rem;
+        padding-inline: 0.45rem;
     }
     .queue-app-meta,
     .queue-app-contact,
@@ -1952,11 +2425,24 @@ include __DIR__ . '/../../includes/header.php';
             grid-column: 1 / -1;
         }
         .review-board-filter-grid > div,
-        .review-board-filter-grid > .is-search {
+        .review-board-filter-grid > .is-search,
+        .review-board-filter-grid > .is-interview-tabs {
             grid-column: span 3;
+        }
+        .review-board-filter-grid .is-clear .btn {
+            width: 100%;
         }
     }
     @media (max-width: 767px) {
+        .application-review-board-page,
+        .application-review-board-page .app-main,
+        .application-review-board-page .app-main > .container,
+        .application-review-board-page .review-board-shell,
+        .application-review-board-page .review-board-panel {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: hidden;
+        }
         .applications-hero .card-body {
             padding: 0.95rem;
         }
@@ -1991,13 +2477,18 @@ include __DIR__ . '/../../includes/header.php';
         }
         .review-board-filter-grid > div,
         .review-board-filter-grid > .is-search,
+        .review-board-filter-grid > .is-interview-tabs,
         .review-board-filter-grid > .is-rows,
         .review-board-filter-grid > .is-clear {
             grid-column: span 1;
         }
+        .review-board-filter-grid .is-clear .btn {
+            width: 100%;
+        }
         .review-board-panel-head,
         .review-board-panel-body,
-        .queue-table-caption {
+        .queue-table-caption,
+        .applications-table-toolbar {
             padding-left: 0.85rem;
             padding-right: 0.85rem;
         }
@@ -2057,9 +2548,67 @@ include __DIR__ . '/../../includes/header.php';
             white-space: normal;
         }
     }
+    @media (max-width: 576px) {
+        .application-review-board-page {
+            overflow-x: hidden;
+        }
+        .application-review-board-page .review-board-panel,
+        .application-review-board-page .applications-table-wrap,
+        .application-review-board-page .applications-table-wrap .table,
+        .application-review-board-page .applications-table-wrap tbody {
+            width: 100%;
+            max-width: 100%;
+        }
+        .applications-hero .hero-note,
+        .review-board-panel-note,
+        .apps-helper-text,
+        .queue-table-caption .text-muted {
+            white-space: normal;
+            overflow-wrap: anywhere;
+        }
+        .review-board-filter-grid {
+            grid-template-columns: 1fr;
+        }
+        .review-board-filter-grid > div,
+        .review-board-filter-grid > .is-search,
+        .review-board-filter-grid > .is-interview-tabs,
+        .review-board-filter-grid > .is-rows,
+        .review-board-filter-grid > .is-clear {
+            grid-column: 1 / -1;
+        }
+        .review-board-filter-grid .is-clear .btn {
+            width: 100%;
+        }
+        .application-review-board-page .applications-table-wrap {
+            overflow-x: hidden;
+        }
+        .application-review-board-page .applications-table-wrap table {
+            min-width: 0 !important;
+            width: 100% !important;
+        }
+        .application-review-board-page .applications-table-wrap tr.application-row-link {
+            width: 100%;
+            max-width: 100%;
+            margin: 0 0 0.75rem 0;
+            box-sizing: border-box;
+        }
+        .application-review-board-page .applications-table-wrap td,
+        .application-review-board-page .applications-table-wrap th {
+            min-width: 0;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+        .application-review-board-page .applications-table-wrap tr.application-row-link::after {
+            right: 0.75rem;
+        }
+        .application-review-board-page .applications-table-wrap .form-check-input {
+            margin-left: 0;
+        }
+    }
 </style>
 
-<div class="card card-soft shadow-sm mb-3 applications-hero">
+<div class="card shadow-sm mb-3 applications-hero">
     <div class="card-body py-3">
         <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
             <h1 class="h4 m-0"><i class="fa-solid fa-folder-tree me-2 text-primary"></i>Application Queue</h1>
@@ -2079,21 +2628,21 @@ include __DIR__ . '/../../includes/header.php';
             </div>
         </div>
         <div class="apps-grid-stats" id="applicationQueueTabs" role="tablist" aria-label="Application Queues">
-            <button type="button" class="stat-card stat-card-btn<?= $queueFilter === 'all' ? ' active' : '' ?>" data-queue-tab="all">
-                <span class="stat-label">Total</span>
-                <span class="stat-value"><?= number_format((int) ($queueCounts['all'] ?? 0)) ?></span>
-            </button>
             <button type="button" class="stat-card stat-card-btn<?= $queueFilter === 'under_review' ? ' active' : '' ?>" data-queue-tab="under_review">
                 <span class="stat-label">Review</span>
                 <span class="stat-value"><?= number_format((int) ($queueCounts['under_review'] ?? 0)) ?></span>
             </button>
-            <button type="button" class="stat-card stat-card-btn<?= $queueFilter === 'compliance' ? ' active' : '' ?>" data-queue-tab="compliance">
-                <span class="stat-label">Compliance</span>
-                <span class="stat-value"><?= number_format((int) ($queueCounts['compliance'] ?? 0)) ?></span>
+            <button type="button" class="stat-card stat-card-btn<?= $queueFilter === 'needs_resubmission' ? ' active' : '' ?>" data-queue-tab="needs_resubmission">
+                <span class="stat-label">Resubmission</span>
+                <span class="stat-value"><?= number_format((int) ($queueCounts['needs_resubmission'] ?? 0)) ?></span>
             </button>
             <button type="button" class="stat-card stat-card-btn<?= $queueFilter === 'for_interview' ? ' active' : '' ?>" data-queue-tab="for_interview">
-                <span class="stat-label">Interview</span>
+                <span class="stat-label">Interview Queue</span>
                 <span class="stat-value"><?= number_format((int) ($queueCounts['for_interview'] ?? 0)) ?></span>
+            </button>
+            <button type="button" class="stat-card stat-card-btn<?= $queueFilter === 'for_soa' ? ' active' : '' ?>" data-queue-tab="for_soa">
+                <span class="stat-label">SOA Submission</span>
+                <span class="stat-value"><?= number_format((int) ($queueCounts['for_soa'] ?? 0)) ?></span>
             </button>
             <button type="button" class="stat-card stat-card-btn<?= $queueFilter === 'approved_for_release' ? ' active' : '' ?>" data-queue-tab="approved_for_release">
                 <span class="stat-label">Release</span>
@@ -2109,141 +2658,57 @@ include __DIR__ . '/../../includes/header.php';
 
 <div class="review-board-shell">
 <?php if (!$tableApplications): ?>
-    <div class="card card-soft"><div class="card-body text-muted">No applications found.</div></div>
+    <div class="text-muted px-1 py-2">No applications found.</div>
 <?php else: ?>
     <div data-live-table data-disable-sort="1" data-detach-hidden-rows="1" class="review-board-panel">
-        <div class="review-board-panel-head">
-            <div>
-                <h2 class="review-board-panel-title">Filter And Review</h2>
-                <p class="review-board-panel-note">Move from queue summary to filters, then open a record to review details, communication, and history.</p>
-            </div>
-            <div class="review-board-summary">
-                <span class="review-board-chip"><strong><?= e(application_staff_queue_label($queueFilter === '' ? 'all' : $queueFilter)) ?></strong></span>
-                <span class="review-board-chip"><span data-table-summary></span></span>
-            </div>
-        </div>
-        <div class="review-board-panel-body table-controls">
-            <div class="review-board-filters">
-            <div class="review-board-filter-grid">
-                <div class="is-search">
-                    <label class="form-label form-label-sm">Live Search</label>
-                    <input type="text" data-table-search class="form-control form-control-sm" placeholder="Search app no, name, school">
-                </div>
-                <div>
-                    <label class="form-label form-label-sm">Applicant Type</label>
-                    <select class="form-select form-select-sm" data-table-filter data-filter-key="applicant-type">
-                        <option value="">All</option>
-                        <option value="new">New</option>
-                        <option value="renew">Renew</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="form-label form-label-sm">Barangay</label>
-                    <select class="form-select form-select-sm" data-table-filter data-filter-key="barangay">
-                        <option value="">All</option>
-                        <?php foreach (san_enrique_barangays() as $barangayOption): ?>
-                            <option value="<?= e($barangayOption) ?>"><?= e($barangayOption) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div>
-                    <label class="form-label form-label-sm">Interview</label>
-                    <select class="form-select form-select-sm" data-table-filter data-filter-key="interview-scheduled">
-                        <option value="">All</option>
-                        <option value="yes">Scheduled</option>
-                        <option value="no">Not Scheduled</option>
-                    </select>
-                </div>
-                <div class="is-rows">
-                    <label class="form-label form-label-sm">Rows</label>
-                    <select class="form-select form-select-sm" id="reviewBoardRowsPerPage">
-                        <?php foreach ($rowsPerPageOptions as $rowsOption): ?>
-                            <option value="<?= (int) $rowsOption ?>" <?= $rowsPerPage === $rowsOption ? 'selected' : '' ?>><?= (int) $rowsOption ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="is-clear d-grid">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" id="reviewBoardReset">Clear</button>
-                </div>
-            </div>
-            <div class="review-board-filter-bar">
-            <div class="apps-helper-text mt-2">Use filters to narrow the board, then open a record to review documents, decisions, communication, and history in one place.</div>
-                <div class="page-legend"></div>
-            </div>
-            <input type="hidden" id="applicationLiveQueueFilter" data-table-filter data-filter-key="queue" value="<?= e($queueFilter === 'all' ? '' : $queueFilter) ?>">
-        </div>
-        </div>
-
-        <div class="queue-table-caption">
-            <div class="text-muted">Click any row to open the full review record. The queue is ordered for quick triage and next-step decisions.</div>
-        </div>
-
         <?php if ($isAdmin): ?>
             <div class="review-board-panel-body review-board-actions pt-0">
-                <form method="post" id="bulkStatusForm" class="row g-2 align-items-end" data-crud-modal="1" data-crud-title="Update Application Status?" data-crud-message="Update status for selected applications?" data-crud-confirm-text="Update Status" data-crud-kind="primary">
-                    <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-                    <input type="hidden" name="action" value="bulk_update_status">
-                    <div class="col-12 review-board-action-block">
-                        <div class="d-flex flex-wrap align-items-center gap-3<?= $isSelectionEnabled ? '' : ' d-none' ?>" data-bulk-selection-ui="1">
-                            <div class="form-check mb-0">
-                                <input class="form-check-input" type="checkbox" id="bulkSelectAllApplications">
-                                <label class="form-check-label small" for="bulkSelectAllApplications">Select all visible applications on this page</label>
-                            </div>
-                            <div class="d-flex flex-wrap gap-2">
-                            <?php foreach ($bulkStatusButtons as $bulkButton): ?>
-                                <button
-                                    type="submit"
-                                    class="btn btn-sm btn-outline-primary"
-                                    name="status"
-                                    value="<?= e((string) $bulkButton['value']) ?>"
-                                    data-bulk-status-btn="1"
-                                    data-status-label="<?= e((string) $bulkButton['label']) ?>"
-                                >
-                                    Move selected to <?= e(strtolower(application_status_label((string) $bulkButton['value']))) ?> (0)
-                                </button>
-                            <?php endforeach; ?>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="bulkStatusSelectionInputs" class="bulk-selection-inputs"></div>
-                </form>
-
-                <form method="post" id="bulkInterviewForm" class="row g-2 align-items-end d-none" data-bulk-special="for_interview" data-crud-modal="1" data-crud-title="Schedule Interviews?" data-crud-message="Set interview schedule for selected For Interview applications?" data-crud-confirm-text="Schedule Interviews" data-crud-kind="primary">
-                    <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-                    <input type="hidden" name="action" value="bulk_schedule_interview">
+                <div id="bulkInterviewActionBar" class="d-none" data-bulk-special="for_interview">
                     <div class="review-board-action-block review-board-action-block--interview">
-                        <div class="col-12 col-md-3 review-board-action-date">
-                            <label class="form-label form-label-sm">Interview Date</label>
-                            <input type="date" name="interview_date" class="form-control form-control-sm">
+                        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                            <div>
+                                <div class="fw-semibold">Interview Queue Batch Scheduling</div>
+                                <div class="small text-muted">Create one interview schedule for all matching applicants in the Not Scheduled list.</div>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="openInterviewBatchModal" data-bs-toggle="modal" data-bs-target="#interviewBatchScheduleModal">
+                                <i class="fa-solid fa-layer-group me-1"></i>Schedule by Batch
+                            </button>
                         </div>
-                        <div class="col-12 col-md-2 review-board-action-time">
-                            <label class="form-label form-label-sm">Interview Time</label>
-                            <input type="time" name="interview_time" class="form-control form-control-sm">
-                        </div>
-                        <div class="col-12 col-md-4 review-board-action-location">
-                            <label class="form-label form-label-sm">Location</label>
-                            <input type="text" name="interview_location" class="form-control form-control-sm" value="Mayor's Office, San Enrique" maxlength="180">
-                        </div>
-                        <div class="col-12 col-md-3 review-board-action-submit">
-                            <button type="submit" class="btn btn-sm btn-primary" data-bulk-special-submit="for_interview">Schedule selected (0)</button>
-                        </div>
-                        <div class="bulk-selection-inputs"></div>
                     </div>
-                </form>
+                </div>
 
-                <form method="post" id="bulkSoaReminderForm" class="row g-2 align-items-end d-none" data-bulk-special="compliance" data-crud-modal="1" data-crud-title="Send SOA Reminders?" data-crud-message="Send SOA reminder SMS to all applicants currently waiting for SOA submission?" data-crud-confirm-text="Send Reminders" data-crud-kind="warning">
+                <form method="post" id="bulkInterviewCompletedForm" class="d-none" data-bulk-special="for_interview_completed" data-crud-modal="1" data-crud-title="Mark Qualified for SOA?" data-crud-message="Mark all currently filtered scheduled applicants as qualified for SOA submission?" data-crud-confirm-text="Mark Qualified" data-crud-kind="primary">
+                            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+                            <input type="hidden" name="action" value="bulk_complete_interview">
+                            <div class="review-board-action-block review-board-action-block--interview">
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-12 col-md-9">
+                                        <div class="small text-muted" id="interviewCompletedSummary">This applies to all matching applicants in the Scheduled interview list.</div>
+                                    </div>
+                                    <div class="col-12 col-md-3 d-grid">
+                                        <button type="submit" class="btn btn-sm btn-outline-success" data-bulk-special-submit="for_interview_completed">Mark Qualified for SOA</button>
+                                    </div>
+                                </div>
+                                <div id="bulkInterviewCompletedInputs"></div>
+                            </div>
+                        </form>
+
+                <form method="post" id="bulkSoaReminderForm" class="row g-2 align-items-end d-none" data-bulk-special="for_soa" data-crud-modal="1" data-crud-title="Send SOA Reminders?" data-crud-message="Send SOA reminder SMS to all applicants currently waiting for SOA submission?" data-crud-confirm-text="Send Reminders" data-crud-kind="warning">
                     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                     <input type="hidden" name="action" value="bulk_send_soa_reminder">
-                    <div class="review-board-action-block">
-                        <div class="col-12 col-md-6">
-                            <label class="form-label form-label-sm">SOA Deadline (Global for waiting SOA records)</label>
+                    <div class="review-board-action-block soa-deadline-action-block">
+                        <div class="col-12 col-lg-4">
+                            <label class="form-label form-label-sm">SOA Upload Deadline</label>
                             <input type="date" name="soa_submission_deadline" class="form-control form-control-sm">
                         </div>
-                        <div class="col-12 col-md-6">
-                            <div class="small text-muted">Reminder will be sent only to records currently waiting for SOA. If set, deadline is applied globally.</div>
+                        <div class="col-12 col-lg">
+                            <div class="soa-deadline-action-block__note">
+                                <div class="soa-deadline-action-block__title">Applies to all waiting SOA records</div>
+                                <div class="small text-muted">The reminder will be sent only to applicants currently in the SOA queue. If you set a date here, that deadline will also be applied globally.</div>
+                            </div>
                         </div>
-                        <div class="col-12 col-md-3 d-grid">
-                            <button type="submit" class="btn btn-sm btn-outline-warning" data-bulk-special-submit="compliance">Send SOA Reminder</button>
+                        <div class="col-12 col-lg-auto d-grid">
+                            <button type="submit" class="btn btn-sm btn-outline-warning" data-bulk-special-submit="for_soa">Send SOA Reminder</button>
                         </div>
                         <div class="bulk-selection-inputs"></div>
                     </div>
@@ -2252,14 +2717,52 @@ include __DIR__ . '/../../includes/header.php';
         <?php endif; ?>
 
         <div class="table-responsive applications-table-wrap">
+            <div class="applications-table-toolbar">
+                <div class="review-board-filters">
+                    <div class="review-board-filter-grid <?= $queueFilter === 'for_interview' ? 'review-board-filter-grid--search-inline' : 'review-board-filter-grid--search-only' ?>">
+                        <div id="reviewBoardInterviewFilterWrap" class="is-interview-tabs <?= $queueFilter === 'for_interview' ? '' : 'd-none' ?>">
+                            <div class="interview-subqueue-tabs">
+                                <button type="button" class="btn btn-sm btn-outline-primary active" data-interview-tab="no">Not Scheduled</button>
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-interview-tab="yes">Scheduled</button>
+                            </div>
+                            <input type="hidden" id="applicationInterviewScheduledFilter" data-table-filter data-filter-key="interview-scheduled" value="no">
+                        </div>
+                        <div class="is-search">
+                            <div class="review-board-search-group">
+                                <span class="review-board-search-icon"><i class="bi bi-search"></i></span>
+                                <input type="text" id="applicationSearchInput" data-table-search class="form-control form-control-sm" placeholder="Search application no., applicant name, or school">
+                            </div>
+                        </div>
+                        <div class="is-barangay">
+                            <select id="applicationBarangayFilter" class="form-select form-select-sm" data-table-filter data-filter-key="barangay" aria-label="Filter by barangay">
+                                <option value="">All barangays</option>
+                                <?php foreach ($toolbarBarangayOptions as $barangayOption): ?>
+                                    <option value="<?= e($barangayOption) ?>"><?= e($barangayOption) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="is-school-type">
+                            <select id="applicationSchoolTypeFilter" class="form-select form-select-sm" data-table-filter data-filter-key="school-type" aria-label="Filter by school type">
+                                <option value="">All school types</option>
+                                <?php foreach ($toolbarSchoolTypeOptions as $schoolTypeValue => $schoolTypeLabel): ?>
+                                    <option value="<?= e($schoolTypeValue) ?>"><?= e($schoolTypeLabel) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="is-clear">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="reviewBoardReset">Clear</button>
+                        </div>
+                    </div>
+                    <input type="hidden" id="applicationLiveQueueFilter" data-table-filter data-filter-key="queue" value="<?= e($queueFilter) ?>">
+                </div>
+            </div>
             <table class="table align-middle mb-0">
                 <thead>
                     <tr>
-                        <th style="width: 44px;" class="<?= $isSelectionEnabled ? '' : 'd-none' ?>" data-pick-col="1">Pick</th>
                         <th>Application</th>
                         <th>Applicant</th>
-                        <th>Current Step</th>
-                        <th>Next Action</th>
+                        <th><?= $queueFilter === 'for_interview' ? 'Interview Schedule' : 'Current Step' ?></th>
+                        <th><?= $queueFilter === 'for_interview' ? 'Status' : 'Next Action' ?></th>
                         <th>Updated</th>
                     </tr>
                 </thead>
@@ -2281,6 +2784,7 @@ include __DIR__ . '/../../includes/header.php';
                         class="application-row-link"
                         data-review-url="<?= e($reviewUrl) ?>"
                         tabindex="0"
+                        data-application-id="<?= (int) $row['id'] ?>"
                         data-search="<?= e($search) ?>"
                         data-filter="<?= e((string) $row['status']) ?>"
                         data-queue="<?= e($statusToQueue((string) ($row['status'] ?? ''))) ?>"
@@ -2288,12 +2792,10 @@ include __DIR__ . '/../../includes/header.php';
                         data-applicant-type="<?= e((string) ($row['applicant_type'] ?? '')) ?>"
                         data-period="<?= e((string) ($row['period_label'] ?? '')) ?>"
                         data-barangay="<?= e((string) ($row['barangay'] ?? '')) ?>"
+                        data-school-type="<?= e(strtolower((string) ($row['school_type'] ?? ''))) ?>"
                         data-missing-docs="<?= e((string) ($row['has_missing_documents'] ?? 'no')) ?>"
                         data-interview-scheduled="<?= e((string) ($row['interview_scheduled_flag'] ?? 'no')) ?>"
                     >
-                        <td class="<?= $isSelectionEnabled ? '' : 'd-none' ?>" data-pick-col="1" data-label="Pick">
-                            <input type="checkbox" class="form-check-input bulk-application-checkbox" value="<?= (int) $row['id'] ?>" aria-label="Select application <?= e((string) $row['application_no']) ?>">
-                        </td>
                         <td data-label="Application">
                             <div class="queue-app-code"><?= e((string) $row['application_no']) ?></div>
                             <?php if ((int) ($row['is_archived'] ?? 0) === 1): ?>
@@ -2302,45 +2804,71 @@ include __DIR__ . '/../../includes/header.php';
                                 <span class="badge text-bg-success period-badge ms-1">Active</span>
                             <?php endif; ?>
                             <div class="queue-app-meta mt-1">#<?= (int) $row['id'] ?> | <?= e((string) $row['semester']) ?> / <?= e((string) $row['school_year']) ?></div>
+                            <?php if ($queueFilter === 'for_interview' && trim((string) ($row['school_name'] ?? '')) !== ''): ?>
+                                <div class="queue-app-meta mt-1"><?= e((string) ($row['school_name'] ?? '')) ?></div>
+                            <?php endif; ?>
                         </td>
                         <td data-label="Applicant">
                             <div class="queue-person-name"><?= e((string) $row['last_name']) ?>, <?= e((string) $row['first_name']) ?></div>
-                            <div class="queue-app-contact mt-1"><?= e((string) $row['email']) ?> | <?= e((string) $row['phone']) ?></div>
+                            <?php if ($queueFilter === 'for_interview'): ?>
+                                <div class="queue-app-contact mt-1">
+                                    <?= e(strtoupper((string) ($row['applicant_type'] ?? ''))) ?>
+                                    <?php if (trim((string) ($row['phone'] ?? '')) !== ''): ?>
+                                        <span class="mx-1">|</span><?= e((string) ($row['phone'] ?? '')) ?>
+                                    <?php endif; ?>
+                                </div>
+                            <?php else: ?>
+                                <div class="queue-app-contact mt-1"><?= e((string) $row['email']) ?> | <?= e((string) $row['phone']) ?></div>
+                            <?php endif; ?>
                         </td>
                         <td data-label="Current Step">
-                            <span class="badge <?= status_badge_class($rowStatusValue) ?>">
-                                <?= e(strtoupper(application_staff_status_label($rowStatusValue))) ?>
-                            </span>
-                            <div class="queue-status-meta mt-1"><?= e((string) ($rowNextAction['label'] ?? application_status_label($rowStatusValue))) ?></div>
-                            <?php if ((string) $row['status'] === 'for_soa' && !empty($row['soa_submission_deadline'])): ?>
-                                <div class="queue-status-meta mt-1">
-                                    SOA Deadline: <?= date('M d, Y', strtotime((string) $row['soa_submission_deadline'])) ?>
-                                </div>
-                            <?php endif; ?>
-                            <?php if ((string) $row['status'] === 'for_interview'): ?>
+                            <?php if ($queueFilter === 'for_interview'): ?>
                                 <?php
                                 $hasInterviewScheduleBadge = trim((string) ($row['interview_date'] ?? '')) !== ''
                                     && trim((string) ($row['interview_location'] ?? '')) !== '';
                                 ?>
                                 <?php if ($hasInterviewScheduleBadge): ?>
-                                    <div class="queue-status-meta mt-1 text-success">
-                                        Interview Scheduled:
+                                    <div class="queue-next-title text-success">Scheduled</div>
+                                    <div class="queue-status-meta mt-1">
                                         <?= date('M d, Y h:i A', strtotime((string) $row['interview_date'])) ?>
                                     </div>
+                                    <div class="queue-status-meta mt-1"><?= e((string) ($row['interview_location'] ?? '')) ?></div>
                                 <?php else: ?>
-                                    <div class="queue-status-meta mt-1 text-warning">Interview Not Scheduled</div>
+                                    <div class="queue-next-title text-warning">Not Scheduled</div>
+                                    <div class="queue-status-meta mt-1">Set the interview schedule from the batch action above.</div>
                                 <?php endif; ?>
+                            <?php else: ?>
+                                <span class="badge <?= status_badge_class($rowStatusValue) ?>">
+                                    <?= e(strtoupper(application_staff_status_label($rowStatusValue))) ?>
+                                </span>
+                                <div class="queue-status-meta mt-1"><?= e((string) ($rowNextAction['label'] ?? application_status_label($rowStatusValue))) ?></div>
+                            <?php endif; ?>
+                            <?php if ((string) $row['status'] === 'for_soa' && !empty($row['soa_submission_deadline'])): ?>
+                                <div class="queue-inline-meta mt-2">
+                                    <span class="queue-inline-meta__label">SOA Deadline</span>
+                                    <span class="queue-inline-meta__value"><?= date('M d, Y', strtotime((string) $row['soa_submission_deadline'])) ?></span>
+                                </div>
                             <?php endif; ?>
                             <?php if (in_array((string) $row['status'], ['approved_for_release', 'released'], true) && !empty($row['soa_submitted_at'])): ?>
-                                <div class="queue-status-meta mt-1">
-                                    SOA Received: <?= date('M d, Y h:i A', strtotime((string) $row['soa_submitted_at'])) ?>
+                                <div class="queue-inline-meta mt-2">
+                                    <span class="queue-inline-meta__label">SOA Uploaded</span>
+                                    <span class="queue-inline-meta__value"><?= date('M d, Y h:i A', strtotime((string) $row['soa_submitted_at'])) ?></span>
                                 </div>
                             <?php endif; ?>
                         </td>
                         <td data-label="Next Action">
-                            <div class="queue-next-title"><?= e((string) ($rowNextAction['title'] ?? 'Review this application.')) ?></div>
-                            <?php if (trim((string) ($rowNextAction['detail'] ?? '')) !== ''): ?>
-                                <div class="queue-next-detail mt-1"><?= e((string) ($rowNextAction['detail'] ?? '')) ?></div>
+                            <?php if ($queueFilter === 'for_interview'): ?>
+                                <span class="badge <?= status_badge_class($rowStatusValue) ?>">
+                                    <?= e(strtoupper(application_staff_status_label($rowStatusValue))) ?>
+                                </span>
+                                <div class="queue-next-detail mt-1">
+                                    <?= $hasInterviewScheduleBadge ? 'Open the record after the interview to mark it completed.' : 'Set the interview schedule first, then return after the interview is done.' ?>
+                                </div>
+                            <?php else: ?>
+                                <div class="queue-next-title"><?= e((string) ($rowNextAction['title'] ?? 'Review this application.')) ?></div>
+                                <?php if (trim((string) ($rowNextAction['detail'] ?? '')) !== ''): ?>
+                                    <div class="queue-next-detail mt-1"><?= e((string) ($rowNextAction['detail'] ?? '')) ?></div>
+                                <?php endif; ?>
                             <?php endif; ?>
                         </td>
                         <td data-label="Updated"><span class="queue-updated"><?= date('M d, Y h:i A', strtotime((string) $row['updated_at'])) ?></span></td>
@@ -2349,6 +2877,85 @@ include __DIR__ . '/../../includes/header.php';
                 </tbody>
             </table>
         </div>
+
+        <?php if ($isAdmin): ?>
+            <div class="modal fade modal-se" id="interviewBatchScheduleModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-lg modal-dialog-centered">
+                    <div class="modal-content">
+                        <form method="post" id="bulkInterviewForm" data-crud-modal="1" data-crud-title="Create Batch Interview Schedule?" data-crud-message="Create one interview schedule for all matching not-scheduled applicants?" data-crud-confirm-text="Create Schedule" data-crud-kind="primary">
+                            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+                            <input type="hidden" name="action" value="bulk_schedule_interview">
+                            <div class="modal-header border-0 pb-0">
+                                <div class="modal-se-title-wrap">
+                                    <span class="modal-se-icon is-info">
+                                        <i class="fa-solid fa-layer-group"></i>
+                                    </span>
+                                    <div>
+                                        <h5 class="modal-title mb-0">Schedule by Batch</h5>
+                                        <small class="text-muted">Interview Queue - Not Scheduled</small>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body pt-3">
+                                <div class="row g-3">
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label">Date *</label>
+                                        <input type="date" name="interview_date" class="form-control" required>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label">Start Time *</label>
+                                        <input type="time" name="interview_time" class="form-control" required>
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <label class="form-label">Location *</label>
+                                        <input type="text" name="interview_location" class="form-control" value="Mayor's Office, San Enrique" maxlength="180" required>
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <label class="form-label d-block">School Type</label>
+                                        <div class="d-flex flex-wrap gap-3 pt-1">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="interviewSchoolTypePublic" name="school_types[]" value="public" checked>
+                                                <label class="form-check-label" for="interviewSchoolTypePublic">Public</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="interviewSchoolTypePrivate" name="school_types[]" value="private" checked>
+                                                <label class="form-check-label" for="interviewSchoolTypePrivate">Private</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <label class="form-label">Barangay</label>
+                                        <div class="border rounded-3 p-3 bg-white">
+                                            <div class="row g-2">
+                                                <?php foreach ($allowedBarangays as $index => $barangay): ?>
+                                                    <?php $checkboxId = 'interviewBarangay_' . ($index + 1); ?>
+                                                    <div class="col-12 col-sm-6">
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="checkbox" id="<?= e($checkboxId) ?>" name="barangays[]" value="<?= e($barangay) ?>" checked>
+                                                            <label class="form-check-label" for="<?= e($checkboxId) ?>"><?= e($barangay) ?></label>
+                                                        </div>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="small text-muted" id="interviewSelectionSummary">This applies to all matching applicants in the Not Scheduled interview list.</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer border-0 pt-0">
+                                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-primary" data-bulk-special-submit="for_interview">
+                                    <i class="fa-solid fa-layer-group me-1"></i>Create Batch Schedule
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <div class="card-body border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div class="small text-muted">
@@ -2383,113 +2990,144 @@ include __DIR__ . '/../../includes/header.php';
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    const selectAllCheckbox = document.getElementById('bulkSelectAllApplications');
-    const selectionInputsWrap = document.getElementById('bulkStatusSelectionInputs');
-    const bulkForm = document.getElementById('bulkStatusForm');
-    const bulkStatusButtons = Array.from(document.querySelectorAll('[data-bulk-status-btn]'));
     const liveQueueFilter = document.getElementById('applicationLiveQueueFilter');
     const queueTabs = Array.from(document.querySelectorAll('[data-queue-tab]'));
     const bulkSpecialSections = Array.from(document.querySelectorAll('[data-bulk-special]'));
     const bulkSpecialSubmitButtons = Array.from(document.querySelectorAll('[data-bulk-special-submit]'));
-    const statusFilterWrap = document.getElementById('reviewBoardStatusFilterWrap');
-    const statusFilter = document.getElementById('reviewBoardStatusFilter');
-    const rowsPerPageSelect = document.getElementById('reviewBoardRowsPerPage');
+    const interviewFilterWrap = document.getElementById('reviewBoardInterviewFilterWrap');
+    const interviewSubqueueTabs = Array.from(document.querySelectorAll('[data-interview-tab]'));
+    const interviewScheduledFilter = document.getElementById('applicationInterviewScheduledFilter');
+    const bulkInterviewForm = document.getElementById('bulkInterviewForm');
+    const interviewSelectionSummary = document.getElementById('interviewSelectionSummary');
+    const interviewSchoolTypeCheckboxes = Array.from(document.querySelectorAll('#bulkInterviewForm input[name="school_types[]"]'));
+    const interviewBarangayCheckboxes = Array.from(document.querySelectorAll('#bulkInterviewForm input[name="barangays[]"]'));
+    const bulkInterviewCompletedInputs = document.getElementById('bulkInterviewCompletedInputs');
+    const interviewCompletedSummary = document.getElementById('interviewCompletedSummary');
 
-    const bulkStatusMap = {
-        "__default__": ["under_review"],
-        "draft": ["under_review"],
-        "under_review": ["for_interview", "rejected"],
-        "needs_resubmission": ["under_review", "rejected"],
-        "for_interview": ["for_soa"],
-        "for_soa": [],
-        "approved_for_release": ["released"],
-        "released": [],
-        "rejected": []
-    };
-
-    const statusLabelMap = {
-        "draft": "Mark Draft",
-        "under_review": "Mark Under Review",
-        "needs_resubmission": "Request Resubmission",
-        "for_interview": "Move to Interview",
-        "for_soa": "Move to SOA Submission",
-        "approved_for_release": "Approve for Payout",
-        "released": "Mark Released",
-        "rejected": "Reject"
-    };
-    const bulkActionTextMap = {
-        "under_review": "Move selected to under review",
-        "for_interview": "Move selected to interview",
-        "for_soa": "Move selected to SOA submission",
-        "approved_for_release": "Move selected to approved for payout",
-        "released": "Move selected to released",
-        "rejected": "Move selected to rejected"
-    };
-
-    function getRowCheckboxes(visibleOnly = true) {
-        const all = Array.from(document.querySelectorAll('.bulk-application-checkbox'));
-        if (!visibleOnly) {
-            return all;
-        }
-        return all.filter(function (checkbox) {
-            const row = checkbox.closest('tr');
-            return !!row && !row.classList.contains('d-none');
+    function getVisibleInterviewRows() {
+        return Array.from(document.querySelectorAll('tr.application-row-link')).filter(function (row) {
+            return !row.classList.contains('d-none')
+                && String(row.getAttribute('data-queue') || '').trim() === 'for_interview';
         });
     }
 
-    function renderSelectionInputs() {
-        if (!selectionInputsWrap && document.querySelectorAll('.bulk-selection-inputs').length === 0) {
+    function getVisibleScheduledInterviewRows() {
+        return getVisibleInterviewRows().filter(function (row) {
+            return String(row.getAttribute('data-interview-scheduled') || '').trim() === 'yes';
+        });
+    }
+
+    function syncBulkInterviewCompletedInputs() {
+        if (!bulkInterviewCompletedInputs) {
             return;
         }
-        const selectedIds = getRowCheckboxes()
+        bulkInterviewCompletedInputs.innerHTML = '';
+        getVisibleScheduledInterviewRows().forEach(function (row) {
+            const applicationId = String(row.getAttribute('data-application-id') || '').trim();
+            if (!applicationId) {
+                return;
+            }
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'application_ids[]';
+            input.value = applicationId;
+            bulkInterviewCompletedInputs.appendChild(input);
+        });
+    }
+
+    function getInterviewBatchMatchCount() {
+        const visibleRows = getVisibleInterviewRows();
+        const selectedSchoolTypes = interviewSchoolTypeCheckboxes
+            .filter(function (checkbox) { return checkbox.checked; })
+            .map(function (checkbox) { return String(checkbox.value || '').trim().toLowerCase(); })
+            .filter(Boolean);
+        const selectedBarangays = interviewBarangayCheckboxes
             .filter(function (checkbox) { return checkbox.checked; })
             .map(function (checkbox) { return String(checkbox.value || '').trim(); })
-            .filter(function (value) { return value !== ''; });
+            .filter(Boolean);
 
-        const markup = selectedIds
-            .map(function (id) { return '<input type="hidden" name="application_ids[]" value="' + id + '">'; })
-            .join('');
-        if (selectionInputsWrap) {
-            selectionInputsWrap.innerHTML = markup;
+        if (selectedSchoolTypes.length === 0) {
+            return 0;
         }
-        document.querySelectorAll('.bulk-selection-inputs').forEach(function (container) {
-            container.innerHTML = markup;
-        });
+
+        return visibleRows.filter(function (row) {
+            const rowSchoolType = String(row.getAttribute('data-school-type') || '').trim().toLowerCase();
+            const rowBarangay = String(row.getAttribute('data-barangay') || '').trim();
+            if (!selectedSchoolTypes.includes(rowSchoolType)) {
+                return false;
+            }
+            if (selectedBarangays.length > 0 && !selectedBarangays.includes(rowBarangay)) {
+                return false;
+            }
+            return true;
+        }).length;
     }
 
     function syncSelectAllState() {
-        if (!selectAllCheckbox) {
-            return;
-        }
-        const rowCheckboxes = getRowCheckboxes();
-        const allChecked = rowCheckboxes.length > 0 && rowCheckboxes.every(function (checkbox) { return checkbox.checked; });
-        selectAllCheckbox.checked = allChecked;
+        return;
     }
 
     function updateBulkButtonText() {
-        const selectedCount = getRowCheckboxes().filter(function (checkbox) { return checkbox.checked; }).length;
-        bulkStatusButtons.forEach(function (button) {
-            if (button.classList.contains('d-none')) {
-                return;
-            }
-            const statusValue = String(button.value || '').trim();
-            const actionLabel = String(bulkActionTextMap[statusValue] || 'Move selected');
-            button.textContent = actionLabel + ' (' + selectedCount + ')';
-        });
+        const visibleCount = getVisibleInterviewRows().length;
+        const matchingBatchCount = getInterviewBatchMatchCount();
+        const visibleScheduledCount = getVisibleScheduledInterviewRows().length;
         bulkSpecialSubmitButtons.forEach(function (button) {
             const parentForm = button.closest('form');
-            if (!parentForm || parentForm.classList.contains('d-none')) {
+            const parentBlock = button.closest('[data-bulk-special], form');
+            if ((parentForm && parentForm.classList.contains('d-none')) || (parentBlock && parentBlock.classList.contains('d-none'))) {
                 return;
             }
             const specialKey = String(button.getAttribute('data-bulk-special-submit') || '').trim();
             if (specialKey === 'for_interview') {
-                button.textContent = 'Schedule selected (' + selectedCount + ')';
+                button.innerHTML = '<i class="fa-solid fa-layer-group me-1"></i>Create Batch Schedule';
                 return;
             }
-            if (specialKey === 'compliance') {
+            if (specialKey === 'for_interview_completed') {
+                button.textContent = 'Mark Qualified for SOA';
+                button.disabled = visibleScheduledCount <= 0;
+                return;
+            }
+            if (specialKey === 'for_soa') {
                 button.textContent = 'Send SOA Reminder';
             }
         });
+        if (interviewSelectionSummary) {
+            if (visibleCount <= 0) {
+                interviewSelectionSummary.textContent = 'No visible applicants are available in the Not Scheduled list.';
+            } else if (interviewSchoolTypeCheckboxes.length > 0 && interviewSchoolTypeCheckboxes.every(function (checkbox) { return !checkbox.checked; })) {
+                interviewSelectionSummary.textContent = 'Select at least one school type to create a batch schedule.';
+            } else {
+                interviewSelectionSummary.textContent = 'This batch schedule will apply to ' + matchingBatchCount + ' applicant(s) from the current Not Scheduled list.';
+            }
+        }
+        if (interviewCompletedSummary) {
+            if (visibleScheduledCount <= 0) {
+                interviewCompletedSummary.textContent = 'No visible applicants are available in the Scheduled interview list.';
+            } else {
+                interviewCompletedSummary.textContent = 'This will mark ' + visibleScheduledCount + ' scheduled applicant(s) as qualified for SOA submission.';
+            }
+        }
+        syncBulkInterviewCompletedInputs();
+    }
+
+    function setActiveInterviewTab(filterValue) {
+        interviewSubqueueTabs.forEach(function (tabButton) {
+            const tabValue = String(tabButton.getAttribute('data-interview-tab') || '').trim();
+            tabButton.classList.toggle('active', tabValue === filterValue);
+        });
+    }
+
+    function applyInterviewFilter(filterValue) {
+        if (!interviewScheduledFilter) {
+            return;
+        }
+        interviewScheduledFilter.value = filterValue;
+        interviewScheduledFilter.dispatchEvent(new Event('input', { bubbles: true }));
+
+        setActiveInterviewTab(filterValue);
+        syncSelectAllState();
+        updateBulkButtonText();
+        applyBulkActionsForFilter();
     }
 
     function setActiveQueueTab(queueValue) {
@@ -2507,14 +3145,6 @@ document.addEventListener('DOMContentLoaded', function () {
         const event = new Event('input', { bubbles: true });
         liveQueueFilter.dispatchEvent(event);
 
-        // Drop selections from rows hidden by the active queue/search filter.
-        getRowCheckboxes(false).forEach(function (checkbox) {
-            const row = checkbox.closest('tr');
-            if (row && row.classList.contains('d-none')) {
-                checkbox.checked = false;
-            }
-        });
-
         setActiveQueueTab(queueValue);
         try {
             window.localStorage.setItem('applications.activeQueue', queueValue);
@@ -2522,7 +3152,6 @@ document.addEventListener('DOMContentLoaded', function () {
             // Ignore storage errors.
         }
         syncSelectAllState();
-        renderSelectionInputs();
         updateBulkButtonText();
     }
 
@@ -2533,14 +3162,7 @@ document.addEventListener('DOMContentLoaded', function () {
         } else {
             url.searchParams.set('queue', queueValue);
         }
-        if (rowsPerPageSelect) {
-            const rowsValue = String(rowsPerPageSelect.value || '').trim();
-            if (rowsValue !== '' && rowsValue !== '20') {
-                url.searchParams.set('rows', rowsValue);
-            } else {
-                url.searchParams.delete('rows');
-            }
-        }
+        url.searchParams.delete('rows');
         if (resetPage) {
             url.searchParams.delete('page');
         }
@@ -2549,112 +3171,57 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function updateSpecialBulkSections() {
         const queueValue = liveQueueFilter ? String(liveQueueFilter.value || '').trim() : '';
+        const interviewFilterValue = interviewScheduledFilter ? String(interviewScheduledFilter.value || '').trim() : '';
         bulkSpecialSections.forEach(function (section) {
             const requiredQueue = String(section.getAttribute('data-bulk-special') || '').trim();
-            const shouldShow = requiredQueue !== '' && requiredQueue === queueValue;
+            let shouldShow = requiredQueue !== '' && requiredQueue === queueValue;
+            if (requiredQueue === 'for_interview' && interviewFilterValue === 'yes') {
+                shouldShow = false;
+            }
+            if (requiredQueue === 'for_interview_completed') {
+                shouldShow = queueValue === 'for_interview' && interviewFilterValue === 'yes';
+            }
             section.classList.toggle('d-none', !shouldShow);
         });
     }
 
-    function updateStatusFilterVisibility(queueValue) {
-        const showStatusFilter = queueValue === '';
-        if (statusFilterWrap) {
-            statusFilterWrap.classList.toggle('d-none', !showStatusFilter);
+    function updateInterviewFilterVisibility(queueValue) {
+        const showFilter = queueValue === 'for_interview';
+        if (interviewFilterWrap) {
+            interviewFilterWrap.classList.toggle('d-none', !showFilter);
         }
-        if (!showStatusFilter && statusFilter) {
-            statusFilter.value = '';
-            statusFilter.dispatchEvent(new Event('change', { bubbles: true }));
+        if (!interviewScheduledFilter) {
+            return;
         }
+        if (showFilter) {
+            if (String(interviewScheduledFilter.value || '').trim() === '') {
+                interviewScheduledFilter.value = 'no';
+            }
+            setActiveInterviewTab(String(interviewScheduledFilter.value || 'no').trim() || 'no');
+            return;
+        }
+        interviewScheduledFilter.value = '';
+        interviewScheduledFilter.dispatchEvent(new Event('input', { bubbles: true }));
     }
 
-    function setSelectionUiVisibility(queueValue) {
-        const canSelect = queueValue === 'for_interview' || queueValue === 'approved_for_release';
-        const selectionUi = Array.from(document.querySelectorAll('[data-bulk-selection-ui]'));
-        const pickCells = Array.from(document.querySelectorAll('[data-pick-col]'));
-
-        selectionUi.forEach(function (el) {
-            el.classList.toggle('d-none', !canSelect);
-        });
-        pickCells.forEach(function (el) {
-            el.classList.toggle('d-none', !canSelect);
-        });
-
-        if (!canSelect) {
-            getRowCheckboxes(false).forEach(function (checkbox) {
-                checkbox.checked = false;
-            });
-            if (selectAllCheckbox) {
-                selectAllCheckbox.checked = false;
-            }
-            renderSelectionInputs();
-        }
+    function setSelectionUiVisibility() {
+        return;
     }
 
     function applyBulkActionsForFilter() {
         const queueValue = liveQueueFilter ? String(liveQueueFilter.value || '').trim() : '';
-        let actions = bulkStatusMap.__default__;
-        if (queueValue === 'under_review') {
-            actions = [];
-        } else if (queueValue === 'compliance') {
-            actions = [];
-        } else if (queueValue === 'for_interview') {
-            actions = ['for_soa'];
-        } else if (queueValue === 'approved_for_release') {
-            actions = ['released'];
-        } else if (queueValue === 'completed') {
-            actions = [];
-        }
-
         setSelectionUiVisibility(queueValue);
-        updateStatusFilterVisibility(queueValue);
-
-        bulkStatusButtons.forEach(function (button, index) {
-            const actionStatus = actions[index] || '';
-            if (actionStatus === '') {
-                button.classList.add('d-none');
-                button.disabled = true;
-                return;
-            }
-
-            const actionLabel = statusLabelMap[actionStatus] || actionStatus;
-            button.classList.remove('d-none');
-            button.disabled = false;
-            button.value = actionStatus;
-            button.setAttribute('data-status-label', actionLabel);
-        });
-        if (bulkForm) {
-            bulkForm.classList.toggle('d-none', queueValue === '' || actions.length === 0);
-        }
+        updateInterviewFilterVisibility(queueValue);
         updateBulkButtonText();
         updateSpecialBulkSections();
     }
-
-    if (selectAllCheckbox) {
-        selectAllCheckbox.addEventListener('change', function () {
-            const rowCheckboxes = getRowCheckboxes();
-            rowCheckboxes.forEach(function (checkbox) {
-                checkbox.checked = selectAllCheckbox.checked;
-            });
-            renderSelectionInputs();
-            updateBulkButtonText();
-        });
-    }
-
-    document.addEventListener('change', function (event) {
-        const target = event.target;
-        if (target && target.classList && target.classList.contains('bulk-application-checkbox')) {
-            syncSelectAllState();
-            renderSelectionInputs();
-            updateBulkButtonText();
-        }
-    });
 
     document.addEventListener('click', function (event) {
         const target = event.target;
         if (!(target instanceof Element)) {
             return;
         }
-        if (target.closest('a, button, input, select, textarea, label, [data-queue-tab], [data-bulk-status-btn], [data-bulk-special-submit]')) {
+        if (target.closest('a, button, input, select, textarea, label, [data-queue-tab], [data-interview-tab], [data-bulk-special-submit]')) {
             return;
         }
         const row = target.closest('tr.application-row-link');
@@ -2689,51 +3256,41 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    if (bulkForm) {
-        bulkForm.addEventListener('submit', function (event) {
-            const hasSelected = getRowCheckboxes().some(function (checkbox) { return checkbox.checked; });
-            if (!hasSelected) {
-                event.preventDefault();
-                if (typeof window.showAlertModal === 'function') {
-                    window.showAlertModal({
-                        title: 'No Application Selected',
-                        message: 'Select at least one application for bulk update.',
-                        kind: 'warning',
-                    });
-                } else {
-                    window.alert('Select at least one application for bulk update.');
-                }
-                return;
-            }
-            renderSelectionInputs();
-        });
-    }
-
     bulkSpecialSections.forEach(function (form) {
         form.addEventListener('submit', function (event) {
             const actionInput = form.querySelector('input[name="action"]');
             const actionValue = actionInput ? String(actionInput.value || '').trim() : '';
             if (actionValue === 'bulk_send_soa_reminder') {
-                renderSelectionInputs();
                 return;
             }
-            const hasSelected = getRowCheckboxes().some(function (checkbox) { return checkbox.checked; });
-            if (!hasSelected) {
+            const visibleCount = getVisibleInterviewRows().length;
+            if (visibleCount === 0) {
                 event.preventDefault();
                 if (typeof window.showAlertModal === 'function') {
                     window.showAlertModal({
-                        title: 'No Application Selected',
-                        message: 'Select at least one application first.',
+                        title: 'No Applicants Available',
+                        message: 'No visible applicants are available for interview scheduling.',
                         kind: 'warning',
                     });
                 } else {
-                    window.alert('Select at least one application first.');
+                    window.alert('No visible applicants are available for interview scheduling.');
                 }
                 return;
             }
-            renderSelectionInputs();
         });
     });
+
+    if (bulkInterviewForm) {
+        bulkInterviewForm.addEventListener('change', function (event) {
+            const target = event.target;
+            if (!(target instanceof HTMLInputElement)) {
+                return;
+            }
+            if (target.name === 'school_types[]' || target.name === 'barangays[]') {
+                updateBulkButtonText();
+            }
+        });
+    }
 
     queueTabs.forEach(function (tabButton) {
         tabButton.addEventListener('click', function () {
@@ -2745,15 +3302,18 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
+    interviewSubqueueTabs.forEach(function (tabButton) {
+        tabButton.addEventListener('click', function () {
+            const filterValue = String(tabButton.getAttribute('data-interview-tab') || '').trim();
+            if (filterValue === '') {
+                return;
+            }
+            applyInterviewFilter(filterValue);
+        });
+    });
+
     if (!liveQueueFilter) {
         return;
-    }
-
-    if (rowsPerPageSelect) {
-        rowsPerPageSelect.addEventListener('change', function () {
-            const queueValue = liveQueueFilter ? String(liveQueueFilter.value || '').trim() : '';
-            navigateToQueue(queueValue === '' ? 'all' : queueValue);
-        });
     }
 
     const serverQueue = <?= json_encode($queueFilter, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
@@ -2763,8 +3323,10 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     syncSelectAllState();
-    renderSelectionInputs();
     applyQueueFilter(initialQueue);
+    if (initialQueue === 'for_interview') {
+        applyInterviewFilter(String(interviewScheduledFilter && interviewScheduledFilter.value ? interviewScheduledFilter.value : 'no'));
+    }
     applyBulkActionsForFilter();
     updateBulkButtonText();
     const resetBtn = document.getElementById('reviewBoardReset');
@@ -2788,6 +3350,9 @@ document.addEventListener('DOMContentLoaded', function () {
             if (searchInput instanceof HTMLInputElement) {
                 searchInput.value = '';
                 searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            if (liveQueueFilter && String(liveQueueFilter.value || '').trim() === 'for_interview') {
+                applyInterviewFilter('no');
             }
         });
     }

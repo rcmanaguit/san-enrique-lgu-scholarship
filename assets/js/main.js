@@ -533,6 +533,10 @@ function initSummaryList(table, summaryModal) {
 
     table.dataset.simpleListBound = "1";
     table.classList.add("simple-list-table");
+    const tableWrapper = table.parentElement;
+    if (tableWrapper instanceof HTMLElement && tableWrapper.classList.contains("table-responsive")) {
+        tableWrapper.classList.add("simple-list-wrap");
+    }
 
     headerCells.forEach((cell, index) => {
         if (index >= visibleCount) {

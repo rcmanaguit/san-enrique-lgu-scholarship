@@ -38,7 +38,7 @@ function application_status_meta(string $status): array
         'needs_resubmission' => [
             'label' => 'Needs Resubmission',
             'short_label' => 'Resubmit',
-            'staff_label' => 'For Compliance',
+            'staff_label' => 'Resubmission',
             'applicant_title' => 'Replace the incomplete or rejected documents.',
             'applicant_detail' => 'Upload only the documents marked for resubmission, then send them back for review.',
             'staff_title' => 'Waiting for applicant replacements.',
@@ -52,19 +52,19 @@ function application_status_meta(string $status): array
             'staff_label' => 'For Interview',
             'applicant_title' => 'Prepare for your interview schedule.',
             'applicant_detail' => 'Check the interview date, time, and location. Bring the required identification on schedule.',
-            'staff_title' => 'Schedule or complete the interview stage.',
-            'staff_detail' => 'Set the interview schedule, then move qualified applicants to SOA submission.',
-            'next_action_label' => 'Schedule interview',
+            'staff_title' => 'Set the interview schedule and record completion.',
+            'staff_detail' => 'Schedule the interview first. After the interview is finished, mark it completed before moving the applicant to SOA submission.',
+            'next_action_label' => 'Set interview schedule',
             'tone' => 'primary',
         ],
         'for_soa' => [
             'label' => 'Submit SOA',
             'short_label' => 'SOA',
-            'staff_label' => 'For Compliance',
+            'staff_label' => 'SOA Submission',
             'applicant_title' => 'Submit your SOA or student copy.',
-            'applicant_detail' => 'Submit the school-issued SOA before the deadline so final release can be prepared.',
-            'staff_title' => 'Collect and confirm SOA submission.',
-            'staff_detail' => 'Track the deadline, record the SOA receipt, and move complete records to release approval.',
+            'applicant_detail' => 'Upload the school-issued SOA online before the deadline so final release can be prepared.',
+            'staff_title' => 'Review and confirm SOA submission.',
+            'staff_detail' => 'Track the deadline, review the uploaded SOA, and confirm complete records before release approval.',
             'next_action_label' => 'Submit SOA',
             'tone' => 'primary',
         ],
@@ -129,8 +129,9 @@ function application_staff_queue_label(string $queue): string
     return match (trim($queue)) {
         'all' => 'All Queues',
         'under_review' => 'Review',
-        'compliance' => 'Compliance',
-        'for_interview' => 'Interview',
+        'needs_resubmission' => 'Resubmission',
+        'for_soa' => 'SOA Submission',
+        'for_interview' => 'Interview Queue',
         'approved_for_release' => 'Release',
         'completed' => 'Completed',
         default => ucwords(str_replace('_', ' ', trim($queue))),
@@ -233,7 +234,7 @@ function application_next_action_summary(array $application, string $audience = 
         $hasInterviewSchedule = trim((string) ($application['interview_date'] ?? '')) !== ''
             && trim((string) ($application['interview_location'] ?? '')) !== '';
         if ($hasInterviewSchedule) {
-            $title = 'Interview scheduled. Move qualified applicants to SOA after completion.';
+            $title = 'Interview scheduled. Mark qualified for SOA after the interview result is confirmed.';
             $detail = 'Current schedule: '
                 . date('M d, Y h:i A', strtotime((string) $application['interview_date']))
                 . ' at '

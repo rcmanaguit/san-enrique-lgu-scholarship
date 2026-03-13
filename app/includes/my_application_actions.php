@@ -276,6 +276,7 @@ function my_application_handle_submit_soa_digital(mysqli $conn, array $user, str
     $conn->begin_transaction();
     try {
         if ($existingSoaDoc) {
+            $remarks = 'Resubmitted by applicant on ' . date('M d, Y h:i A');
             $oldPath = trim((string) ($existingSoaDoc['file_path'] ?? ''));
             $oldAbsolute = my_application_absolute_path($oldPath);
             if (

@@ -137,17 +137,6 @@ body.public-landing {
     cursor: pointer;
 }
 
-.simple-list-table tbody tr.simple-list-row > td:first-child::after {
-    content: "Open";
-    display: inline-flex;
-    margin-left: 0.6rem;
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: #5f7380;
-}
-
 .simple-list-modal-grid {
     min-height: 1rem;
 }
@@ -1288,6 +1277,20 @@ body.desktop-sidebar-enabled.desktop-sidebar-collapsed .nav-sidebar-toggle i {
     min-width: 690px;
 }
 
+.table-responsive.simple-list-wrap {
+    overflow-x: hidden;
+}
+
+.table-responsive.simple-list-wrap > .table {
+    min-width: 0;
+}
+
+.simple-list-table td,
+.simple-list-table th {
+    white-space: normal;
+    word-break: break-word;
+}
+
 .status-timeline {
     border-left: 3px solid var(--se-border);
     padding-left: 1rem;
@@ -1419,6 +1422,77 @@ body.desktop-sidebar-enabled.desktop-sidebar-collapsed .nav-sidebar-toggle i {
     border-radius: 12px;
     background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
     padding: 0.75rem 0.85rem;
+}
+
+.workflow-deadline-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.workflow-deadline-card__kicker {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6c7a89;
+}
+
+.workflow-deadline-card__value {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #1e2a35;
+}
+
+.workflow-deadline-card__detail {
+    line-height: 1.45;
+}
+
+.soa-deadline-action-block {
+    align-items: end;
+}
+
+.soa-deadline-action-block__note {
+    min-height: 100%;
+    border: 1px solid rgba(45, 143, 213, 0.12);
+    border-radius: 10px;
+    background: rgba(251, 253, 255, 0.92);
+    padding: 0.6rem 0.75rem;
+}
+
+.soa-deadline-action-block__title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #415a77;
+    margin-bottom: 0.2rem;
+}
+
+.queue-inline-meta {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding: 0.38rem 0.55rem;
+    border: 1px solid rgba(45, 143, 213, 0.14);
+    border-radius: 10px;
+    background: rgba(251, 253, 255, 0.96);
+}
+
+.queue-inline-meta__label {
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6c7a89;
+    line-height: 1.2;
+}
+
+.queue-inline-meta__value {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #243447;
+    line-height: 1.3;
 }
 
 .applicant-status-spotlight,
@@ -2736,7 +2810,6 @@ body.photo-camera-overlay-open {
     body.desktop-sidebar-enabled .app-main,
     body.desktop-sidebar-enabled .app-footer {
         margin-left: var(--desktop-sidebar-width);
-        transition: margin-left 0.26s ease;
     }
 
     body.desktop-sidebar-enabled.desktop-sidebar-collapsed .app-main,
@@ -2763,7 +2836,6 @@ body.photo-camera-overlay-open {
         box-shadow: 12px 0 28px rgba(24, 74, 111, 0.12);
         overflow-y: auto;
         overflow-x: hidden;
-        transition: transform 0.26s ease, opacity 0.22s ease, visibility 0.22s ease;
     }
 
     body.desktop-sidebar-enabled .app-nav-panel .navbar-nav {
@@ -2822,9 +2894,28 @@ body.photo-camera-overlay-open {
     body.desktop-sidebar-enabled .app-footer .container {
         max-width: 100%;
     }
+
 }
 
 @media (max-width: 991.98px) {
+    body.desktop-sidebar-enabled .app-main,
+    body.desktop-sidebar-enabled .app-footer {
+        margin-left: 0 !important;
+    }
+
+    body.desktop-sidebar-enabled .app-nav-panel.navbar-collapse {
+        position: static;
+        transform: none !important;
+        width: 100%;
+        height: auto;
+        max-height: none;
+        border-right: 0;
+        box-shadow: none;
+        padding: 0;
+        background: transparent;
+        backdrop-filter: none;
+    }
+
     .application-review-page .col-xl-5 .card.card-soft:first-child {
         position: static;
     }

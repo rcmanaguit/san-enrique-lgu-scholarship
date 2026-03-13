@@ -33,8 +33,8 @@ $hasApplicationPeriodColumn = db_ready() && table_column_exists($conn, 'applicat
 $bulkStatusMap = [
     '__default__' => ['under_review'],
     'draft' => ['under_review'],
-    'under_review' => ['for_interview', 'rejected'],
-    'needs_resubmission' => ['under_review', 'rejected'],
+    'under_review' => ['for_interview'],
+    'needs_resubmission' => ['under_review'],
     'for_interview' => ['for_soa', 'rejected'],
     'for_soa' => ['approved_for_release'],
     'approved_for_release' => ['released'],
@@ -44,12 +44,12 @@ $bulkStatusMap = [
 $allowedStatus = application_status_options();
 $statusActionLabels = [
     'under_review' => 'Mark Under Review',
-    'for_interview' => 'Move to Interview',
+    'for_interview' => 'Move to Interview Queue',
     'needs_resubmission' => 'Request Resubmission',
-    'for_soa' => 'Move to SOA Submission',
+    'for_soa' => 'Mark Qualified for SOA',
     'approved_for_release' => 'Approve for Payout',
     'released' => 'Mark Released',
-    'rejected' => 'Reject',
+    'rejected' => 'Mark as Not Approved',
 ];
 
 $resolveSmsTemplate = static function (mysqli $conn, string $templateName, string $fallbackBody): string {
@@ -80,41 +80,71 @@ $renderSmsTemplate = static function (string $templateBody, array $replacements)
     }
     return trim($message);
 };
+$formatApplicantReference = static function (array $current): string {
+    $lastName = trim((string) ($current['last_name'] ?? ''));
+    $applicationNo = trim((string) ($current['application_no'] ?? ''));
+
+    $parts = [];
+    if ($lastName !== '') {
+        $parts[] = 'Mr./Ms. ' . $lastName;
+    }
+    if ($applicationNo !== '') {
+        $parts[] = 'Application No. ' . $applicationNo;
+    }
+
+    return implode(', ', $parts);
+};
+$prependApplicantReference = static function (array $current, string $message) use ($formatApplicantReference): string {
+    $reference = $formatApplicantReference($current);
+    $message = trim($message);
+    if ($reference === '' || $message === '') {
+        return $message;
+    }
+    if (preg_match('/^(San Enrique LGU Scholarship:)\s*(.*)$/', $message, $matches) === 1) {
+        return $matches[1] . ' ' . $reference . '. ' . ltrim((string) ($matches[2] ?? ''));
+    }
+    return $reference . ': ' . ltrim($message);
+};
 $statusSmsTemplateConfig = [
     'under_review' => [
         'template' => 'Application Under Review',
-        'fallback' => 'San Enrique LGU Scholarship: Application [Application No] is currently under review.',
+        'fallback' => 'San Enrique LGU Scholarship: Mr./Ms. [Last Name], Application No. [Application No]. Your application is currently under review. Please wait for further updates.',
     ],
     'for_interview' => [
         'template' => 'Documents Verified',
-        'fallback' => 'San Enrique LGU Scholarship: Application [Application No] is scheduled for interview.',
+        'fallback' => 'San Enrique LGU Scholarship: Mr./Ms. [Last Name], Application No. [Application No]. Your documents have been verified. Please wait for further updates.',
     ],
     'for_soa' => [
         'template' => 'SOA Submission Required',
-        'fallback' => 'San Enrique LGU Scholarship: Please submit the SOA for application [Application No] on or before [Deadline].',
+        'fallback' => 'San Enrique LGU Scholarship: Mr./Ms. [Last Name], Application No. [Application No]. Please upload your SOA online on or before [Deadline].',
     ],
     'approved_for_release' => [
         'template' => 'Approved for Release',
-        'fallback' => 'San Enrique LGU Scholarship: Application [Application No] is approved for release. Please wait for the payout schedule.',
+        'fallback' => 'San Enrique LGU Scholarship: Mr./Ms. [Last Name], Application No. [Application No]. Your application is approved for release. Please wait for the payout schedule.',
     ],
     'released' => [
         'template' => 'Payout Released',
-        'fallback' => 'San Enrique LGU Scholarship: Payout has been released for application [Application No].',
+        'fallback' => 'San Enrique LGU Scholarship: Mr./Ms. [Last Name], Application No. [Application No]. Payout has been released.',
     ],
     'rejected' => [
         'template' => 'Application Not Approved',
-        'fallback' => 'San Enrique LGU Scholarship: Application [Application No] was not approved.',
+        'fallback' => 'San Enrique LGU Scholarship: Mr./Ms. [Last Name], Application No. [Application No]. Your application was not approved.',
     ],
 ];
-$buildStatusSmsMessage = static function (string $newStatus, array $current, ?string $deadline = null) use ($conn, $statusSmsTemplateConfig, $resolveSmsTemplate, $renderSmsTemplate): string {
+$buildStatusSmsMessage = static function (string $newStatus, array $current, ?string $deadline = null) use ($conn, $statusSmsTemplateConfig, $resolveSmsTemplate, $renderSmsTemplate, $prependApplicantReference): string {
     $applicationNo = (string) ($current['application_no'] ?? '');
+    $lastName = trim((string) ($current['last_name'] ?? ''));
     $deadlineText = ($deadline !== null && trim($deadline) !== '') ? date('M d, Y', strtotime($deadline)) : 'the announced deadline';
     $config = $statusSmsTemplateConfig[$newStatus] ?? null;
     if (!is_array($config)) {
-        return 'San Enrique LGU Scholarship: Application ' . $applicationNo . ' has been updated.';
+        return $prependApplicantReference(
+            $current,
+            'San Enrique LGU Scholarship: Your application has been updated.'
+        );
     }
     $templateBody = $resolveSmsTemplate($conn, (string) ($config['template'] ?? ''), (string) ($config['fallback'] ?? ''));
     return $renderSmsTemplate($templateBody, [
+        '[Last Name]' => $lastName,
         '[Application No]' => $applicationNo,
         '[Deadline]' => $deadlineText,
     ]);
@@ -212,16 +242,12 @@ include __DIR__ . '/../../includes/header.php';
         </div>
         <div class="d-flex gap-2 flex-wrap applicant-hero-actions">
             <a href="<?= e($returnTo) ?>" class="btn btn-outline-secondary btn-sm"><i class="fa-solid fa-arrow-left me-1"></i>Back to Review Board</a>
-            <a href="../print-application.php?id=<?= (int) $application['id'] ?>" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-print me-1"></i>Print Form</a>
         </div>
     </div>
 </section>
 
 <?php if ($updatesLocked): ?>
     <div class="alert alert-warning py-2 small">This record belongs to an archived period. Enable archived updates from the review board to modify it.</div>
-<?php endif; ?>
-<?php if ($activePeriod && !$isApplicantIntakeOpen): ?>
-    <div class="alert alert-info py-2 small">Applicant intake is closed for this application period, but admin and staff can continue processing submitted records until the period is marked completed.</div>
 <?php endif; ?>
 
 <div class="row g-3">
@@ -232,85 +258,9 @@ include __DIR__ . '/../../includes/header.php';
         $summaryShowSoaDeadline = (string) ($application['status'] ?? '') !== 'for_soa';
         include __DIR__ . '/../../includes/partials/application-summary-card.php';
         ?>
-
-        <details class="workflow-panel workflow-panel-collapsible mt-3" open>
-            <summary>
-                <span>Period History</span>
-                <small><?= count($periodTimeline) ?> period<?= count($periodTimeline) === 1 ? '' : 's' ?></small>
-            </summary>
-            <div class="workflow-panel-body">
-                <?php if (!$periodTimeline): ?>
-                    <p class="small text-muted mb-0">No application periods available yet.</p>
-                <?php else: ?>
-                    <div class="period-history-list">
-                        <?php foreach ($periodTimeline as $timelineRow): ?>
-                            <div class="period-history-item">
-                                <div>
-                                    <div class="fw-semibold small"><?= e((string) ($timelineRow['period_label'] ?? 'Application Period')) ?></div>
-                                    <?php if ((bool) ($timelineRow['has_application'] ?? false) && trim((string) ($timelineRow['application_no'] ?? '')) !== ''): ?>
-                                        <div class="small text-muted"><?= e((string) ($timelineRow['application_no'] ?? '')) ?></div>
-                                    <?php endif; ?>
-                                </div>
-                                <span class="badge <?= e((string) ($timelineRow['badge_class'] ?? 'text-bg-light')) ?>">
-                                    <?= e((string) ($timelineRow['label'] ?? 'No application')) ?>
-                                </span>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </details>
-
-        <details class="workflow-panel workflow-panel-collapsible mt-3">
-            <summary>
-                <span>Recent History</span>
-                <small><?= count($historyRows) ?> item<?= count($historyRows) === 1 ? '' : 's' ?></small>
-            </summary>
-            <div class="workflow-panel-body">
-                <?php if (!$historyRows): ?>
-                    <p class="small text-muted mb-0">No recorded history yet.</p>
-                <?php else: ?>
-                    <div class="workflow-history-list">
-                        <?php foreach ($historyRows as $historyRow): ?>
-                            <div class="workflow-history-item">
-                                <div class="fw-semibold small"><?= e(audit_action_label((string) ($historyRow['action'] ?? ''))) ?></div>
-                                <?php if (trim((string) ($historyRow['description'] ?? '')) !== ''): ?>
-                                    <div class="small text-muted"><?= e((string) ($historyRow['description'] ?? '')) ?></div>
-                                <?php endif; ?>
-                                <div class="small text-muted"><?= !empty($historyRow['created_at']) ? date('M d, Y h:i A', strtotime((string) $historyRow['created_at'])) : '-' ?></div>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </details>
     </div>
 
     <div class="col-12 col-xl-7">
-        <details class="workflow-panel workflow-panel-collapsible">
-            <summary>
-                <span>Application Form</span>
-                <small>Filled form preview</small>
-            </summary>
-            <div class="workflow-panel-body">
-                <div class="d-flex flex-wrap gap-2 mb-3">
-                    <a href="../print-application.php?id=<?= (int) $application['id'] ?>" class="btn btn-outline-primary btn-sm" target="_blank" rel="noopener noreferrer">
-                        <i class="fa-solid fa-up-right-from-square me-1"></i>Open Full Form
-                    </a>
-                    <a href="../print-application.php?id=<?= (int) $application['id'] ?>" class="btn btn-outline-secondary btn-sm">
-                        <i class="fa-solid fa-print me-1"></i>Print Form
-                    </a>
-                </div>
-                <div class="border rounded overflow-hidden bg-white" style="min-height: 720px;">
-                    <iframe
-                        src="../print-application.php?id=<?= (int) $application['id'] ?>&embed=1"
-                        title="Application Form Preview"
-                        style="border:0;width:100%;height:720px;background:#fff;"
-                    ></iframe>
-                </div>
-            </div>
-        </details>
-
         <details class="workflow-panel workflow-panel-collapsible">
             <summary>
                 <span>Submitted Documents</span>
@@ -331,7 +281,7 @@ include __DIR__ . '/../../includes/header.php';
                             <div class="list-group-item d-flex justify-content-between align-items-start gap-3 flex-wrap">
                                 <div>
                                     <div class="fw-semibold"><?= e((string) ($doc['requirement_name'] ?? ('Document #' . $docId))) ?></div>
-                                    <div class="small text-muted">Verification: <?= e(strtoupper((string) ($doc['verification_status'] ?? 'pending'))) ?></div>
+                                    <div class="small text-muted">Verification: <?= e(strtoupper(document_verification_status_label($doc))) ?></div>
                                     <?php if (trim((string) ($doc['remarks'] ?? '')) !== ''): ?>
                                         <div class="small text-muted">Notes: <?= e((string) ($doc['remarks'] ?? '')) ?></div>
                                     <?php endif; ?>
@@ -371,6 +321,9 @@ include __DIR__ . '/../../includes/header.php';
                                     </div>
                                 <?php endforeach; ?>
                             </div>
+                            <div class="form-text mt-2">
+                                Check each document that is complete and acceptable. Leave unchecked documents that still need correction or resubmission.
+                            </div>
                         </div>
                         <div class="col-12">
                             <label class="form-label form-label-sm">Optional Notes</label>
@@ -395,7 +348,7 @@ include __DIR__ . '/../../includes/header.php';
                             <input type="hidden" name="status" value="rejected">
                             <input type="hidden" name="review_notes" value="<?= e((string) ($application['review_notes'] ?? '')) ?>">
                             <input type="hidden" name="redirect_to" value="<?= e('application-review.php?id=' . (int) $application['id'] . '&return_to=' . urlencode($returnTo)) ?>">
-                            <button type="submit" class="btn btn-outline-danger btn-sm" <?= $updatesLocked ? 'disabled' : '' ?>>Reject Application</button>
+                            <button type="submit" class="btn btn-outline-danger btn-sm" <?= $updatesLocked ? 'disabled' : '' ?>>Mark as Not Approved</button>
                         </form>
                     <?php endif; ?>
                 <?php else: ?>
@@ -406,17 +359,21 @@ include __DIR__ . '/../../includes/header.php';
                         <input type="hidden" name="redirect_to" value="<?= e('application-review.php?id=' . (int) $application['id'] . '&return_to=' . urlencode($returnTo)) ?>">
 
                         <?php if ((string) ($application['status'] ?? '') === 'for_interview'): ?>
-                            <div class="col-12 col-md-4">
-                                <label class="form-label form-label-sm">Interview Date</label>
-                                <input type="date" name="interview_date" class="form-control form-control-sm" value="<?= !empty($application['interview_date']) ? e(date('Y-m-d', strtotime((string) $application['interview_date']))) : '' ?>">
-                            </div>
-                            <div class="col-12 col-md-3">
-                                <label class="form-label form-label-sm">Interview Time</label>
-                                <input type="time" name="interview_time" class="form-control form-control-sm" value="<?= !empty($application['interview_date']) ? e(date('H:i', strtotime((string) $application['interview_date']))) : '' ?>">
-                            </div>
-                            <div class="col-12 col-md-5">
-                                <label class="form-label form-label-sm">Location</label>
-                                <input type="text" name="interview_location" class="form-control form-control-sm" value="<?= e((string) ($application['interview_location'] ?? 'Mayor\'s Office, San Enrique')) ?>">
+                            <div class="col-12">
+                                <div class="workflow-preview-box small">
+                                    <strong>Interview scheduling is managed in batch.</strong>
+                                    <?php if ($hasInterviewSchedule): ?>
+                                        <div class="mt-1">
+                                            Current schedule:
+                                            <?= e(date('M d, Y h:i A', strtotime((string) ($application['interview_date'] ?? '')))) ?>
+                                            at
+                                            <?= e((string) ($application['interview_location'] ?? 'Mayor\'s Office, San Enrique')) ?>
+                                        </div>
+                                        <div class="mt-1">If the interview is already finished, you can mark it completed below.</div>
+                                    <?php else: ?>
+                                        <div class="mt-1">Set the interview schedule first from the Interview Queue batch action.</div>
+                                    <?php endif; ?>
+                                </div>
                             </div>
                         <?php endif; ?>
 
@@ -436,17 +393,6 @@ include __DIR__ . '/../../includes/header.php';
                                     <?php endforeach; ?>
                                 </div>
                             </div>
-                            <div class="col-12">
-                                <div class="workflow-preview-box small">
-                                    <strong>SMS preview</strong>
-                                    <?php foreach ($rowTransitionOptions as $status): ?>
-                                        <div class="mt-2">
-                                            <span class="badge <?= status_badge_class((string) $status) ?> me-1"><?= e(application_staff_status_label((string) $status)) ?></span>
-                                            <?= e($buildStatusSmsMessage((string) $status, $application, (string) ($application['soa_submission_deadline'] ?? ''))) ?>
-                                        </div>
-                                    <?php endforeach; ?>
-                                </div>
-                            </div>
                         <?php endif; ?>
 
                         <?php if ((string) ($application['status'] ?? '') === 'for_soa'): ?>
@@ -454,62 +400,192 @@ include __DIR__ . '/../../includes/header.php';
                             $soaDeadlineRaw = trim((string) ($application['soa_submission_deadline'] ?? ''));
                             $soaDeadlineTs = $soaDeadlineRaw !== '' ? strtotime($soaDeadlineRaw) : false;
                             $todayTs = strtotime(date('Y-m-d'));
-                            $deadlineState = 'Set a submission deadline to support reminders and tracking.';
+                            $deadlineState = 'Set an upload deadline to support reminders and tracking.';
                             $deadlineToneClass = 'text-muted';
                                 if ($soaDeadlineTs !== false) {
                                     if ($soaDeadlineTs < $todayTs) {
-                                    $deadlineState = 'Deadline passed. Confirm the SOA if it has already been submitted, or go back to the For SOA board to adjust the deadline.';
+                                    $deadlineState = 'Deadline passed. Review the uploaded SOA if it has already been submitted, or go back to the For SOA board to adjust the deadline.';
                                     $deadlineToneClass = 'text-danger';
                                 } elseif ($soaDeadlineTs === $todayTs) {
-                                    $deadlineState = 'Deadline is today. Confirm the SOA once the school document has been checked.';
+                                    $deadlineState = 'Deadline is today. Review the uploaded SOA and confirm it once the school document has been checked.';
                                     $deadlineToneClass = 'text-warning';
                                 } else {
-                                    $deadlineState = 'Submission window is still open. Confirm the SOA once the school document has been checked.';
+                                    $deadlineState = 'Upload window is still open. Review the uploaded SOA and confirm it once the school document has been checked.';
                                     $deadlineToneClass = 'text-muted';
                                 }
                             }
                             ?>
                             <div class="col-12">
-                                <div class="workflow-preview-box small">
-                                    <strong>Submission Window</strong>
-                                    <div class="mt-1">
+                                <div class="workflow-preview-box workflow-deadline-card small">
+                                    <div class="workflow-deadline-card__kicker">SOA Upload Window</div>
+                                    <div class="workflow-deadline-card__value">
                                         <?php if ($soaDeadlineTs !== false): ?>
-                                            Deadline: <?= e(date('M d, Y', $soaDeadlineTs)) ?>
+                                            <?= e(date('M d, Y', $soaDeadlineTs)) ?>
                                         <?php else: ?>
-                                            No deadline set yet.
+                                            No deadline set
                                         <?php endif; ?>
                                     </div>
-                                    <div class="mt-1 <?= e($deadlineToneClass) ?>"><?= e($deadlineState) ?></div>
+                                    <div class="workflow-deadline-card__detail <?= e($deadlineToneClass) ?>"><?= e($deadlineState) ?></div>
                                 </div>
                             </div>
                         <?php endif; ?>
 
-                        <div class="col-12">
-                            <div class="d-flex flex-wrap gap-2">
-                                <?php if ((string) ($application['status'] ?? '') === 'for_interview'): ?>
-                                    <button type="submit" class="btn btn-primary btn-sm" name="status" value="for_interview" <?= $updatesLocked ? 'disabled' : '' ?>>
-                                        Save Interview Schedule
-                                    </button>
-                                <?php endif; ?>
-                                <button type="submit" class="btn btn-secondary btn-sm" name="status" value="<?= e((string) ($application['status'] ?? '')) ?>" <?= $updatesLocked ? 'disabled' : '' ?>>
-                                    Save Notes
-                                </button>
-                            </div>
-                        </div>
                     </form>
 
                     <?php if ((string) ($application['status'] ?? '') === 'for_soa'): ?>
-                        <form method="post" action="applications.php" class="mt-3">
-                            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-                            <input type="hidden" name="action" value="mark_soa_submitted">
-                            <input type="hidden" name="application_id" value="<?= (int) $application['id'] ?>">
-                            <input type="hidden" name="redirect_to" value="<?= e('application-review.php?id=' . (int) $application['id'] . '&return_to=' . urlencode($returnTo)) ?>">
-                            <button type="submit" class="btn btn-success btn-sm" <?= $updatesLocked ? 'disabled' : '' ?>>Confirm SOA Received</button>
-                        </form>
+                        <div class="mt-3 d-flex flex-column gap-2">
+                            <form method="post" action="applications.php" class="row g-2 align-items-end js-soa-resubmission-form" novalidate>
+                                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+                                <input type="hidden" name="action" value="request_soa_resubmission">
+                                <input type="hidden" name="application_id" value="<?= (int) $application['id'] ?>">
+                                <input type="hidden" name="redirect_to" value="<?= e('application-review.php?id=' . (int) $application['id'] . '&return_to=' . urlencode($returnTo)) ?>">
+                                <div class="col-12 col-md">
+                                    <label class="form-label form-label-sm">Reason for SOA replacement</label>
+                                    <input type="text" name="soa_review_notes" class="form-control form-control-sm js-soa-resubmission-notes" maxlength="255" placeholder="Explain what needs to be corrected" required>
+                                    <div class="form-text js-soa-resubmission-feedback">Enter the correction needed before sending the request.</div>
+                                </div>
+                                <div class="col-12 col-md-auto">
+                                    <button type="submit" class="btn btn-outline-warning btn-sm js-soa-resubmission-submit" <?= $updatesLocked ? 'disabled' : '' ?>>Request SOA Resubmission</button>
+                                </div>
+                            </form>
+                            <form method="post" action="applications.php">
+                                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+                                <input type="hidden" name="action" value="mark_soa_submitted">
+                                <input type="hidden" name="application_id" value="<?= (int) $application['id'] ?>">
+                                <input type="hidden" name="redirect_to" value="<?= e('application-review.php?id=' . (int) $application['id'] . '&return_to=' . urlencode($returnTo)) ?>">
+                                <button type="submit" class="btn btn-success btn-sm" <?= $updatesLocked ? 'disabled' : '' ?>>Confirm Uploaded SOA</button>
+                            </form>
+                        </div>
                     <?php endif; ?>
                 <?php endif; ?>
             </div>
         </div>
+
+        <details class="workflow-panel workflow-panel-collapsible mt-3">
+            <summary>
+                <span>Application Form</span>
+                <small>Filled form preview</small>
+            </summary>
+            <div class="workflow-panel-body">
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <a href="../print-application.php?id=<?= (int) $application['id'] ?>" class="btn btn-outline-primary btn-sm" target="_blank" rel="noopener noreferrer">
+                        <i class="fa-solid fa-up-right-from-square me-1"></i>Open Full Form
+                    </a>
+                    <a href="../print-application.php?id=<?= (int) $application['id'] ?>" class="btn btn-outline-secondary btn-sm">
+                        <i class="fa-solid fa-print me-1"></i>Print Form
+                    </a>
+                </div>
+                <div class="border rounded overflow-hidden bg-white" style="min-height: 720px;">
+                    <iframe
+                        src="../print-application.php?id=<?= (int) $application['id'] ?>&embed=1"
+                        title="Application Form Preview"
+                        style="border:0;width:100%;height:720px;background:#fff;"
+                    ></iframe>
+                </div>
+            </div>
+        </details>
+
+        <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.js-soa-resubmission-form').forEach(function (form) {
+                var input = form.querySelector('.js-soa-resubmission-notes');
+                var submit = form.querySelector('.js-soa-resubmission-submit');
+                var feedback = form.querySelector('.js-soa-resubmission-feedback');
+                if (!input || !submit || !feedback) {
+                    return;
+                }
+
+                var validate = function () {
+                    var value = String(input.value || '').trim();
+                    var valid = value.length > 0;
+
+                    input.classList.remove('is-valid', 'is-invalid');
+                    if (valid) {
+                        input.classList.add('is-valid');
+                        feedback.textContent = 'Ready to send the SOA resubmission request.';
+                        feedback.className = 'form-text text-success js-soa-resubmission-feedback';
+                    } else {
+                        input.classList.add('is-invalid');
+                        feedback.textContent = 'Enter the correction needed before sending the request.';
+                        feedback.className = 'form-text text-danger js-soa-resubmission-feedback';
+                    }
+
+                    submit.disabled = !valid || submit.hasAttribute('data-base-disabled');
+                    return valid;
+                };
+
+                if (submit.disabled) {
+                    submit.setAttribute('data-base-disabled', '1');
+                }
+
+                input.addEventListener('input', validate);
+                input.addEventListener('blur', validate);
+
+                form.addEventListener('submit', function (event) {
+                    if (!validate()) {
+                        event.preventDefault();
+                        input.focus();
+                    }
+                });
+
+                input.classList.remove('is-valid', 'is-invalid');
+                feedback.className = 'form-text text-muted js-soa-resubmission-feedback';
+                submit.disabled = true;
+            });
+        });
+        </script>
+
+        <details class="workflow-panel workflow-panel-collapsible mt-3">
+            <summary>
+                <span>Period History</span>
+                <small><?= count($periodTimeline) ?> period<?= count($periodTimeline) === 1 ? '' : 's' ?></small>
+            </summary>
+            <div class="workflow-panel-body">
+                <?php if (!$periodTimeline): ?>
+                    <p class="small text-muted mb-0">No application periods available yet.</p>
+                <?php else: ?>
+                    <div class="period-history-list">
+                        <?php foreach ($periodTimeline as $timelineRow): ?>
+                            <div class="period-history-item">
+                                <div>
+                                    <div class="fw-semibold small"><?= e((string) ($timelineRow['period_label'] ?? 'Application Period')) ?></div>
+                                    <?php if ((bool) ($timelineRow['has_application'] ?? false) && trim((string) ($timelineRow['application_no'] ?? '')) !== ''): ?>
+                                        <div class="small text-muted"><?= e((string) ($timelineRow['application_no'] ?? '')) ?></div>
+                                    <?php endif; ?>
+                                </div>
+                                <span class="badge <?= e((string) ($timelineRow['badge_class'] ?? 'text-bg-light')) ?>">
+                                    <?= e((string) ($timelineRow['label'] ?? 'No application')) ?>
+                                </span>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </details>
+
+        <details class="workflow-panel workflow-panel-collapsible mt-3">
+            <summary>
+                <span>Scholarship History</span>
+                <small><?= count($historyRows) ?> item<?= count($historyRows) === 1 ? '' : 's' ?></small>
+            </summary>
+            <div class="workflow-panel-body">
+                <?php if (!$historyRows): ?>
+                    <p class="small text-muted mb-0">No recorded history yet.</p>
+                <?php else: ?>
+                    <div class="workflow-history-list">
+                        <?php foreach ($historyRows as $historyRow): ?>
+                            <div class="workflow-history-item">
+                                <div class="fw-semibold small"><?= e(audit_action_label((string) ($historyRow['action'] ?? ''))) ?></div>
+                                <?php if (trim((string) ($historyRow['description'] ?? '')) !== ''): ?>
+                                    <div class="small text-muted"><?= e((string) ($historyRow['description'] ?? '')) ?></div>
+                                <?php endif; ?>
+                                <div class="small text-muted"><?= !empty($historyRow['created_at']) ? date('M d, Y h:i A', strtotime((string) $historyRow['created_at'])) : '-' ?></div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </details>
     </div>
 </div>
 

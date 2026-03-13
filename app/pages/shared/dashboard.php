@@ -20,7 +20,6 @@ $stats = [
     'applications' => 0,
     'under_review' => 0,
     'needs_resubmission' => 0,
-    'compliance' => 0,
     'for_interview' => 0,
     'for_soa' => 0,
     'approved_for_release' => 0,
@@ -110,7 +109,6 @@ if (db_ready()) {
 
     $stats['under_review'] = (int) ($statusTotals['under_review'] ?? 0);
     $stats['needs_resubmission'] = (int) ($statusTotals['needs_resubmission'] ?? 0);
-    $stats['compliance'] = $stats['needs_resubmission'] + (int) ($statusTotals['for_soa'] ?? 0);
     $stats['for_interview'] = (int) ($statusTotals['for_interview'] ?? 0);
     $stats['for_soa'] = (int) ($statusTotals['for_soa'] ?? 0);
     $stats['approved_for_release'] = (int) ($statusTotals['approved_for_release'] ?? 0);
@@ -188,13 +186,16 @@ $pageHeaderDescription = 'Monitor the current working period and open the next q
 $pageHeaderSecondaryInfo = 'Current period: <strong>' . e($currentSemesterLabel) . '</strong> with <strong>' . number_format($currentSemesterApplications) . '</strong> records. Submission: <strong>' . ($isApplicantIntakeOpen ? 'Open' : 'Closed') . '</strong>. Today: <strong>' . number_format($todayApplications) . '</strong> new applications.';
 $primaryQueue = 'under_review';
 $primaryQueueLabel = 'Review Documents';
-if ((int) ($stats['compliance'] ?? 0) > 0 && (int) ($stats['under_review'] ?? 0) === 0) {
-    $primaryQueue = 'compliance';
-    $primaryQueueLabel = 'Open Compliance Queue';
-} elseif ((int) ($stats['for_interview'] ?? 0) > 0 && (int) ($stats['under_review'] ?? 0) === 0 && (int) ($stats['compliance'] ?? 0) === 0) {
+if ((int) ($stats['needs_resubmission'] ?? 0) > 0 && (int) ($stats['under_review'] ?? 0) === 0) {
+    $primaryQueue = 'needs_resubmission';
+    $primaryQueueLabel = 'Open Resubmission Queue';
+} elseif ((int) ($stats['for_interview'] ?? 0) > 0 && (int) ($stats['under_review'] ?? 0) === 0 && (int) ($stats['needs_resubmission'] ?? 0) === 0) {
     $primaryQueue = 'for_interview';
     $primaryQueueLabel = 'Open Interview Queue';
-} elseif ((int) ($stats['approved_for_release'] ?? 0) > 0 && (int) ($stats['under_review'] ?? 0) === 0 && (int) ($stats['compliance'] ?? 0) === 0 && (int) ($stats['for_interview'] ?? 0) === 0) {
+} elseif ((int) ($stats['for_soa'] ?? 0) > 0 && (int) ($stats['under_review'] ?? 0) === 0 && (int) ($stats['needs_resubmission'] ?? 0) === 0 && (int) ($stats['for_interview'] ?? 0) === 0) {
+    $primaryQueue = 'for_soa';
+    $primaryQueueLabel = 'Open SOA Queue';
+} elseif ((int) ($stats['approved_for_release'] ?? 0) > 0 && (int) ($stats['under_review'] ?? 0) === 0 && (int) ($stats['needs_resubmission'] ?? 0) === 0 && (int) ($stats['for_interview'] ?? 0) === 0 && (int) ($stats['for_soa'] ?? 0) === 0) {
     $primaryQueue = 'approved_for_release';
     $primaryQueueLabel = 'Open Release Queue';
 }
@@ -230,12 +231,12 @@ include __DIR__ . '/../../includes/partials/page-shell-header.php';
         </a>
     </div>
     <div class="col-6 col-lg-3 col-xl">
-        <a href="applications.php?queue=compliance" class="text-reset text-decoration-none d-block h-100">
+        <a href="applications.php?queue=needs_resubmission" class="text-reset text-decoration-none d-block h-100">
             <article class="card card-soft dashboard-stat-card tone-amber h-100">
                 <div class="card-body">
                     <span class="dashboard-stat-icon"><i class="fa-solid fa-file-arrow-up"></i></span>
-                    <p class="small mb-1">For Compliance</p>
-                    <h3><?= number_format($stats['compliance']) ?></h3>
+                    <p class="small mb-1">Resubmission</p>
+                    <h3><?= number_format($stats['needs_resubmission']) ?></h3>
                 </div>
             </article>
         </a>
@@ -247,6 +248,17 @@ include __DIR__ . '/../../includes/partials/page-shell-header.php';
                     <span class="dashboard-stat-icon"><i class="fa-solid fa-calendar-check"></i></span>
                     <p class="small mb-1">Schedule Interview</p>
                     <h3><?= number_format($stats['for_interview']) ?></h3>
+                </div>
+            </article>
+        </a>
+    </div>
+    <div class="col-6 col-lg-3 col-xl">
+        <a href="applications.php?queue=for_soa" class="text-reset text-decoration-none d-block h-100">
+            <article class="card card-soft dashboard-stat-card tone-amber h-100">
+                <div class="card-body">
+                    <span class="dashboard-stat-icon"><i class="fa-solid fa-file-invoice-dollar"></i></span>
+                    <p class="small mb-1">Pending SOA</p>
+                    <h3><?= number_format($stats['for_soa']) ?></h3>
                 </div>
             </article>
         </a>

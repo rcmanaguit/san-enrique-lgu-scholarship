@@ -201,8 +201,8 @@ if ($user && in_array((string) ($user['role'] ?? ''), ['admin', 'staff'], true))
                                 class="fa-solid fa-gauge-high me-1"></i>Dashboard</a>
                     </li>
                     <li class="nav-item">
-                        <a class="<?= e($navLinkClass('shared/applications.php')) ?>"
-                            href="<?= e($link('shared/applications.php')) ?>"><i
+                        <a class="<?= e($navLinkClass(['shared/applications.php', 'shared/application-review.php'])) ?>"
+                             href="<?= e($link('shared/applications.php')) ?>"><i
                                 class="fa-solid fa-folder-tree me-1"></i>Application Queue</a>
                     </li>
                     <li class="nav-item">

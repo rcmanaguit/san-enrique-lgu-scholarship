@@ -6,6 +6,14 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 /** @var mixed $conn */
 $conn = $GLOBALS['conn'] ?? null;
 
+if (is_logged_in()) {
+    if (user_has_role(['admin', 'staff'])) {
+        redirect('shared/dashboard.php');
+    }
+
+    redirect('dashboard.php');
+}
+
 $pageTitle = 'San Enrique LGU Scholarship Portal';
 $bodyClass = 'public-landing';
 $announcements = [];

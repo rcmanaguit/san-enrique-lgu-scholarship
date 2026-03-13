@@ -11,6 +11,8 @@ $latestApplication['rejected_document_count'] = count($resubmissionTargetsByAppI
 $latestNextAction = application_next_action_summary($latestApplication, 'applicant');
 $latestTimeline = application_timeline_steps($latestStatus);
 $latestSoaDoc = $soaDocumentsByAppId[(int) ($latestApplication['id'] ?? 0)] ?? null;
+$latestSoaRejected = is_array($latestSoaDoc) && (string) ($latestSoaDoc['verification_status'] ?? '') === 'rejected';
+$latestSoaRemarks = trim((string) ($latestSoaDoc['remarks'] ?? ''));
 ?>
 <div class="card card-soft page-shell-section mb-3">
     <div class="card-body">
@@ -91,32 +93,47 @@ $latestSoaDoc = $soaDocumentsByAppId[(int) ($latestApplication['id'] ?? 0)] ?? n
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
                 <div>
-                    <h2 class="h6 mb-1">Submit SOA</h2>
+                    <h2 class="h6 mb-1">Upload SOA</h2>
                     <div class="small text-muted">
                         <?= e((string) ($latestApplication['application_no'] ?? '-')) ?>
                     </div>
+                    <div class="small text-muted mt-1">
+                        Upload your SOA or Student Copy online. The scholarship office will review your file after submission.
+                    </div>
                 </div>
-                <?php if (!empty($latestApplication['soa_submitted_at'])): ?>
+                <?php if ($latestSoaRejected): ?>
+                    <span class="badge text-bg-danger">Needs Replacement</span>
+                <?php elseif (!empty($latestApplication['soa_submitted_at'])): ?>
                     <span class="badge text-bg-success">Uploaded</span>
                 <?php endif; ?>
             </div>
+            <?php if ($latestSoaRejected): ?>
+                <div class="alert alert-warning small mb-3">
+                    <div class="fw-semibold mb-1">Your uploaded SOA needs correction.</div>
+                    <div>Replace the current file with a corrected SOA so the scholarship office can review it again.</div>
+                    <?php if ($latestSoaRemarks !== ''): ?>
+                        <div class="mt-2"><strong>Staff note:</strong> <?= e($latestSoaRemarks) ?></div>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
             <form method="post" enctype="multipart/form-data" class="row g-3">
                 <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                 <input type="hidden" name="action" value="submit_soa_digital">
                 <input type="hidden" name="application_id" value="<?= (int) ($latestApplication['id'] ?? 0) ?>">
                 <div class="col-12">
                     <input type="file" name="soa_document" class="form-control" accept=".pdf,.jpg,.jpeg,.png" required>
+                    <div class="form-text">Accepted formats: PDF, JPG, JPEG, or PNG.</div>
                 </div>
                 <?php if (is_array($latestSoaDoc) && trim((string) ($latestSoaDoc['path'] ?? '')) !== ''): ?>
                     <div class="col-12">
                         <a href="preview-document.php?file=<?= urlencode((string) ($latestSoaDoc['path'] ?? '')) ?>" class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener noreferrer">
-                            View Current SOA
+                            View Current Upload
                         </a>
                     </div>
                 <?php endif; ?>
                 <div class="col-12 d-flex justify-content-end">
                     <button type="submit" class="btn btn-primary btn-sm">
-                        <i class="fa-solid fa-upload me-1"></i>Upload SOA
+                        <i class="fa-solid fa-upload me-1"></i><?= is_array($latestSoaDoc) && trim((string) ($latestSoaDoc['path'] ?? '')) !== '' ? 'Replace SOA' : 'Upload SOA' ?>
                     </button>
                 </div>
             </form>

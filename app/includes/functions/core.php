@@ -7,6 +7,22 @@ function e(string $value): string
     return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 }
 
+function document_verification_status_label(array $document): string
+{
+    $status = trim((string) ($document['verification_status'] ?? 'pending'));
+    $remarks = trim((string) ($document['remarks'] ?? ''));
+
+    if ($status === 'pending' && preg_match('/^Resubmitted by applicant\b/i', $remarks) === 1) {
+        return 'Resubmitted';
+    }
+
+    return match ($status) {
+        'verified' => 'Verified',
+        'rejected' => 'Rejected',
+        default => 'Pending',
+    };
+}
+
 function redirect(string $path): void
 {
     header('Location: ' . $path);

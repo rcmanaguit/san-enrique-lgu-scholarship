@@ -150,7 +150,7 @@ CREATE TABLE IF NOT EXISTS applications (
         ON DELETE CASCADE,
     CONSTRAINT fk_applications_period
         FOREIGN KEY (application_period_id) REFERENCES application_periods(id)
-        ON DELETE SET NULL,
+        ON DELETE RESTRICT,
     UNIQUE KEY uq_applications_user_period (user_id, application_period_id)
 );
 
@@ -437,7 +437,7 @@ INSERT INTO sms_templates (
 ),
 (
     'Interview Notice',
-    'San Enrique LGU Scholarship Notice: Your interview is scheduled on [Date] at [Time], at [Location]. Please arrive on time and bring a valid ID.',
+    'San Enrique LGU Scholarship: Mr./Ms. [Last Name], Application No. [Application No]. Your interview is scheduled on [Date] at [Time], at [Location]. Please arrive on time, bring a valid ID, and note that attendance is first come, first served.',
     'Interview',
     1,
     @default_admin_id,
@@ -445,7 +445,7 @@ INSERT INTO sms_templates (
 ),
 (
     'SOA / Student Copy Reminder',
-    'San Enrique LGU Scholarship Reminder: Kindly submit your SOA/Student''s Copy at the Mayor''s Office on or before [Deadline]. If you have already submitted it, please disregard this message.',
+    'San Enrique LGU Scholarship Reminder: Kindly upload your SOA/Student''s Copy online on or before [Deadline]. If you have already submitted it, please disregard this message.',
     'SOA',
     1,
     @default_admin_id,
@@ -453,7 +453,7 @@ INSERT INTO sms_templates (
 ),
 (
     'Payout Schedule Advisory',
-    'San Enrique LGU Scholarship: Your application has been approved. The payout schedule is on [Date] at [Time], at [Location]. Please bring a valid ID.',
+    'San Enrique LGU Scholarship: Mr./Ms. [Last Name], Application No. [Application No]. Your application has been approved. The payout schedule is on [Date] at [Time], at [Location]. Please bring a valid ID. First come, first served.',
     'Payout',
     1,
     @default_admin_id,
@@ -469,7 +469,7 @@ INSERT INTO sms_templates (
 ),
 (
     'Application Under Review',
-    'San Enrique LGU Scholarship: Application [Application No] has been submitted and is currently under review. Please wait for further updates.',
+    'San Enrique LGU Scholarship: Mr./Ms. [Last Name], Application No. [Application No]. Your application is currently under review. Please wait for further updates.',
     'Application',
     1,
     @default_admin_id,
@@ -477,7 +477,7 @@ INSERT INTO sms_templates (
 ),
 (
     'Documents Verified',
-    'San Enrique LGU Scholarship: Application [Application No] documents have been verified. Please wait for further updates.',
+    'San Enrique LGU Scholarship: Mr./Ms. [Last Name], Application No. [Application No]. Your documents have been verified. Please wait for further updates.',
     'Interview',
     1,
     @default_admin_id,
@@ -485,7 +485,7 @@ INSERT INTO sms_templates (
 ),
 (
     'SOA Submission Required',
-    'San Enrique LGU Scholarship: Please submit the SOA for application [Application No] on or before [Deadline].',
+    'San Enrique LGU Scholarship: Mr./Ms. [Last Name], Application No. [Application No]. Please upload your SOA online on or before [Deadline].',
     'SOA',
     1,
     @default_admin_id,
@@ -493,7 +493,7 @@ INSERT INTO sms_templates (
 ),
 (
     'Approved for Release',
-    'San Enrique LGU Scholarship: Application [Application No] is approved for release. Please wait for the payout schedule.',
+    'San Enrique LGU Scholarship: Mr./Ms. [Last Name], Application No. [Application No]. Your application is approved for release. Please wait for the payout schedule.',
     'Application',
     1,
     @default_admin_id,
@@ -501,7 +501,7 @@ INSERT INTO sms_templates (
 ),
 (
     'Payout Released',
-    'San Enrique LGU Scholarship: Payout has been released for application [Application No].',
+    'San Enrique LGU Scholarship: Mr./Ms. [Last Name], Application No. [Application No]. Payout has been released.',
     'Payout',
     1,
     @default_admin_id,
@@ -509,7 +509,7 @@ INSERT INTO sms_templates (
 ),
 (
     'Application Not Approved',
-    'San Enrique LGU Scholarship: Application [Application No] was not approved.',
+    'San Enrique LGU Scholarship: Mr./Ms. [Last Name], Application No. [Application No]. Your application was not approved.',
     'Application',
     1,
     @default_admin_id,
@@ -517,7 +517,7 @@ INSERT INTO sms_templates (
 ),
 (
     'Document Resubmission Required',
-    'San Enrique LGU Scholarship: Application [Application No] requires resubmission of the following: [Missing Documents].',
+    'San Enrique LGU Scholarship: Mr./Ms. [Last Name], Application No. [Application No]. Please resubmit the following: [Missing Documents].',
     'Requirements',
     1,
     @default_admin_id,
