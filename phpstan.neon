@@ -1,0 +1,17 @@
+parameters:
+    level: 0
+    paths:
+        - app/includes
+        - app/pages
+        - public
+        - scripts
+    excludePaths:
+        analyse:
+            - public/assets/*
+            - assets/*
+            - vendor/*
+            - uploads/*
+            - backups/*
+    tmpDir: var/phpstan
+    treatPhpDocTypesAsCertain: false
+

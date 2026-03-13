@@ -20,14 +20,25 @@ RewriteRule (^|/)\.well-known/ - [L]
 # Block hidden files/folders
 RewriteRule (^|/)\.(?!well-known/) - [F,L]
 
-# Block direct web access to sensitive app folders
-RewriteRule ^(?:config|includes|database|vendor)/ - [F,L,NC]
+# Block direct web access to non-public application folders
+RewriteRule ^(?:app|vendor|backups|scripts|tests)/ - [F,L,NC]
 
 # Block direct access to sensitive file types
 RewriteRule \.(?:sql|log|ini|env)$ - [F,L,NC]
 
 # Block direct access to project meta files
 RewriteRule ^(?:composer\.(?:json|lock)|README\.md)$ - [F,L,NC]
+
+# Allow direct access to the real public web root if it is requested explicitly.
+RewriteRule ^public/ - [L]
+
+# Mirror the public static/files endpoints when the project root is accessed directly.
+RewriteRule ^assets/(.+)$ public/assets/$1 [QSA,L,NC]
+RewriteRule ^uploads/(.+)$ public/files.php?path=$1 [QSA,L,NC]
+
+# Route all remaining root-level requests through the public front controller.
+RewriteRule ^$ public/index.php?__root_route= [QSA,L]
+RewriteRule ^(.+)$ public/index.php?__root_route=$1 [QSA,L]
 </IfModule>
 
 <IfModule mod_headers.c>
