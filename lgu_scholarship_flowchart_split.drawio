@@ -1,0 +1,155 @@
+<mxfile host="app.diagrams.net" modified="2026-03-22T00:00:00.000Z" agent="Codex" version="24.7.17">
+  <diagram id="lgu-scholarship-flowchart-split" name="Split Flowchart">
+    <mxGraphModel dx="1900" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="2200" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="Flowchart of Scholarship Process by Role" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontStyle=1;fontSize=20;" vertex="1" parent="1">
+          <mxGeometry x="760" y="10" width="760" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane_student" value="Student" style="swimlane;rounded=0;horizontal=0;startSize=34;fillColor=#ffffff;strokeColor=#000000;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="540" height="2000" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane_system" value="System" style="swimlane;rounded=0;horizontal=0;startSize=34;fillColor=#ffffff;strokeColor=#000000;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="580" y="40" width="540" height="2000" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane_staff" value="Staff" style="swimlane;rounded=0;horizontal=0;startSize=34;fillColor=#ffffff;strokeColor=#000000;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1120" y="40" width="540" height="2000" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane_admin" value="Admin" style="swimlane;rounded=0;horizontal=0;startSize=34;fillColor=#ffffff;strokeColor=#000000;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1660" y="40" width="540" height="2000" as="geometry"/>
+        </mxCell>
+        <mxCell id="s0" value="Start" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#ffffff;strokeColor=#000000;fontStyle=1;" vertex="1" parent="lane_student">
+          <mxGeometry x="190" y="20" width="120" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="s1" value="Register account" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f4e79;" vertex="1" parent="lane_student">
+          <mxGeometry x="140" y="120" width="220" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys1" value="Generate and send OTP" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d32;" vertex="1" parent="lane_system">
+          <mxGeometry x="150" y="120" width="240" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="s2" value="Verify OTP and log in" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f4e79;" vertex="1" parent="lane_student">
+          <mxGeometry x="130" y="240" width="240" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="s3" value="Submit application, photo, signature, grades, and residency" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f4e79;" vertex="1" parent="lane_student">
+          <mxGeometry x="100" y="360" width="300" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys2" value="Save application as Submitted and notify staff/admin" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d32;" vertex="1" parent="lane_system">
+          <mxGeometry x="120" y="370" width="300" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="st1" value="Review initial documents" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b45f06;" vertex="1" parent="lane_staff">
+          <mxGeometry x="145" y="380" width="250" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="d1" value="Initial documents approved?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff4cc;strokeColor=#b45f06;fontStyle=1;" vertex="1" parent="lane_staff">
+          <mxGeometry x="145" y="500" width="250" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys3" value="Update status to Pending Resubmission and send remarks" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff1f0;strokeColor=#b85450;" vertex="1" parent="lane_system">
+          <mxGeometry x="115" y="540" width="310" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="s4" value="Correct and resubmit rejected documents" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff1f0;strokeColor=#b85450;" vertex="1" parent="lane_student">
+          <mxGeometry x="105" y="650" width="290" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys4" value="Return application to Initial Review" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff1f0;strokeColor=#b85450;" vertex="1" parent="lane_system">
+          <mxGeometry x="135" y="760" width="270" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys5" value="Update status to For Interview and notify student" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#edf7ed;strokeColor=#2e7d32;" vertex="1" parent="lane_system">
+          <mxGeometry x="110" y="650" width="320" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="st2" value="Create interview batch and schedule" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b45f06;" vertex="1" parent="lane_staff">
+          <mxGeometry x="120" y="760" width="300" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys6" value="Send interview notification / SMS" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d32;" vertex="1" parent="lane_system">
+          <mxGeometry x="130" y="870" width="280" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="s5" value="Attend interview" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f4e79;" vertex="1" parent="lane_student">
+          <mxGeometry x="145" y="980" width="210" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="st3" value="Record interview result" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b45f06;" vertex="1" parent="lane_staff">
+          <mxGeometry x="145" y="980" width="250" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="d2" value="Interview result passed?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff4cc;strokeColor=#b45f06;fontStyle=1;" vertex="1" parent="lane_staff">
+          <mxGeometry x="145" y="1090" width="250" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys7" value="Update status to Not Eligible and send result notice" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff1f0;strokeColor=#b85450;" vertex="1" parent="lane_system">
+          <mxGeometry x="110" y="1110" width="320" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys8" value="Update status to Eligible Awaiting SOA, set deadline, and notify student" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#edf7ed;strokeColor=#2e7d32;" vertex="1" parent="lane_system">
+          <mxGeometry x="90" y="1250" width="360" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="s6" value="Upload SOA" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f4e79;" vertex="1" parent="lane_student">
+          <mxGeometry x="160" y="1380" width="180" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys9" value="Update status to SOA Under Review and notify staff/admin" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d32;" vertex="1" parent="lane_system">
+          <mxGeometry x="100" y="1380" width="340" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="st4" value="Review SOA" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b45f06;" vertex="1" parent="lane_staff">
+          <mxGeometry x="170" y="1390" width="200" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="d3" value="SOA approved?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff4cc;strokeColor=#b45f06;fontStyle=1;" vertex="1" parent="lane_staff">
+          <mxGeometry x="155" y="1510" width="230" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys10" value="Update status to SOA Resubmission Required and send remarks" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff1f0;strokeColor=#b85450;" vertex="1" parent="lane_system">
+          <mxGeometry x="90" y="1530" width="360" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="s7" value="Correct and resubmit SOA" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff1f0;strokeColor=#b85450;" vertex="1" parent="lane_student">
+          <mxGeometry x="120" y="1640" width="260" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys11" value="Return application to SOA Under Review" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff1f0;strokeColor=#b85450;" vertex="1" parent="lane_system">
+          <mxGeometry x="110" y="1750" width="320" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys12" value="Update status to Approved Pending Payroll" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#edf7ed;strokeColor=#2e7d32;" vertex="1" parent="lane_system">
+          <mxGeometry x="110" y="1640" width="320" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="a1" value="Create payout batch and payout schedule" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6a1b9a;" vertex="1" parent="lane_admin">
+          <mxGeometry x="120" y="1640" width="300" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys13" value="Send payout notification / SMS" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d32;" vertex="1" parent="lane_system">
+          <mxGeometry x="130" y="1760" width="280" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="s8" value="Receive payout schedule and claim scholarship" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1f4e79;" vertex="1" parent="lane_student">
+          <mxGeometry x="110" y="1760" width="300" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="sys14" value="Mark record as Approved Finished / archive-ready" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#edf7ed;strokeColor=#2e7d32;" vertex="1" parent="lane_system">
+          <mxGeometry x="95" y="1880" width="350" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="sEnd" value="End" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#d9eaf7;strokeColor=#1f4e79;fontStyle=1;" vertex="1" parent="lane_student">
+          <mxGeometry x="190" y="1910" width="120" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="s0" target="s1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="s1" target="sys1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="sys1" target="s2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="s2" target="s3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="s3" target="sys2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="sys2" target="st1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="st1" target="d1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e8" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#b85450;" edge="1" parent="1" source="d1" target="sys3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#b85450;" edge="1" parent="1" source="sys3" target="s4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#b85450;" edge="1" parent="1" source="s4" target="sys4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e11" value="Back to review" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#b85450;" edge="1" parent="1" source="sys4" target="st1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e12" value="Yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#2e7d32;" edge="1" parent="1" source="d1" target="sys5"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="sys5" target="st2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="st2" target="sys6"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="sys6" target="s5"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="s5" target="st3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="st3" target="d2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e18" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#b85450;" edge="1" parent="1" source="d2" target="sys7"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="sys7" target="sEnd"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e20" value="Yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#2e7d32;" edge="1" parent="1" source="d2" target="sys8"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e21" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="sys8" target="s6"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e22" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="s6" target="sys9"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e23" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="sys9" target="st4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e24" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="st4" target="d3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e25" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#b85450;" edge="1" parent="1" source="d3" target="sys10"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e26" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#b85450;" edge="1" parent="1" source="sys10" target="s7"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e27" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#b85450;" edge="1" parent="1" source="s7" target="sys11"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e28" value="Back to SOA review" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#b85450;" edge="1" parent="1" source="sys11" target="st4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e29" value="Yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#2e7d32;" edge="1" parent="1" source="d3" target="sys12"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e30" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="sys12" target="a1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e31" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="a1" target="sys13"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e32" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="sys13" target="s8"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e33" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="s8" target="sys14"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e34" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#666666;" edge="1" parent="1" source="sys14" target="sEnd"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

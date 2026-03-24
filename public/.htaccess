@@ -1,0 +1,11 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # If the user is asking for a real file (like style.css, an image, or signature.js), let them see it
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+
+    # If the file does NOT exist (e.g., they typed /student/dashboard), send it to index.php for the Router to handle
+    RewriteRule ^ index.php [QSA,L]
+
+</IfModule>

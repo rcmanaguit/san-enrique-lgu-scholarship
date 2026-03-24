@@ -1,0 +1,87 @@
+@startuml
+left to right direction
+skinparam monochrome true
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam actorStyle stickman
+skinparam defaultFontName Arial
+skinparam defaultFontSize 14
+
+actor Staff
+actor "Admin / LGU Scholarship Coordinator" as Admin
+actor "SMS Service" as SMS
+
+rectangle "Automated Scholarship Records Management System" {
+  usecase "1. Register / Verify Account" as UC_Register
+  usecase "2. Log In" as UC_Login
+  usecase "3. Manage Account" as UC_ManageAccount
+  usecase "4. Submit Application" as UC_SubmitApplication
+  usecase "5. Track Status" as UC_TrackStatus
+  usecase "6. Upload / Resubmit Requirements" as UC_UploadResubmit
+  usecase "7. Review Applications" as UC_ReviewApplications
+  usecase "8. Verify Documents" as UC_VerifyDocuments
+  usecase "9. Schedule Interviews" as UC_ScheduleInterviews
+  usecase "10. Record Interview Results" as UC_RecordResults
+  usecase "11. Upload / Review SOA" as UC_ReviewSoa
+  usecase "12. Schedule Payouts" as UC_SchedulePayouts
+  usecase "13. Manage Records / Archive" as UC_RecordsArchive
+  usecase "14. Generate Reports" as UC_Reports
+  usecase "15. Manage Application Period" as UC_ManagePeriod
+  usecase "16. Manage Users" as UC_Users
+  usecase "17. Send Notifications" as UC_Notifications
+}
+
+actor "Applicant / Student" as Student
+
+UC_Register -[hidden]down-> UC_Login
+UC_Login -[hidden]down-> UC_ManageAccount
+UC_ManageAccount -[hidden]down-> UC_SubmitApplication
+UC_SubmitApplication -[hidden]down-> UC_TrackStatus
+UC_TrackStatus -[hidden]down-> UC_UploadResubmit
+UC_UploadResubmit -[hidden]down-> UC_ReviewApplications
+UC_ReviewApplications -[hidden]down-> UC_VerifyDocuments
+UC_VerifyDocuments -[hidden]down-> UC_ScheduleInterviews
+UC_ScheduleInterviews -[hidden]down-> UC_RecordResults
+UC_RecordResults -[hidden]down-> UC_ReviewSoa
+UC_ReviewSoa -[hidden]down-> UC_SchedulePayouts
+UC_SchedulePayouts -[hidden]down-> UC_RecordsArchive
+UC_RecordsArchive -[hidden]down-> UC_Reports
+UC_Reports -[hidden]down-> UC_ManagePeriod
+UC_ManagePeriod -[hidden]down-> UC_Users
+UC_Users -[hidden]down-> UC_Notifications
+
+Student --> UC_Register
+Student --> UC_Login
+Student --> UC_ManageAccount
+Student --> UC_SubmitApplication
+Student --> UC_TrackStatus
+Student --> UC_UploadResubmit
+Student --> UC_ReviewSoa
+Student --> UC_SchedulePayouts
+
+Staff --> UC_Login
+Staff --> UC_ManageAccount
+Staff --> UC_ReviewApplications
+Staff --> UC_VerifyDocuments
+Staff --> UC_RecordResults
+Staff --> UC_ReviewSoa
+Staff --> UC_RecordsArchive
+Staff --> UC_Notifications
+
+Admin --> UC_Login
+Admin --> UC_ManageAccount
+Admin --> UC_ReviewApplications
+Admin --> UC_VerifyDocuments
+Admin --> UC_ScheduleInterviews
+Admin --> UC_RecordResults
+Admin --> UC_ReviewSoa
+Admin --> UC_SchedulePayouts
+Admin --> UC_RecordsArchive
+Admin --> UC_Reports
+Admin --> UC_ManagePeriod
+Admin --> UC_Users
+Admin --> UC_Notifications
+
+SMS --> UC_Notifications
+
+@enduml

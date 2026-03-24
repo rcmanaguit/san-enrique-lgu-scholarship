@@ -1,0 +1,169 @@
+erDiagram
+    USERS {
+        int id PK
+        string role
+        string first_name
+        string last_name
+        string phone_number
+        string email
+        string password_hash
+        boolean is_verified
+        boolean is_active
+        string otp_code
+        datetime otp_expires_at
+        datetime created_at
+        datetime updated_at
+    }
+
+    STUDENT_PROFILES {
+        int id PK
+        int user_id FK
+        string last_name
+        string first_name
+        string middle_name
+        string suffix
+        date date_of_birth
+        string sex
+        string civil_status
+        string address_line
+        string address_barangay
+        string mother_details
+        string father_details
+        string school_type
+        string school_name
+        string course
+        string year_level
+        string e_signature_path
+        string id_picture_path
+        datetime created_at
+        datetime updated_at
+    }
+
+    APPLICATIONS {
+        int id PK
+        int student_id FK
+        string school_year
+        string semester
+        string application_type
+        string status
+        string siblings_json
+        string education_json
+        string grants_json
+        datetime privacy_consent_at
+        string interview_result
+        datetime interview_result_at
+        int interview_batch_id FK
+        int payout_batch_id FK
+        datetime soa_deadline
+        decimal final_grant_amount
+        boolean is_archived
+        datetime archived_at
+        int archived_by_user_id FK
+        string archive_notes
+        datetime created_at
+        datetime updated_at
+    }
+
+    DOCUMENTS {
+        int id PK
+        int application_id FK
+        string document_type
+        string file_path
+        string status
+        string rejection_remarks
+        datetime uploaded_at
+        datetime updated_at
+    }
+
+    DOCUMENT_VERSIONS {
+        int id PK
+        int document_id FK
+        int version_number
+        string file_path
+        string document_status
+        string rejection_remarks
+        string source_action
+        int uploaded_by_user_id FK
+        datetime created_at
+    }
+
+    NOTIFICATIONS {
+        int id PK
+        int user_id FK
+        string title
+        string message
+        string link_path
+        boolean is_read
+        datetime created_at
+    }
+
+    ANNOUNCEMENTS {
+        int id PK
+        string title
+        string body
+        string target_audience
+        boolean is_published
+        datetime published_at
+        int created_by FK
+        datetime created_at
+        datetime updated_at
+    }
+
+    CASE_NOTES {
+        int id PK
+        int application_id FK
+        int user_id FK
+        string note_text
+        datetime created_at
+    }
+
+    AUDIT_LOGS {
+        int id PK
+        int user_id FK
+        string actor_role
+        string action
+        string entity_type
+        int entity_id
+        string description
+        string metadata_json
+        string ip_address
+        string user_agent
+        datetime created_at
+    }
+
+    BATCHES {
+        int id PK
+        string batch_type
+        string batch_name
+        datetime scheduled_date
+        string venue
+        datetime created_at
+    }
+
+    APPLICATION_SETTINGS {
+        int id PK
+        string school_year
+        string semester
+        datetime application_start_date
+        datetime application_end_date
+        string soa_deadline_mode
+        int soa_deadline_days_after_passed
+        datetime soa_deadline
+        boolean auto_archive_completed_records
+        boolean is_open
+        datetime updated_at
+    }
+
+    USERS ||--o| STUDENT_PROFILES : has
+    STUDENT_PROFILES ||--o{ APPLICATIONS : submits
+    APPLICATIONS ||--o{ DOCUMENTS : includes
+    DOCUMENTS ||--o{ DOCUMENT_VERSIONS : keeps
+    USERS ||--o{ DOCUMENT_VERSIONS : uploads
+    USERS ||--o{ NOTIFICATIONS : receives
+    USERS o|--o{ ANNOUNCEMENTS : creates
+    USERS o|--o{ CASE_NOTES : writes
+    APPLICATIONS ||--o{ CASE_NOTES : has
+    USERS o|--o{ AUDIT_LOGS : generates
+    BATCHES o|--o{ APPLICATIONS : interview_batch
+    BATCHES o|--o{ APPLICATIONS : payout_batch
+    USERS o|--o{ APPLICATIONS : archives

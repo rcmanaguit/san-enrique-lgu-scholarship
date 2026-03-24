@@ -1,0 +1,85 @@
+@startuml
+title LGU Scholarship System Flowchart - Complete
+
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam backgroundColor white
+skinparam ArrowColor black
+skinparam linetype ortho
+
+start
+
+:Open scholarship portal;
+if (Has an account?) then (Yes)
+else (No)
+  :Register account;
+  :Receive OTP;
+  :Enter OTP;
+  if (OTP valid?) then (Yes)
+  else (No)
+    :Resend or re-enter OTP;
+    :Enter OTP again;
+  endif
+endif
+
+:Enter login credentials;
+if (Credentials valid?) then (Yes)
+else (No)
+  :Display login error;
+  stop
+endif
+
+if (Application period open?) then (Yes)
+else (No)
+  :Display application closed message;
+  stop
+endif
+
+:Fill out application form;
+:Upload grades, residency,
+2x2 photo, and e-signature;
+:Submit application;
+:System saves application record;
+:Staff reviews initial documents;
+
+if (Initial documents approved?) then (Yes)
+  :Set status to For Interview;
+  :Create interview batch and schedule;
+  :Send interview notice;
+  :Attend interview;
+  :Record interview result;
+
+  if (Interview passed?) then (Yes)
+    :Set status to Eligible Awaiting SOA;
+    :Upload Statement of Account;
+    :Review SOA;
+
+    if (SOA approved?) then (Yes)
+      :Set status to Approved Pending Payroll;
+      :Create payout batch and schedule;
+      :Send payout notice;
+      :Claim scholarship payout;
+      :Mark record as Approved Finished;
+    else (No)
+      :Set status to SOA Resubmission Required;
+      :Send SOA remarks;
+      :Resubmit corrected SOA;
+      :Review SOA again;
+    endif
+
+  else (No)
+    :Set status to Not Eligible;
+    :Send result notice;
+  endif
+
+else (No)
+  :Set status to Pending Resubmission;
+  :Send document remarks;
+  :Resubmit corrected documents;
+  :Review documents again;
+endif
+
+stop
+@enduml

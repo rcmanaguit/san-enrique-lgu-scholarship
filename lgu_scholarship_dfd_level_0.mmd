@@ -1,0 +1,49 @@
+flowchart LR
+    Student[Applicant / Student]
+    Staff[Staff]
+    Admin[Admin]
+    SMS[SMS Service]
+
+    P1([1.0 Account and Authentication])
+    P2([2.0 Application Processing])
+    P3([3.0 Document and Qualification Review])
+    P4([4.0 Interview and SOA Management])
+    P5([5.0 Payout and Records Management])
+    P6([6.0 Notifications and Reporting])
+
+    D1[(D1 User Accounts)]
+    D2[(D2 Applicant / Scholar Records)]
+    D3[(D3 Application Files and Documents)]
+    D4[(D4 Schedules and Batches)]
+    D5[(D5 Notifications, Logs, Reports, Archive)]
+
+    Student --> P1
+    P1 --> Student
+    Student --> P2
+    P6 --> Student
+    Staff --> P3
+    Staff --> P4
+    Admin --> P5
+    P6 --> Admin
+    P6 --> SMS
+    SMS --> P6
+
+    P1 --> D1
+    D1 --> P1
+    P2 --> D2
+    P2 --> D3
+    D2 --> P3
+    D3 --> P3
+    P3 --> D2
+    P3 --> D3
+    P4 --> D2
+    P4 --> D4
+    P5 --> D2
+    P5 --> D4
+    P6 --> D5
+    D5 --> P6
+
+    P2 --> P6
+    P3 --> P6
+    P4 --> P6
+    P5 --> P6

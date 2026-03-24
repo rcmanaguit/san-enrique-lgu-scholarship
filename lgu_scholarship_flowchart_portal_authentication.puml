@@ -1,0 +1,43 @@
+@startuml
+title LGU Scholarship System Flowchart - Public Portal and Authentication
+
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam backgroundColor white
+skinparam ArrowColor black
+skinparam linetype ortho
+
+start
+
+:Portal Home;
+if (Action?) then (Register)
+  :Register;
+  :Verify OTP;
+  if (OTP valid?) then (No)
+    :Re-enter OTP;
+  endif
+elseif (Recover)
+  :Recover Account;
+endif
+
+:Login;
+if (Valid login?) then (No)
+  :Login Error;
+  stop
+endif
+
+if (User role?) then (Student)
+  if (Application period open?) then (No)
+    :Closed Notice;
+    stop
+  endif
+  :Student Dashboard;
+elseif (Staff)
+  :Staff Dashboard;
+else (Admin)
+  :Admin Dashboard;
+endif
+stop
+@enduml

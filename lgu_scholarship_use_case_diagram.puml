@@ -1,0 +1,183 @@
+@startuml
+left to right direction
+skinparam monochrome true
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam actorStyle stickman
+skinparam defaultFontName Arial
+skinparam defaultFontSize 14
+
+actor Staff
+actor "Admin / LGU Scholarship Coordinator" as Admin
+actor "SMS Service" as SMS
+actor "Email Service" as Email
+
+rectangle "Automated Scholarship Records Management System" {
+  usecase "1. Register Account" as UC_Register
+  usecase "2. Verify Account by OTP" as UC_VerifyOtp
+  usecase "3. Log In" as UC_Login
+  usecase "4. Recover Account" as UC_RecoverEmail
+  usecase "5. Reset Password" as UC_ResetPassword
+  usecase "6. Manage Account" as UC_AccountSettings
+
+  usecase "7. Apply for Scholarship" as UC_Apply
+  usecase "8. Fill Application Form" as UC_Form
+  usecase "9. Upload Requirements" as UC_UploadInitial
+  usecase "10. Upload 2x2 Photo" as UC_Photo
+  usecase "11. Upload E-Signature" as UC_Sign
+  usecase "12. Submit Application" as UC_Submit
+
+  usecase "13. View Status Tracker" as UC_Tracker
+  usecase "14. View Timeline" as UC_Timeline
+  usecase "15. View Application Record" as UC_Record
+  usecase "16. Resubmit Rejected Documents" as UC_ResubmitDocs
+  usecase "17. View Interview Result" as UC_InterviewInfo
+  usecase "18. Upload / Resubmit SOA" as UC_Soa
+  usecase "19. View Payout Schedule" as UC_Payout
+  usecase "20. View Scholarship History" as UC_History
+  usecase "21. Print Application Form" as UC_PrintForm
+
+  usecase "22. View Dashboard" as UC_Dashboard
+  usecase "23. View Application Board" as UC_AppBoard
+  usecase "24. Review Workspace" as UC_ReviewWorkspace
+  usecase "25. Verify / Reject Documents" as UC_VerifyDocs
+  usecase "26. Add Case Notes" as UC_Notes
+  usecase "27. View Version History" as UC_Versions
+  usecase "28. Schedule Interview Batch" as UC_InterviewBatch
+  usecase "29. Reschedule Interview Batch" as UC_ReInterviewBatch
+  usecase "30. Record Interview Results" as UC_RecordResults
+  usecase "31. View Document Center" as UC_DocumentCenter
+  usecase "32. View Master Record" as UC_MasterRecord
+
+  usecase "33. Manage Application Period" as UC_Period
+  usecase "34. Manage Users" as UC_Users
+  usecase "35. Process Account Recovery" as UC_RecoveryAdmin
+  usecase "36. View Reports" as UC_Reports
+  usecase "37. View Audit Logs" as UC_Audit
+  usecase "38. View Exceptions" as UC_Exceptions
+  usecase "39. Manage Announcements" as UC_Announcements
+  usecase "40. Manage Payout Batch" as UC_PayoutBatch
+  usecase "41. Print Payroll Sheet" as UC_Payroll
+  usecase "42. Manage Backups" as UC_Backups
+
+  usecase "43. Send SMS Notifications" as UC_Sms
+  usecase "44. Send Recovery Email" as UC_Email
+}
+
+actor "Applicant / Student" as Student
+
+UC_Register -[hidden]down-> UC_VerifyOtp
+UC_VerifyOtp -[hidden]down-> UC_Login
+UC_Login -[hidden]down-> UC_RecoverEmail
+UC_RecoverEmail -[hidden]down-> UC_ResetPassword
+UC_ResetPassword -[hidden]down-> UC_AccountSettings
+UC_AccountSettings -[hidden]down-> UC_Apply
+UC_Apply -[hidden]down-> UC_Form
+UC_Form -[hidden]down-> UC_UploadInitial
+UC_UploadInitial -[hidden]down-> UC_Photo
+UC_Photo -[hidden]down-> UC_Sign
+UC_Sign -[hidden]down-> UC_Submit
+UC_Submit -[hidden]down-> UC_Tracker
+UC_Tracker -[hidden]down-> UC_Timeline
+UC_Timeline -[hidden]down-> UC_Record
+UC_Record -[hidden]down-> UC_ResubmitDocs
+UC_ResubmitDocs -[hidden]down-> UC_InterviewInfo
+UC_InterviewInfo -[hidden]down-> UC_Soa
+UC_Soa -[hidden]down-> UC_Payout
+UC_Payout -[hidden]down-> UC_History
+UC_History -[hidden]down-> UC_PrintForm
+UC_PrintForm -[hidden]down-> UC_Dashboard
+UC_Dashboard -[hidden]down-> UC_AppBoard
+UC_AppBoard -[hidden]down-> UC_ReviewWorkspace
+UC_ReviewWorkspace -[hidden]down-> UC_VerifyDocs
+UC_VerifyDocs -[hidden]down-> UC_Notes
+UC_Notes -[hidden]down-> UC_Versions
+UC_Versions -[hidden]down-> UC_InterviewBatch
+UC_InterviewBatch -[hidden]down-> UC_ReInterviewBatch
+UC_ReInterviewBatch -[hidden]down-> UC_RecordResults
+UC_RecordResults -[hidden]down-> UC_DocumentCenter
+UC_DocumentCenter -[hidden]down-> UC_MasterRecord
+UC_MasterRecord -[hidden]down-> UC_Period
+UC_Period -[hidden]down-> UC_Users
+UC_Users -[hidden]down-> UC_RecoveryAdmin
+UC_RecoveryAdmin -[hidden]down-> UC_Reports
+UC_Reports -[hidden]down-> UC_Audit
+UC_Audit -[hidden]down-> UC_Exceptions
+UC_Exceptions -[hidden]down-> UC_Announcements
+UC_Announcements -[hidden]down-> UC_PayoutBatch
+UC_PayoutBatch -[hidden]down-> UC_Payroll
+UC_Payroll -[hidden]down-> UC_Backups
+UC_Backups -[hidden]down-> UC_Sms
+UC_Sms -[hidden]down-> UC_Email
+
+Student --> UC_Register
+Student --> UC_Login
+Student --> UC_RecoverEmail
+Student --> UC_ResetPassword
+Student --> UC_AccountSettings
+Student --> UC_Apply
+Student --> UC_Tracker
+Student --> UC_Timeline
+Student --> UC_Record
+Student --> UC_ResubmitDocs
+Student --> UC_InterviewInfo
+Student --> UC_Soa
+Student --> UC_Payout
+Student --> UC_History
+Student --> UC_PrintForm
+
+Staff --> UC_Login
+Staff --> UC_AccountSettings
+Staff --> UC_Dashboard
+Staff --> UC_AppBoard
+Staff --> UC_ReviewWorkspace
+Staff --> UC_VerifyDocs
+Staff --> UC_Notes
+Staff --> UC_Versions
+Staff --> UC_RecordResults
+Staff --> UC_DocumentCenter
+Staff --> UC_MasterRecord
+
+Admin --> UC_Login
+Admin --> UC_AccountSettings
+Admin --> UC_Dashboard
+Admin --> UC_AppBoard
+Admin --> UC_ReviewWorkspace
+Admin --> UC_VerifyDocs
+Admin --> UC_Notes
+Admin --> UC_Versions
+Admin --> UC_InterviewBatch
+Admin --> UC_ReInterviewBatch
+Admin --> UC_RecordResults
+Admin --> UC_DocumentCenter
+Admin --> UC_MasterRecord
+Admin --> UC_Period
+Admin --> UC_Users
+Admin --> UC_RecoveryAdmin
+Admin --> UC_Reports
+Admin --> UC_Audit
+Admin --> UC_Exceptions
+Admin --> UC_Announcements
+Admin --> UC_PayoutBatch
+Admin --> UC_Payroll
+Admin --> UC_Backups
+
+SMS --> UC_Sms
+Email --> UC_Email
+
+UC_Register .> UC_VerifyOtp : <<include>>
+UC_RecoverEmail .> UC_Email : <<include>>
+UC_VerifyOtp .> UC_Sms : <<include>>
+UC_Apply .> UC_Form : <<include>>
+UC_Apply .> UC_UploadInitial : <<include>>
+UC_Apply .> UC_Photo : <<include>>
+UC_Apply .> UC_Sign : <<include>>
+UC_Apply .> UC_Submit : <<include>>
+UC_ReviewWorkspace .> UC_Record : <<include>>
+UC_ReviewWorkspace .> UC_Timeline : <<include>>
+UC_ReviewWorkspace .> UC_Versions : <<include>>
+UC_InterviewBatch .> UC_Sms : <<include>>
+UC_RecordResults .> UC_Sms : <<include>>
+UC_PayoutBatch .> UC_Sms : <<include>>
+
+@enduml

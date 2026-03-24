@@ -1,0 +1,104 @@
+<mxfile host="app.diagrams.net" modified="2026-03-22T00:00:00.000Z" agent="Codex" version="24.7.17">
+  <diagram id="lgu-scholarship-system-erd" name="ERD">
+    <mxGraphModel dx="2000" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2560" pageHeight="1440" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="Entity Relationship Diagram&#xa;Automated Scholarship Records Management System" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontStyle=1;fontSize=22;" vertex="1" parent="1">
+          <mxGeometry x="760" y="10" width="1040" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="users" value="&lt;div style=&quot;padding:12px;font-family:Arial,sans-serif;font-size:15px;line-height:1.6;&quot;&gt;&lt;div style=&quot;font-size:20px;font-weight:700;border-bottom:1px solid #000000;padding-bottom:8px;margin-bottom:8px;&quot;&gt;users&lt;/div&gt;&lt;div&gt;PK id&lt;/div&gt;&lt;div&gt;role&lt;/div&gt;&lt;div&gt;first_name&lt;/div&gt;&lt;div&gt;last_name&lt;/div&gt;&lt;div&gt;phone_number&lt;/div&gt;&lt;div&gt;email&lt;/div&gt;&lt;div&gt;password_hash&lt;/div&gt;&lt;div&gt;is_verified&lt;/div&gt;&lt;div&gt;is_active&lt;/div&gt;&lt;div&gt;otp_code&lt;/div&gt;&lt;div&gt;otp_expires_at&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;div&gt;updated_at&lt;/div&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;align=left;verticalAlign=top;spacing=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="60" width="290" height="390" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="student_profiles" value="&lt;div style=&quot;padding:12px;font-family:Arial,sans-serif;font-size:15px;line-height:1.6;&quot;&gt;&lt;div style=&quot;font-size:20px;font-weight:700;border-bottom:1px solid #000000;padding-bottom:8px;margin-bottom:8px;&quot;&gt;student_profiles&lt;/div&gt;&lt;div&gt;PK id&lt;/div&gt;&lt;div&gt;FK user_id&lt;/div&gt;&lt;div&gt;last_name&lt;/div&gt;&lt;div&gt;first_name&lt;/div&gt;&lt;div&gt;middle_name&lt;/div&gt;&lt;div&gt;suffix&lt;/div&gt;&lt;div&gt;date_of_birth&lt;/div&gt;&lt;div&gt;sex&lt;/div&gt;&lt;div&gt;civil_status&lt;/div&gt;&lt;div&gt;address_line&lt;/div&gt;&lt;div&gt;address_barangay&lt;/div&gt;&lt;div&gt;mother_*&lt;/div&gt;&lt;div&gt;father_*&lt;/div&gt;&lt;div&gt;school_type&lt;/div&gt;&lt;div&gt;school_name&lt;/div&gt;&lt;div&gt;course&lt;/div&gt;&lt;div&gt;year_level&lt;/div&gt;&lt;div&gt;e_signature_path&lt;/div&gt;&lt;div&gt;id_picture_path&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;div&gt;updated_at&lt;/div&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;align=left;verticalAlign=top;spacing=0;" vertex="1" parent="1">
+          <mxGeometry x="450" y="60" width="330" height="540" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="applications" value="&lt;div style=&quot;padding:12px;font-family:Arial,sans-serif;font-size:15px;line-height:1.6;&quot;&gt;&lt;div style=&quot;font-size:20px;font-weight:700;border-bottom:1px solid #000000;padding-bottom:8px;margin-bottom:8px;&quot;&gt;applications&lt;/div&gt;&lt;div&gt;PK id&lt;/div&gt;&lt;div&gt;FK student_id&lt;/div&gt;&lt;div&gt;school_year&lt;/div&gt;&lt;div&gt;semester&lt;/div&gt;&lt;div&gt;application_type&lt;/div&gt;&lt;div&gt;status&lt;/div&gt;&lt;div&gt;siblings_json&lt;/div&gt;&lt;div&gt;education_json&lt;/div&gt;&lt;div&gt;grants_json&lt;/div&gt;&lt;div&gt;privacy_consent_at&lt;/div&gt;&lt;div&gt;interview_result&lt;/div&gt;&lt;div&gt;interview_result_at&lt;/div&gt;&lt;div&gt;FK interview_batch_id&lt;/div&gt;&lt;div&gt;FK payout_batch_id&lt;/div&gt;&lt;div&gt;soa_deadline&lt;/div&gt;&lt;div&gt;final_grant_amount&lt;/div&gt;&lt;div&gt;is_archived&lt;/div&gt;&lt;div&gt;archived_at&lt;/div&gt;&lt;div&gt;FK archived_by_user_id&lt;/div&gt;&lt;div&gt;archive_notes&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;div&gt;updated_at&lt;/div&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;align=left;verticalAlign=top;spacing=0;" vertex="1" parent="1">
+          <mxGeometry x="920" y="60" width="350" height="550" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="documents" value="&lt;div style=&quot;padding:12px;font-family:Arial,sans-serif;font-size:15px;line-height:1.6;&quot;&gt;&lt;div style=&quot;font-size:20px;font-weight:700;border-bottom:1px solid #000000;padding-bottom:8px;margin-bottom:8px;&quot;&gt;documents&lt;/div&gt;&lt;div&gt;PK id&lt;/div&gt;&lt;div&gt;FK application_id&lt;/div&gt;&lt;div&gt;document_type&lt;/div&gt;&lt;div&gt;file_path&lt;/div&gt;&lt;div&gt;status&lt;/div&gt;&lt;div&gt;rejection_remarks&lt;/div&gt;&lt;div&gt;uploaded_at&lt;/div&gt;&lt;div&gt;updated_at&lt;/div&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;align=left;verticalAlign=top;spacing=0;" vertex="1" parent="1">
+          <mxGeometry x="1410" y="70" width="290" height="240" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="document_versions" value="&lt;div style=&quot;padding:12px;font-family:Arial,sans-serif;font-size:15px;line-height:1.6;&quot;&gt;&lt;div style=&quot;font-size:20px;font-weight:700;border-bottom:1px solid #000000;padding-bottom:8px;margin-bottom:8px;&quot;&gt;document_versions&lt;/div&gt;&lt;div&gt;PK id&lt;/div&gt;&lt;div&gt;FK document_id&lt;/div&gt;&lt;div&gt;version_number&lt;/div&gt;&lt;div&gt;file_path&lt;/div&gt;&lt;div&gt;document_status&lt;/div&gt;&lt;div&gt;rejection_remarks&lt;/div&gt;&lt;div&gt;source_action&lt;/div&gt;&lt;div&gt;FK uploaded_by_user_id&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;align=left;verticalAlign=top;spacing=0;" vertex="1" parent="1">
+          <mxGeometry x="1810" y="70" width="310" height="290" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="notifications" value="&lt;div style=&quot;padding:12px;font-family:Arial,sans-serif;font-size:15px;line-height:1.6;&quot;&gt;&lt;div style=&quot;font-size:20px;font-weight:700;border-bottom:1px solid #000000;padding-bottom:8px;margin-bottom:8px;&quot;&gt;notifications&lt;/div&gt;&lt;div&gt;PK id&lt;/div&gt;&lt;div&gt;FK user_id&lt;/div&gt;&lt;div&gt;title&lt;/div&gt;&lt;div&gt;message&lt;/div&gt;&lt;div&gt;link_path&lt;/div&gt;&lt;div&gt;is_read&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;align=left;verticalAlign=top;spacing=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="560" width="290" height="240" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="announcements" value="&lt;div style=&quot;padding:12px;font-family:Arial,sans-serif;font-size:15px;line-height:1.6;&quot;&gt;&lt;div style=&quot;font-size:20px;font-weight:700;border-bottom:1px solid #000000;padding-bottom:8px;margin-bottom:8px;&quot;&gt;announcements&lt;/div&gt;&lt;div&gt;PK id&lt;/div&gt;&lt;div&gt;title&lt;/div&gt;&lt;div&gt;body&lt;/div&gt;&lt;div&gt;target_audience&lt;/div&gt;&lt;div&gt;is_published&lt;/div&gt;&lt;div&gt;published_at&lt;/div&gt;&lt;div&gt;FK created_by&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;div&gt;updated_at&lt;/div&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;align=left;verticalAlign=top;spacing=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="860" width="290" height="280" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="case_notes" value="&lt;div style=&quot;padding:12px;font-family:Arial,sans-serif;font-size:15px;line-height:1.6;&quot;&gt;&lt;div style=&quot;font-size:20px;font-weight:700;border-bottom:1px solid #000000;padding-bottom:8px;margin-bottom:8px;&quot;&gt;case_notes&lt;/div&gt;&lt;div&gt;PK id&lt;/div&gt;&lt;div&gt;FK application_id&lt;/div&gt;&lt;div&gt;FK user_id&lt;/div&gt;&lt;div&gt;note_text&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;align=left;verticalAlign=top;spacing=0;" vertex="1" parent="1">
+          <mxGeometry x="1410" y="400" width="290" height="190" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="audit_logs" value="&lt;div style=&quot;padding:12px;font-family:Arial,sans-serif;font-size:15px;line-height:1.6;&quot;&gt;&lt;div style=&quot;font-size:20px;font-weight:700;border-bottom:1px solid #000000;padding-bottom:8px;margin-bottom:8px;&quot;&gt;audit_logs&lt;/div&gt;&lt;div&gt;PK id&lt;/div&gt;&lt;div&gt;FK user_id&lt;/div&gt;&lt;div&gt;actor_role&lt;/div&gt;&lt;div&gt;action&lt;/div&gt;&lt;div&gt;entity_type&lt;/div&gt;&lt;div&gt;entity_id&lt;/div&gt;&lt;div&gt;description&lt;/div&gt;&lt;div&gt;metadata_json&lt;/div&gt;&lt;div&gt;ip_address&lt;/div&gt;&lt;div&gt;user_agent&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;align=left;verticalAlign=top;spacing=0;" vertex="1" parent="1">
+          <mxGeometry x="1810" y="430" width="310" height="330" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="batches" value="&lt;div style=&quot;padding:12px;font-family:Arial,sans-serif;font-size:15px;line-height:1.6;&quot;&gt;&lt;div style=&quot;font-size:20px;font-weight:700;border-bottom:1px solid #000000;padding-bottom:8px;margin-bottom:8px;&quot;&gt;batches&lt;/div&gt;&lt;div&gt;PK id&lt;/div&gt;&lt;div&gt;batch_type&lt;/div&gt;&lt;div&gt;batch_name&lt;/div&gt;&lt;div&gt;scheduled_date&lt;/div&gt;&lt;div&gt;venue&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;align=left;verticalAlign=top;spacing=0;" vertex="1" parent="1">
+          <mxGeometry x="920" y="750" width="290" height="220" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="application_settings" value="&lt;div style=&quot;padding:12px;font-family:Arial,sans-serif;font-size:15px;line-height:1.6;&quot;&gt;&lt;div style=&quot;font-size:20px;font-weight:700;border-bottom:1px solid #000000;padding-bottom:8px;margin-bottom:8px;&quot;&gt;application_settings&lt;/div&gt;&lt;div&gt;PK id&lt;/div&gt;&lt;div&gt;school_year&lt;/div&gt;&lt;div&gt;semester&lt;/div&gt;&lt;div&gt;application_start_date&lt;/div&gt;&lt;div&gt;application_end_date&lt;/div&gt;&lt;div&gt;soa_deadline_mode&lt;/div&gt;&lt;div&gt;soa_deadline_days_after_passed&lt;/div&gt;&lt;div&gt;soa_deadline&lt;/div&gt;&lt;div&gt;auto_archive_completed_records&lt;/div&gt;&lt;div&gt;is_open&lt;/div&gt;&lt;div&gt;updated_at&lt;/div&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontColor=#000000;align=left;verticalAlign=top;spacing=0;" vertex="1" parent="1">
+          <mxGeometry x="450" y="760" width="340" height="320" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e_users_student_profiles" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERzeroToOne;endFill=0;strokeColor=#000000;" edge="1" parent="1" source="users" target="student_profiles">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_student_profiles_applications" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;strokeColor=#000000;" edge="1" parent="1" source="student_profiles" target="applications">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_applications_documents" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;strokeColor=#000000;" edge="1" parent="1" source="applications" target="documents">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_documents_document_versions" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;strokeColor=#000000;" edge="1" parent="1" source="documents" target="document_versions">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_users_document_versions" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;strokeColor=#000000;" edge="1" parent="1" source="users" target="document_versions">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_users_notifications" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;strokeColor=#000000;" edge="1" parent="1" source="users" target="notifications">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_users_announcements" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERzeroToOne;startFill=0;endArrow=ERzeroToMany;endFill=0;strokeColor=#000000;" edge="1" parent="1" source="users" target="announcements">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_users_case_notes" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERzeroToOne;startFill=0;endArrow=ERzeroToMany;endFill=0;strokeColor=#000000;" edge="1" parent="1" source="users" target="case_notes">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_applications_case_notes" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;startFill=0;endArrow=ERzeroToMany;endFill=0;strokeColor=#000000;" edge="1" parent="1" source="applications" target="case_notes">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_users_audit_logs" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERzeroToOne;startFill=0;endArrow=ERzeroToMany;endFill=0;strokeColor=#000000;" edge="1" parent="1" source="users" target="audit_logs">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_batches_applications_interview" value="interview_batch_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERzeroToOne;startFill=0;endArrow=ERzeroToMany;endFill=0;strokeColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="batches" target="applications">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="760" y="520" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_batches_applications_payout" value="payout_batch_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERzeroToOne;startFill=0;endArrow=ERzeroToMany;endFill=0;strokeColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="batches" target="applications">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="840" y="520" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_users_applications_archived_by" value="archived_by_user_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERzeroToOne;startFill=0;endArrow=ERzeroToMany;endFill=0;strokeColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="users" target="applications">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="660" y="220" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

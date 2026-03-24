@@ -1,0 +1,85 @@
+/* public/assets/css/print.css */
+
+/* This entire file ONLY activates when the user presses Ctrl+P or clicks a "Print" button */
+@media print {
+  /* 1. Reset everything to basic black and white */
+  body {
+    background-color: white !important;
+    color: black !important;
+    font-family: Arial, sans-serif;
+    font-size: 11pt;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* 2. Hide all web-only elements (Navbars, sidebars, buttons, footers) */
+  .no-print,
+  .navbar,
+  .sidebar,
+  .btn,
+  footer {
+    display: none !important;
+  }
+
+  /* 3. Force the physical paper size (Legal/Long is standard for PH Gov forms) */
+  @page {
+    size: 8.5in 13in; /* Philippine Long Size */
+    margin: 0.5in;
+  }
+
+  /* 4. Replicate the physical form's table borders */
+  .printable-form-container {
+    width: 100%;
+    display: block;
+  }
+
+  .form-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 15px;
+  }
+
+  .form-table th,
+  .form-table td {
+    border: 1px solid black;
+    padding: 5px;
+    text-align: left;
+  }
+
+  /* Header styling for the LGU Logo and Text */
+  .print-header {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  .print-header img {
+    width: 80px;
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+
+  /* The 2x2 Picture Box positioning */
+  .picture-box {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 2in;
+    height: 2in;
+    border: 1px solid black;
+    text-align: center;
+  }
+
+  .picture-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* Ensure background colors (like the light blue headers in your image) print */
+  .bg-light-blue {
+    background-color: #e0f7fa !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

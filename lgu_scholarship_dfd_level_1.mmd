@@ -1,0 +1,75 @@
+flowchart LR
+    Student[Applicant / Student]
+    Staff[Staff]
+    Admin[Admin]
+    SMS[SMS Service]
+
+    P11([1.1 Register / Verify Account])
+    P12([1.2 Log In / Recover Account])
+    P21([2.1 Capture Application Details])
+    P22([2.2 Submit Requirements and Media])
+    P31([3.1 Review Initial Documents])
+    P32([3.2 Manage Resubmission / Verification])
+    P41([4.1 Schedule / Reschedule Interview])
+    P42([4.2 Record Interview Result / Review SOA])
+    P51([5.1 Create Payout Schedule])
+    P52([5.2 Maintain Archive / Master Record])
+    P61([6.1 Generate Notifications])
+    P62([6.2 Generate Reports / Logs])
+    P71([7.1 Manage Application Period])
+    P72([7.2 Manage Users / Recovery])
+
+    D1[(D1 User Accounts)]
+    D2[(D2 Application Records)]
+    D3[(D3 Documents / Versions)]
+    D4[(D4 Schedules / Batches)]
+    D5[(D5 Notifications / Logs / Reports)]
+    D6[(D6 Settings / Period Rules)]
+
+    Student --> P11
+    P11 --> Student
+    Student --> P12
+    P12 --> Student
+    Student --> P21
+    Student --> P22
+
+    Staff --> P31
+    Staff --> P32
+    Staff --> P41
+    Staff --> P42
+
+    Admin --> P51
+    Admin --> P52
+    Admin --> P71
+    Admin --> P72
+
+    P11 --> D1
+    D1 --> P12
+    P21 --> D2
+    P22 --> D3
+    D2 --> P31
+    D3 --> P31
+    P31 --> D2
+    P32 --> D3
+    D2 --> P41
+    P41 --> D4
+    D4 --> P42
+    P42 --> D2
+    P42 --> D3
+    D2 --> P51
+    P51 --> D4
+    P52 --> D2
+    P61 --> D5
+    D2 --> P62
+    D4 --> P62
+    P62 --> D5
+    P71 --> D6
+    D6 --> P71
+    P72 --> D1
+    P72 --> D5
+    P61 --> SMS
+    SMS --> P61
+
+    P22 --> P61
+    P31 --> P61
+    P41 --> P61

@@ -1,0 +1,72 @@
+@startuml
+title LGU Scholarship System Flowchart - General Simple
+
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam backgroundColor white
+skinparam activity {
+  StartColor #1f4e79
+  EndColor #1f4e79
+  BarColor #1f4e79
+  DiamondBackgroundColor #fff4cc
+  DiamondBorderColor #b45f06
+  DiamondFontColor #5b3b00
+  BackgroundColor #f8fbff
+  BorderColor #1f4e79
+  FontColor #0f172a
+}
+skinparam ArrowColor #555555
+skinparam linetype ortho
+
+start
+
+:Student registers account;
+:System sends OTP;
+:Student verifies OTP and logs in;
+:Student submits scholarship
+application and requirements;
+:System records application
+as Submitted / Initial Review;
+
+:Staff reviews initial documents;
+if (Documents complete and valid?) then (Yes)
+  :Set application to For Interview;
+  :Staff schedules interview;
+  :Student attends interview;
+
+  if (Interview passed?) then (Yes)
+    :Set application to
+    Eligible Awaiting SOA;
+    :Student uploads SOA;
+    :Staff reviews SOA;
+
+    if (SOA approved?) then (Yes)
+      :Set application to
+      Approved Pending Payroll;
+      :Admin creates payout batch
+      and schedule;
+      :Student receives payout schedule;
+      :Release scholarship payout;
+      :Close record as Approved Finished;
+    else (No)
+      :Set application to
+      SOA Resubmission Required;
+      :Student resubmits SOA;
+      :Return to SOA review;
+    endif
+
+  else (No)
+    :Close record as Not Eligible;
+  endif
+
+else (No)
+  :Set application to
+  Pending Resubmission;
+  :Student corrects and
+  resubmits documents;
+  :Return to initial document review;
+endif
+
+stop
+@enduml

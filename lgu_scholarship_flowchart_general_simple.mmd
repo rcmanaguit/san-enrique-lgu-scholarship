@@ -1,0 +1,28 @@
+flowchart TD
+    A([Start]) --> B[Register Account]
+    B --> C[Send OTP]
+    C --> D[Verify OTP and Log In]
+    D --> E[Submit Application and Requirements]
+    E --> F[Record as Submitted / Initial Review]
+    F --> G[Review Documents]
+    G --> H{Documents Complete?}
+    H -- No --> I[Set Pending Resubmission]
+    I --> J[Resubmit Documents]
+    J --> G
+    H -- Yes --> K[Set For Interview]
+    K --> L[Schedule Interview]
+    L --> M[Attend Interview]
+    M --> N{Interview Passed?}
+    N -- No --> O[Close as Not Eligible]
+    N -- Yes --> P[Set Eligible Awaiting SOA]
+    P --> Q[Upload SOA]
+    Q --> R[Review SOA]
+    R --> S{SOA Approved?}
+    S -- No --> T[Set SOA Resubmission Required]
+    T --> U[Resubmit SOA]
+    U --> R
+    S -- Yes --> V[Set Approved Pending Payroll]
+    V --> W[Create Payout Schedule]
+    W --> X[Receive Payout Schedule]
+    X --> Y[Release Scholarship Payout]
+    Y --> Z([Approved Finished])

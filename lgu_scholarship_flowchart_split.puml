@@ -1,0 +1,162 @@
+@startuml
+title LGU Scholarship System Flowchart - Split by Actor
+
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam backgroundColor white
+skinparam activity {
+  StartColor #1f4e79
+  EndColor #1f4e79
+  BarColor #1f4e79
+  DiamondBackgroundColor #fff4cc
+  DiamondBorderColor #b45f06
+  DiamondFontColor #5b3b00
+  BackgroundColor #f8fbff
+  BorderColor #1f4e79
+  FontColor #0f172a
+}
+skinparam ArrowColor #555555
+skinparam linetype ortho
+
+start
+
+partition Student {
+  :Register account;
+}
+
+partition System {
+  :Generate and send OTP;
+}
+
+partition Student {
+  :Verify OTP;
+  :Log in to portal;
+  :Submit application form,
+  photo, signature,
+  grades, and residency;
+}
+
+partition System {
+  :Save application as Submitted;
+  :Notify staff/admin of new application;
+}
+
+partition Staff {
+  :Review initial documents;
+}
+
+if (Initial documents approved?) then (Yes)
+  partition System {
+    :Update status to For Interview;
+    :Notify student that application
+    is ready for interview;
+  }
+
+  partition Staff {
+    :Create interview batch
+    and schedule;
+  }
+
+  partition System {
+    :Send interview notification / SMS;
+  }
+
+  partition Student {
+    :Attend interview;
+  }
+
+  partition Staff {
+    :Record interview result;
+  }
+
+  if (Interview result passed?) then (Yes)
+    partition System {
+      :Update status to
+      Eligible Awaiting SOA;
+      :Set SOA deadline;
+      :Notify student to upload SOA;
+    }
+
+    partition Student {
+      :Upload SOA;
+    }
+
+    partition System {
+      :Update status to SOA Under Review;
+      :Notify staff/admin of SOA upload;
+    }
+
+    partition Staff {
+      :Review SOA;
+    }
+
+    if (SOA approved?) then (Yes)
+      partition System {
+        :Update status to
+        Approved Pending Payroll;
+      }
+
+      partition Admin {
+        :Create payout batch
+        and payout schedule;
+      }
+
+      partition System {
+        :Send payout notification / SMS;
+      }
+
+      partition Student {
+        :Receive payout schedule
+        and claim scholarship;
+      }
+
+      partition System {
+        :Mark record as Approved Finished
+        or retain for archive;
+      }
+
+    else (No)
+      partition System {
+        :Update status to
+        SOA Resubmission Required;
+        :Send rejection remarks;
+      }
+
+      partition Student {
+        :Correct and resubmit SOA;
+      }
+
+      partition System {
+        :Return application to
+        SOA Under Review;
+      }
+    endif
+
+  else (No)
+    partition System {
+      :Update status to Not Eligible;
+      :Send result notification;
+    }
+  endif
+
+else (No)
+  partition System {
+    :Update status to
+    Pending Resubmission;
+    :Send document remarks;
+  }
+
+  partition Student {
+    :Correct and resubmit
+    rejected documents;
+  }
+
+  partition System {
+    :Return application to
+    Initial Review;
+  }
+endif
+
+stop
+@enduml

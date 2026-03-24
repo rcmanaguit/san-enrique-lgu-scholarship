@@ -1,0 +1,123 @@
+flowchart LR
+    Student[Applicant / Student]
+    Staff[Staff]
+    Admin[Admin / LGU Scholarship Coordinator]
+    SMS[SMS Service]
+    Email[Email Service]
+
+    subgraph System[Automated Scholarship Records Management System]
+        UC1([1. Register Account])
+        UC2([2. Verify Account by OTP])
+        UC3([3. Log In])
+        UC4([4. Recover Account])
+        UC5([5. Reset Password])
+        UC6([6. Manage Account])
+        UC7([7. Apply for Scholarship])
+        UC8([8. Fill Application Form])
+        UC9([9. Upload Requirements])
+        UC10([10. Upload 2x2 Photo])
+        UC11([11. Upload E-Signature])
+        UC12([12. Submit Application])
+        UC13([13. View Status Tracker])
+        UC14([14. View Timeline])
+        UC15([15. View Application Record])
+        UC16([16. Resubmit Documents])
+        UC17([17. View Interview Result])
+        UC18([18. Upload / Resubmit SOA])
+        UC19([19. View Payout Schedule])
+        UC20([20. View Scholarship History])
+        UC21([21. Print Application Form])
+        UC22([22. View Dashboard])
+        UC23([23. View Application Board])
+        UC24([24. Review Workspace])
+        UC25([25. Verify / Reject Documents])
+        UC26([26. Add Case Notes])
+        UC27([27. View Version History])
+        UC28([28. Schedule Interview Batch])
+        UC29([29. Reschedule Interview Batch])
+        UC30([30. Record Interview Results])
+        UC31([31. View Document Center])
+        UC32([32. View Master Record])
+        UC33([33. Manage Application Period])
+        UC34([34. Manage Users])
+        UC35([35. Process Account Recovery])
+        UC36([36. View Reports])
+        UC37([37. View Audit Logs])
+        UC38([38. View Exceptions])
+        UC39([39. Manage Announcements])
+        UC40([40. Manage Payout Batch])
+        UC41([41. Print Payroll Sheet])
+        UC42([42. Manage Backups])
+        UC43([43. Send SMS Notifications])
+        UC44([44. Send Recovery Email])
+    end
+
+    Student --- UC1
+    Student --- UC3
+    Student --- UC4
+    Student --- UC5
+    Student --- UC6
+    Student --- UC7
+    Student --- UC13
+    Student --- UC14
+    Student --- UC15
+    Student --- UC16
+    Student --- UC17
+    Student --- UC18
+    Student --- UC19
+    Student --- UC20
+    Student --- UC21
+
+    Staff --- UC3
+    Staff --- UC6
+    Staff --- UC22
+    Staff --- UC23
+    Staff --- UC24
+    Staff --- UC25
+    Staff --- UC26
+    Staff --- UC27
+    Staff --- UC30
+    Staff --- UC31
+    Staff --- UC32
+
+    Admin --- UC3
+    Admin --- UC6
+    Admin --- UC22
+    Admin --- UC23
+    Admin --- UC24
+    Admin --- UC25
+    Admin --- UC26
+    Admin --- UC27
+    Admin --- UC28
+    Admin --- UC29
+    Admin --- UC30
+    Admin --- UC31
+    Admin --- UC32
+    Admin --- UC33
+    Admin --- UC34
+    Admin --- UC35
+    Admin --- UC36
+    Admin --- UC37
+    Admin --- UC38
+    Admin --- UC39
+    Admin --- UC40
+    Admin --- UC41
+    Admin --- UC42
+
+    SMS --- UC43
+    Email --- UC44
+
+    UC1 -. include .-> UC2
+    UC4 -. include .-> UC44
+    UC2 -. include .-> UC43
+    UC7 -. include .-> UC8
+    UC7 -. include .-> UC9
+    UC7 -. include .-> UC10
+    UC7 -. include .-> UC11
+    UC7 -. include .-> UC12
+    UC24 -. include .-> UC15
+    UC24 -. include .-> UC14
+    UC24 -. include .-> UC27
+    UC28 -. include .-> UC43
+    UC30 -. include .-> UC43
+    UC40 -. include .-> UC43

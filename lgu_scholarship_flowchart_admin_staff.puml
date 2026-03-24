@@ -1,0 +1,25 @@
+@startuml
+title LGU Scholarship System Flowchart - Staff and Admin Process
+
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam backgroundColor white
+skinparam ArrowColor black
+skinparam linetype ortho
+
+start
+
+:Admin and Staff Dashboard;
+:Manage Applications;
+:Review Documents;
+:Update Status and Notify;
+:Manage Interview Schedule;
+:Manage Scholar Records;
+:Add Disbursement;
+:Manage Users;
+:Send SMS;
+
+stop
+@enduml

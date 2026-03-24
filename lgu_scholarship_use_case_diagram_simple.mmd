@@ -1,0 +1,59 @@
+flowchart LR
+    Student[Applicant / Student]
+    Staff[Staff]
+    Admin[Admin / LGU Scholarship Coordinator]
+    SMS[SMS Service]
+
+    subgraph System[Automated Scholarship Records Management System]
+        UC1([1. Register / Verify Account])
+        UC2([2. Log In])
+        UC3([3. Manage Account])
+        UC4([4. Submit Application])
+        UC5([5. Track Status])
+        UC6([6. Upload / Resubmit Requirements])
+        UC7([7. Review Applications])
+        UC8([8. Verify Documents])
+        UC9([9. Schedule Interviews])
+        UC10([10. Record Interview Results])
+        UC11([11. Upload / Review SOA])
+        UC12([12. Schedule Payouts])
+        UC13([13. Manage Records / Archive])
+        UC14([14. Generate Reports])
+        UC15([15. Manage Application Period])
+        UC16([16. Manage Users])
+        UC17([17. Send Notifications])
+    end
+
+    Student --- UC1
+    Student --- UC2
+    Student --- UC3
+    Student --- UC4
+    Student --- UC5
+    Student --- UC6
+    Student --- UC11
+    Student --- UC12
+
+    Staff --- UC2
+    Staff --- UC3
+    Staff --- UC7
+    Staff --- UC8
+    Staff --- UC10
+    Staff --- UC11
+    Staff --- UC13
+    Staff --- UC17
+
+    Admin --- UC2
+    Admin --- UC3
+    Admin --- UC7
+    Admin --- UC8
+    Admin --- UC9
+    Admin --- UC10
+    Admin --- UC11
+    Admin --- UC12
+    Admin --- UC13
+    Admin --- UC14
+    Admin --- UC15
+    Admin --- UC16
+    Admin --- UC17
+
+    SMS --- UC17
