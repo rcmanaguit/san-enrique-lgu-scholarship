@@ -22,7 +22,7 @@
                                 data-field-label="Application Email Address">
                         </div>
 
-                        <button type="submit" class="btn btn-primary w-100">Send Email Reset Code</button>
+                        <button type="submit" class="btn btn-primary w-100">Send Code</button>
                     </form>
 
                     <div class="auth-back-row small">

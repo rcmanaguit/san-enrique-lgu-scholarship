@@ -32,7 +32,6 @@ if (($filters['school_type'] ?? '') !== '') {
                 <div>
                     <span class="app-page-eyebrow">Reports</span>
                     <h1 class="app-page-title"><i class="fa-solid fa-chart-column me-2"></i>Reports and Data Analytics</h1>
-                    <p class="app-page-subtitle">Detailed one-page reporting for applications, workflow progress, scholars, interviews, documents, payouts, budgets, and period trends.</p>
                 </div>
                 <div class="app-page-header-actions">
                     <a href="<?php echo htmlspecialchars(base_url('admin/reports') . '?' . http_build_query(array_merge($filters, ['export' => 'excel']))); ?>" class="btn btn-outline-success fw-bold">
@@ -51,7 +50,6 @@ if (($filters['school_type'] ?? '') !== '') {
                 <div class="app-surface-header">
                     <div>
                         <h2 class="app-surface-title">Filter Options</h2>
-                        <p class="app-surface-copy">Narrow the report output before exporting or printing.</p>
                     </div>
                 </div>
                 <div class="app-surface-body">

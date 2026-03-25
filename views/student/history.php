@@ -13,7 +13,6 @@ require __DIR__ . '/../layouts/header.php';
                 <div>
                     <span class="app-page-eyebrow">Student Record</span>
                     <h1 class="app-page-title"><i class="fa-solid fa-clock-rotate-left me-2"></i>My Applications</h1>
-                    <p class="app-page-subtitle">Review your submitted applications, status history, and the total grant assistance you have received so far.</p>
                 </div>
             </section>
 
@@ -48,7 +47,6 @@ require __DIR__ . '/../layouts/header.php';
                 <div class="app-surface-header">
                     <div>
                         <h2 class="app-surface-title">Application Timeline</h2>
-                        <p class="app-surface-copy">A record of your applications by school year, semester, and grant outcome.</p>
                     </div>
                 </div>
                 <div class="p-0">
@@ -61,13 +59,12 @@ require __DIR__ . '/../layouts/header.php';
                                     <th class="py-3">Date Applied</th>
                                     <th class="py-3">Status</th>
                                     <th class="py-3 text-end">Grant Amount</th>
-                                    <th class="py-3 text-end pe-4">Action</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php if (empty($historyData)): ?>
                                     <tr>
-                                        <td colspan="6" class="p-0">
+                                        <td colspan="5" class="p-0">
                                             <div class="app-empty-state">
                                                 <div class="app-empty-state-icon"><i class="fa-regular fa-folder-open"></i></div>
                                                 <h3 class="app-empty-state-title">No past applications found</h3>
@@ -80,7 +77,14 @@ require __DIR__ . '/../layouts/header.php';
                                     </tr>
                                 <?php else: ?>
                                     <?php foreach ($historyData as $record): ?>
-                                        <tr>
+                                        <?php $recordUrl = base_url('student/application/' . (int) ($record['id'] ?? 0)); ?>
+                                        <tr
+                                            class="app-board-row-link"
+                                            role="link"
+                                            tabindex="0"
+                                            aria-label="Open application record <?php echo htmlspecialchars((string) ($record['school_year'] ?? '')); ?> <?php echo htmlspecialchars((string) ($record['semester'] ?? '')); ?>"
+                                            onclick="window.location.href='<?php echo htmlspecialchars($recordUrl, ENT_QUOTES); ?>'"
+                                            onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); window.location.href='<?php echo htmlspecialchars($recordUrl, ENT_QUOTES); ?>'; }">
                                             <td class="ps-4">
                                                 <div class="fw-bold text-dark"><?php echo htmlspecialchars((string) $record['school_year']); ?></div>
                                                 <div class="small text-muted"><?php echo htmlspecialchars((string) $record['semester']); ?></div>
@@ -111,9 +115,6 @@ require __DIR__ . '/../layouts/header.php';
                                             </td>
                                             <td class="text-end fw-bold text-success pe-4">
                                                 <?php echo ((float) $record['final_grant_amount'] > 0) ? '₱ ' . number_format((float) $record['final_grant_amount'], 2) : '--'; ?>
-                                            </td>
-                                            <td class="text-end pe-4">
-                                                <a href="<?php echo htmlspecialchars(base_url('student/application/' . (int) ($record['id'] ?? 0))); ?>" class="btn btn-sm btn-outline-primary">View Record</a>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>

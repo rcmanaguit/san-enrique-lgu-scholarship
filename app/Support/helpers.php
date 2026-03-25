@@ -79,3 +79,28 @@ if (!function_exists('redirect_with_flash')) {
         exit;
     }
 }
+
+if (!function_exists('canonical_document_type')) {
+    function canonical_document_type(string $type): string
+    {
+        $normalized = trim($type);
+
+        return $normalized === 'Residency' ? 'Barangay Residency' : $normalized;
+    }
+}
+
+if (!function_exists('document_type_matches')) {
+    function document_type_matches(?string $value, string $expected): bool
+    {
+        return canonical_document_type((string) $value) === canonical_document_type($expected);
+    }
+}
+
+if (!function_exists('document_type_label')) {
+    function document_type_label(?string $type): string
+    {
+        $normalized = canonical_document_type((string) $type);
+
+        return $normalized !== '' ? $normalized : 'Document';
+    }
+}

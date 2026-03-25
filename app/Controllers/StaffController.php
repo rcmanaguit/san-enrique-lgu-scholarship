@@ -1557,9 +1557,9 @@ class StaffController
                 'value' => $this->documentStatusLabel($documents, 'Grades'),
             ],
             [
-                'label' => 'Residency document',
-                'complete' => $this->hasDocumentStatus($documents, 'Residency', 'Verified'),
-                'value' => $this->documentStatusLabel($documents, 'Residency'),
+                'label' => 'Barangay Residency document',
+                'complete' => $this->hasDocumentStatus($documents, 'Barangay Residency', 'Verified'),
+                'value' => $this->documentStatusLabel($documents, 'Barangay Residency'),
             ],
             [
                 'label' => 'Statement of Account',
@@ -1645,7 +1645,7 @@ class StaffController
     private function hasDocumentStatus(array $documents, string $documentType, string $status): bool
     {
         foreach ($documents as $document) {
-            if ((string) ($document['document_type'] ?? '') === $documentType && (string) ($document['status'] ?? '') === $status) {
+            if (\document_type_matches((string) ($document['document_type'] ?? ''), $documentType) && (string) ($document['status'] ?? '') === $status) {
                 return true;
             }
         }
@@ -1656,7 +1656,7 @@ class StaffController
     private function documentStatusLabel(array $documents, string $documentType): string
     {
         foreach ($documents as $document) {
-            if ((string) ($document['document_type'] ?? '') === $documentType) {
+            if (\document_type_matches((string) ($document['document_type'] ?? ''), $documentType)) {
                 return (string) ($document['status'] ?? 'Pending');
             }
         }

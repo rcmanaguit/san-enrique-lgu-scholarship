@@ -197,6 +197,7 @@ $calculateApplicantAge = static function ($value): string {
                     <?php else: ?>
                         <div class="d-md-none app-mobile-record-grid">
                             <?php foreach ($searchResults as $result): ?>
+                                <?php $recordUrl = base_url('staff/master-record/' . (int) ($result['profile_id'] ?? 0)); ?>
                                 <?php
                                 $resultStatusClass = match ((string) ($result['latest_status'] ?? '')) {
                                     'Submitted', 'Initial_Review' => 'app-status-badge app-status-review',
@@ -213,16 +214,19 @@ $calculateApplicantAge = static function ($value): string {
                                     ? 'app-status-badge app-status-closed'
                                     : ($lifecycle === 'Completed' ? 'app-status-badge app-status-complete' : 'app-status-badge app-status-review');
                                 ?>
-                                <article class="app-mobile-record-card">
+                                <article
+                                    class="app-mobile-record-card app-clickable-card"
+                                    role="link"
+                                    tabindex="0"
+                                    aria-label="Open record for <?php echo htmlspecialchars((string) (($result['last_name'] ?? '') . ', ' . ($result['first_name'] ?? ''))); ?>"
+                                    onclick="window.location.href='<?php echo htmlspecialchars($recordUrl, ENT_QUOTES); ?>'"
+                                    onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); window.location.href='<?php echo htmlspecialchars($recordUrl, ENT_QUOTES); ?>'; }">
                                     <div class="app-list-item-head">
                                         <div>
                                             <h3 class="app-list-item-title mb-1"><?php echo htmlspecialchars((string) (($result['last_name'] ?? '') . ', ' . ($result['first_name'] ?? ''))); ?></h3>
                                             <div class="app-list-item-meta"><?php echo htmlspecialchars((string) ($result['address_barangay'] ?? '')); ?></div>
                                             <div class="app-list-item-meta"><?php echo htmlspecialchars((string) ($result['school_name'] ?? '')); ?></div>
                                         </div>
-                                        <a href="<?php echo htmlspecialchars(base_url('staff/master-record/' . (int) ($result['profile_id'] ?? 0))); ?>" class="btn btn-sm btn-outline-primary">
-                                            Open Record
-                                        </a>
                                     </div>
                                     <div class="app-mobile-record-section">
                                         <span class="app-mobile-record-label">Contact</span>
@@ -259,11 +263,11 @@ $calculateApplicantAge = static function ($value): string {
                                         <th>Latest Status</th>
                                         <th>Record Status</th>
                                         <th>Total Applications</th>
-                                        <th></th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php foreach ($searchResults as $result): ?>
+                                        <?php $recordUrl = base_url('staff/master-record/' . (int) ($result['profile_id'] ?? 0)); ?>
                                         <?php $isSelectedRecord = (int) ($result['profile_id'] ?? 0) === (int) ($selectedProfileId ?? 0); ?>
                                         <?php
                                         $resultStatusClass = match ((string) ($result['latest_status'] ?? '')) {
@@ -277,7 +281,13 @@ $calculateApplicantAge = static function ($value): string {
                                             default => 'app-status-badge app-status-default',
                                         };
                                         ?>
-                                        <tr class="<?php echo $isSelectedRecord ? 'app-board-row-selected' : ''; ?>">
+                                        <tr
+                                            class="<?php echo $isSelectedRecord ? 'app-board-row-selected ' : ''; ?>app-board-row-link"
+                                            role="link"
+                                            tabindex="0"
+                                            aria-label="Open record for <?php echo htmlspecialchars((string) (($result['last_name'] ?? '') . ', ' . ($result['first_name'] ?? ''))); ?>"
+                                            onclick="window.location.href='<?php echo htmlspecialchars($recordUrl, ENT_QUOTES); ?>'"
+                                            onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); window.location.href='<?php echo htmlspecialchars($recordUrl, ENT_QUOTES); ?>'; }">
                                             <td>
                                                 <div class="fw-bold"><?php echo htmlspecialchars((string) (($result['last_name'] ?? '') . ', ' . ($result['first_name'] ?? ''))); ?></div>
                                                 <div class="small text-muted"><?php echo htmlspecialchars((string) ($result['address_barangay'] ?? '')); ?></div>
@@ -319,11 +329,6 @@ $calculateApplicantAge = static function ($value): string {
                                                 <span class="<?php echo htmlspecialchars($lifecycleClass); ?>"><?php echo htmlspecialchars($lifecycle); ?></span>
                                             </td>
                                             <td><?php echo (int) ($result['total_applications'] ?? 0); ?></td>
-                                            <td class="text-end">
-                                                <a href="<?php echo htmlspecialchars(base_url('staff/master-record/' . (int) ($result['profile_id'] ?? 0))); ?>" class="btn btn-sm btn-outline-primary">
-                                                    Open Record
-                                                </a>
-                                            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -368,7 +373,6 @@ $calculateApplicantAge = static function ($value): string {
                             <div class="app-surface-header">
                                 <div>
                                     <h2 class="app-surface-title">Scholar Profile</h2>
-                                    <p class="app-surface-copy">Current account and academic details for the selected record.</p>
                                 </div>
                             </div>
                             <div class="app-surface-body">
@@ -399,7 +403,6 @@ $calculateApplicantAge = static function ($value): string {
                             <div class="app-surface-header">
                                 <div>
                                     <h2 class="app-surface-title">Latest Notifications</h2>
-                                    <p class="app-surface-copy">Recent applicant-facing updates linked to this record.</p>
                                 </div>
                             </div>
                             <div class="app-surface-body">
@@ -433,7 +436,6 @@ $calculateApplicantAge = static function ($value): string {
                             <div class="app-surface-header">
                                 <div>
                                     <h2 class="app-surface-title">Application History</h2>
-                                    <p class="app-surface-copy">All scholarship applications, schedules, notices, and grant amounts tied to this scholar.</p>
                                 </div>
                             </div>
                             <div class="p-0">
@@ -652,7 +654,6 @@ $calculateApplicantAge = static function ($value): string {
                             <div class="app-surface-header">
                                 <div>
                                     <h2 class="app-surface-title">Document History</h2>
-                                    <p class="app-surface-copy">Document review outcomes and remarks across all application terms.</p>
                                 </div>
                             </div>
                             <div class="p-0">
@@ -686,7 +687,7 @@ $calculateApplicantAge = static function ($value): string {
                                                     };
                                                     ?>
                                                     <tr>
-                                                        <td class="fw-semibold"><?php echo htmlspecialchars((string) ($document['document_type'] ?? '')); ?></td>
+                                                        <td class="fw-semibold"><?php echo htmlspecialchars(document_type_label((string) ($document['document_type'] ?? ''))); ?></td>
                                                         <td class="small text-muted"><?php echo htmlspecialchars((string) (($document['school_year'] ?? '') . ' | ' . ($document['semester'] ?? ''))); ?></td>
                                                         <td><span class="<?php echo htmlspecialchars($documentStatusClass); ?>"><?php echo htmlspecialchars((string) ($document['status'] ?? '')); ?></span></td>
                                                         <td class="small text-muted"><?php echo htmlspecialchars((string) ($document['file_size_label'] ?? 'N/A')); ?></td>
@@ -711,7 +712,6 @@ $calculateApplicantAge = static function ($value): string {
                             <div class="app-surface-header">
                                 <div>
                                     <h2 class="app-surface-title">File History</h2>
-                                    <p class="app-surface-copy">Each upload and corrected replacement is preserved here as a separate version record.</p>
                                 </div>
                             </div>
                             <div class="p-0">
@@ -748,7 +748,7 @@ $calculateApplicantAge = static function ($value): string {
                                                     };
                                                     ?>
                                                     <tr>
-                                                        <td class="fw-semibold"><?php echo htmlspecialchars((string) ($version['document_type'] ?? '')); ?></td>
+                                                        <td class="fw-semibold"><?php echo htmlspecialchars(document_type_label((string) ($version['document_type'] ?? ''))); ?></td>
                                                         <td class="small text-muted"><?php echo htmlspecialchars((string) (($version['school_year'] ?? '') . ' | ' . ($version['semester'] ?? ''))); ?></td>
                                                         <td><span class="badge bg-primary-subtle text-primary-emphasis">v<?php echo (int) ($version['version_number'] ?? 0); ?></span></td>
                                                         <td class="small text-muted"><?php echo htmlspecialchars((string) ($version['source_action'] ?? '')); ?></td>
@@ -778,7 +778,6 @@ $calculateApplicantAge = static function ($value): string {
                             <div class="app-surface-header">
                                 <div>
                                     <h2 class="app-surface-title">Staff Notes</h2>
-                                    <p class="app-surface-copy">Staff-only notes added during review, follow-up, and applicant handling.</p>
                                 </div>
                             </div>
                             <div class="app-surface-body">
@@ -807,7 +806,6 @@ $calculateApplicantAge = static function ($value): string {
                             <div class="app-surface-header">
                                 <div>
                                     <h2 class="app-surface-title">Application Timelines</h2>
-                                    <p class="app-surface-copy">Follow each application term as its updates happen.</p>
                                 </div>
                             </div>
                             <div class="app-surface-body">

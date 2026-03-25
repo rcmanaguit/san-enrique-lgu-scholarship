@@ -29,7 +29,7 @@ require __DIR__ . '/../layouts/header.php';
                                 required>
                         </div>
 
-                        <button type="submit" class="btn btn-success w-100 mb-3">Verify Account</button>
+                        <button type="submit" class="btn btn-success w-100 mb-3">Verify</button>
                     </form>
 
                     <div class="mb-3">

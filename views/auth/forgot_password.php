@@ -23,7 +23,7 @@
                                 data-field-label="Registered Mobile Number">
                         </div>
 
-                        <button type="submit" class="btn btn-primary w-100">Send SMS Reset Code</button>
+                        <button type="submit" class="btn btn-primary w-100">Send Code</button>
                     </form>
 
                     <div class="auth-recovery-divider"><span>Or</span></div>
@@ -31,7 +31,7 @@
                     <div class="text-center">
                         <p class="text-muted small mb-2">Lost your SIM card?</p>
                         <a href="<?php echo htmlspecialchars(base_url('recover-account')); ?>" class="btn btn-outline-secondary w-100">
-                            Send OTP to Application Email
+                            Email OTP
                         </a>
                     </div>
 

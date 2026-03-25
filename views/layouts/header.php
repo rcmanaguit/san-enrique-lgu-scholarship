@@ -159,7 +159,7 @@ if ($layoutCurrentUserId > 0) {
                                 <strong>Notifications</strong>
                                 <form action="<?php echo htmlspecialchars(base_url('notifications/mark-all-read')); ?>" method="POST" data-notification-mark-all-form>
                                     <input type="hidden" name="redirect_to" value="<?php echo htmlspecialchars($layoutCurrentPath); ?>">
-                                    <button type="submit" class="btn btn-link btn-sm p-0 text-decoration-none">Mark all as read</button>
+                                    <button type="submit" class="btn btn-link btn-sm p-0 text-decoration-none">Read All</button>
                                 </form>
                             </div>
 

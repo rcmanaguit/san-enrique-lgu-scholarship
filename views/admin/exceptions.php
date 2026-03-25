@@ -152,7 +152,7 @@ $totalExceptions = $overdueCount + $pendingInterviewCount + $rejectedDocumentCou
                                             <?php foreach ($rejectedDocuments as $row): ?>
                                                 <tr>
                                                     <td class="fw-bold"><?php echo htmlspecialchars((string) $row['applicant_name']); ?></td>
-                                                    <td><?php echo htmlspecialchars((string) $row['document_type']); ?></td>
+                                                    <td><?php echo htmlspecialchars(document_type_label((string) $row['document_type'])); ?></td>
                                                     <td class="small text-muted"><?php echo htmlspecialchars((string) $row['rejection_remarks']); ?></td>
                                                     <td class="small text-muted"><?php echo htmlspecialchars((string) ($row['updated_at'] ?? '')); ?></td>
                                                     <td class="text-end">

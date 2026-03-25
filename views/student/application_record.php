@@ -61,11 +61,10 @@ $statusLabel = str_replace('_', ' ', (string) ($application['status'] ?? 'Pendin
                 <div>
                     <span class="app-page-eyebrow">Student Record</span>
                     <h1 class="app-page-title"><i class="fa-solid fa-folder-open me-2"></i>Submitted Application Record</h1>
-                    <p class="app-page-subtitle">Review the submitted information, uploaded files, and timeline for this application.</p>
                 </div>
                 <div class="app-page-header-actions d-flex gap-2 flex-wrap">
-                    <a href="<?php echo htmlspecialchars(base_url('student/history')); ?>" class="btn btn-outline-secondary">Back to My Applications</a>
-                    <a href="<?php echo htmlspecialchars(base_url('student/print-form?id=' . (int) ($application['id'] ?? 0))); ?>" target="_blank" class="btn btn-primary">Preview Printable Form</a>
+                    <a href="<?php echo htmlspecialchars(base_url('student/history')); ?>" class="btn btn-outline-secondary">Back</a>
+                    <a href="<?php echo htmlspecialchars(base_url('student/print-form?id=' . (int) ($application['id'] ?? 0))); ?>" target="_blank" class="btn btn-primary">Preview Form</a>
                 </div>
             </section>
 
@@ -92,13 +91,12 @@ $statusLabel = str_replace('_', ' ', (string) ($application['status'] ?? 'Pendin
                 <div class="app-surface-header">
                     <div>
                         <h2 class="app-surface-title">Workspace</h2>
-                        <p class="app-surface-copy">Use the tabs to inspect the saved application details.</p>
                     </div>
                 </div>
                 <div class="app-surface-body">
                     <ul class="nav nav-pills app-review-tabs mb-4" role="tablist">
                         <li class="nav-item" role="presentation"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#student-record-info" type="button">Info</button></li>
-                        <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#student-record-documents" type="button">Files / Documents</button></li>
+                        <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#student-record-documents" type="button">Files</button></li>
                         <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#student-record-timeline" type="button">Timeline</button></li>
                     </ul>
 
@@ -110,7 +108,6 @@ $statusLabel = str_replace('_', ' ', (string) ($application['status'] ?? 'Pendin
                                         <div class="app-surface-header">
                                             <div>
                                                 <h2 class="app-surface-title">Application Summary</h2>
-                                                <p class="app-surface-copy">Core details for this submitted scholarship record.</p>
                                             </div>
                                         </div>
                                         <div class="app-surface-body">
@@ -138,7 +135,6 @@ $statusLabel = str_replace('_', ' ', (string) ($application['status'] ?? 'Pendin
                                                 <div class="app-surface-header">
                                                     <div>
                                                         <h2 class="app-surface-title">Family and Siblings</h2>
-                                                        <p class="app-surface-copy">Submitted household details tied to this application.</p>
                                                     </div>
                                                 </div>
                                                 <div class="app-surface-body">
@@ -178,7 +174,6 @@ $statusLabel = str_replace('_', ' ', (string) ($application['status'] ?? 'Pendin
                                                 <div class="app-surface-header">
                                                     <div>
                                                         <h2 class="app-surface-title">Education and Grants</h2>
-                                                        <p class="app-surface-copy">Academic entries and previous scholarship records submitted on the form.</p>
                                                     </div>
                                                 </div>
                                                 <div class="app-surface-body">
@@ -225,7 +220,6 @@ $statusLabel = str_replace('_', ' ', (string) ($application['status'] ?? 'Pendin
                                         <div class="app-surface-header">
                                             <div>
                                                 <h2 class="app-surface-title">Applicant Photo</h2>
-                                                <p class="app-surface-copy">Submitted 2x2 picture for this application.</p>
                                             </div>
                                         </div>
                                         <div class="app-surface-body text-center">
@@ -245,7 +239,6 @@ $statusLabel = str_replace('_', ' ', (string) ($application['status'] ?? 'Pendin
                                         <div class="app-surface-header">
                                             <div>
                                                 <h2 class="app-surface-title">Digital Signature</h2>
-                                                <p class="app-surface-copy">Submitted e-signature attached to this application.</p>
                                             </div>
                                         </div>
                                         <div class="app-surface-body text-center">
@@ -269,7 +262,6 @@ $statusLabel = str_replace('_', ' ', (string) ($application['status'] ?? 'Pendin
                                 <div class="app-surface-header">
                                     <div>
                                         <h2 class="app-surface-title">Submitted Documents</h2>
-                                        <p class="app-surface-copy">Each document can be opened in a separate page. File size is shown for reference.</p>
                                     </div>
                                 </div>
                                 <div class="p-0">
@@ -299,13 +291,13 @@ $statusLabel = str_replace('_', ' ', (string) ($application['status'] ?? 'Pendin
                                                 <?php else: ?>
                                                     <?php foreach ($documents as $document): ?>
                                                         <tr>
-                                                            <td class="ps-4 fw-bold"><?php echo htmlspecialchars((string) ($document['document_type'] ?? 'Document')); ?></td>
+                                                            <td class="ps-4 fw-bold"><?php echo htmlspecialchars(document_type_label((string) ($document['document_type'] ?? 'Document'))); ?></td>
                                                             <td><span class="<?php echo htmlspecialchars((string) (($document['status_badge']['class'] ?? 'app-status-badge app-status-default'))); ?>"><?php echo htmlspecialchars((string) (($document['status_badge']['label'] ?? ($document['status'] ?? 'Pending')))); ?></span></td>
                                                             <td><?php echo htmlspecialchars((string) ($document['file_size_label'] ?? 'N/A')); ?></td>
                                                             <td><?php echo htmlspecialchars($formatDateTime($document['uploaded_at'] ?? '')); ?></td>
                                                             <td class="small text-muted"><?php echo htmlspecialchars($na($document['rejection_remarks'] ?? '')); ?></td>
                                                             <td class="text-end pe-4">
-                                                                <a href="<?php echo htmlspecialchars(base_url('student/application/' . (int) ($application['id'] ?? 0) . '/document/' . (int) ($document['id'] ?? 0))); ?>" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary">Open In New Page</a>
+                                                                <a href="<?php echo htmlspecialchars(base_url('student/application/' . (int) ($application['id'] ?? 0) . '/document/' . (int) ($document['id'] ?? 0))); ?>" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary">Open</a>
                                                             </td>
                                                         </tr>
                                                     <?php endforeach; ?>
@@ -322,7 +314,6 @@ $statusLabel = str_replace('_', ' ', (string) ($application['status'] ?? 'Pendin
                                 <div class="app-surface-header">
                                     <div>
                                         <h2 class="app-surface-title">Application Timeline</h2>
-                                        <p class="app-surface-copy">Chronological history of this submitted application.</p>
                                     </div>
                                 </div>
                                 <div class="app-surface-body">

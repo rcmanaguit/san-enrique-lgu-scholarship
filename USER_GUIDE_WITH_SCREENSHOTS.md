@@ -2,39 +2,52 @@
 ## User Guide With Screenshot Guide
 
 ## 1. Introduction
-This guide explains how each user role uses the LGU San Enrique Scholarship Management System. Each section also includes the recommended screenshot to capture for documentation, user manual, or capstone presentation.
+This guide follows the actual workflow implemented in the LGU San Enrique Scholarship Management System. Use it when preparing the user manual, capstone documentation, or presentation screenshots.
 
-## 2. Screenshot Guidelines
+## 2. Actual System Workflow
+The application does not use a separate student profile module and a separate general document-upload module for the first submission. The real workflow is:
+
+1. Student registers and logs in.
+2. Student submits one complete application form for the active school year and semester.
+3. Staff reviews the uploaded initial requirements.
+4. If requirements are rejected, the student uses the document resubmission screen.
+5. If requirements are verified, the application moves to `For_Interview`.
+6. Staff schedules the interview and records the result.
+7. If the student passes, the student uploads the Statement of Account (SOA).
+8. Staff reviews the SOA.
+9. Approved records move to payout scheduling.
+10. Completed, not eligible, or forfeited records appear in the closed/completed records view.
+
+## 3. Screenshot Guidelines
 When taking screenshots, make sure that:
 
-- the page title or module name is visible
-- the important fields, buttons, or tables are clearly shown
-- sensitive data such as passwords are hidden when necessary
-- the date, status, or current action is visible if relevant
-- the screenshot is not cropped too tightly
+- the page title is visible
+- the current status, queue, or action is visible
+- the main form fields, tabs, or tables are readable
+- sensitive data such as passwords are hidden
+- the screenshot matches the actual page name used by the system
 
-## 3. Student User Guide
+## 4. Student User Guide
 
-### 3.1 Student Registration
+### 4.1 Student Registration
 **Procedure**
-1. Open the registration page.
-2. Enter first name, last name, phone number, email, and password.
+1. Open the `Register` page.
+2. Enter the required account details.
 3. Submit the registration form.
-4. Enter OTP if verification is required.
+4. Enter the OTP on the verification screen.
 
 **Where to Screenshot**
 - registration page
-- OTP verification page, if available
+- OTP verification page
 
 **What to Screenshot**
-- the full registration form
-- input fields for student account creation
+- registration form
 - `Register` button
-- OTP form if the system uses phone verification
+- OTP input form
 
-### 3.2 Student Login
+### 4.2 Student Login
 **Procedure**
-1. Open the login page.
+1. Open the `Login` page.
 2. Enter phone number or email.
 3. Enter password.
 4. Click `Login`.
@@ -43,126 +56,139 @@ When taking screenshots, make sure that:
 - login page
 
 **What to Screenshot**
-- phone number or email field
-- password field
+- login form
 - `Login` button
-- system branding or page title
+- system title or branding
 
-### 3.3 Student Dashboard
+### 4.3 Student Dashboard
 **Procedure**
 1. Log in as a student.
-2. Wait for the dashboard to load.
-3. Review shortcuts, status cards, or notices.
+2. Open the dashboard.
+3. Review the current application card, status badge, next action, and full timeline.
 
 **Where to Screenshot**
 - student dashboard
 
 **What to Screenshot**
-- welcome panel or student name
-- application status summary
-- notifications preview or quick links
-
-### 3.4 Student Profile Completion
-**Procedure**
-1. Open the `Profile` page.
-2. Fill in personal information, address, family background, and school details.
-3. Upload e-signature and ID picture if required.
-4. Click `Save`.
-
-**Where to Screenshot**
-- profile page
-
-**What to Screenshot**
-- personal information section
-- address and barangay section
-- family background section
-- educational details section
-- upload fields for e-signature and ID picture
-- `Save` button
-
-### 3.5 Scholarship Application Form
-**Procedure**
-1. Open the `Application` page.
-2. Select school year, semester, and application type.
-3. Fill in required scholarship application details.
-4. Confirm privacy consent.
-5. Click `Submit`.
-
-**Where to Screenshot**
-- application form page
-
-**What to Screenshot**
-- school year field
-- semester field
-- application type field
-- privacy consent section
-- `Submit` button
-
-### 3.6 Submitted Application Record
-**Procedure**
-1. Submit the scholarship application.
-2. Open the saved application record.
-3. Review the generated application details.
-
-**Where to Screenshot**
-- application details page
-- submitted application summary page
-
-**What to Screenshot**
-- application ID
-- student name
-- school year and semester
-- application type
+- welcome header
 - current application status
+- next action button such as `Apply Now`, `Fix Documents`, or `Upload SOA`
+- full application timeline section
+- notification bell in the header if visible
 
-### 3.7 Document Upload
+### 4.4 Student Application Form
 **Procedure**
-1. Open the submitted application.
-2. Go to `Documents`.
-3. Upload Grades, Residency, and SOA.
-4. Save or submit the uploaded files.
+1. Open `Apply`.
+2. Complete the application form for the current school year and semester.
+3. Fill in personal, family, and school details.
+4. Upload the 2x2 ID picture, e-signature, grades, and Barangay Residency file.
+5. Confirm the Data Privacy Notice.
+6. Click `Submit Application`.
 
 **Where to Screenshot**
-- documents upload page
+- student application form
 
 **What to Screenshot**
-- file upload controls
-- document types: `Grades`, `Residency`, `SOA`
-- upload buttons
-- uploaded file list if available
+- school year and semester display
+- application type
+- personal information section
+- family background section
+- educational information section
+- upload fields for ID picture, e-signature, grades, and Barangay Residency
+- privacy consent
+- `Submit Application` button
 
-### 3.8 Application Status Tracking
+**Important Note**
+- Do not use a separate "Student Profile Completion" screenshot for the guide. The current system uses one application form instead of a separate profile-completion workflow.
+
+### 4.5 Submitted Application Record
 **Procedure**
-1. Open the application record.
-2. Check the current status.
-3. Review any remarks or next steps.
+1. Open `My Applications`.
+2. Select one submitted application.
+3. Review the saved record.
 
 **Where to Screenshot**
-- application tracking page
-- student dashboard if status is shown there
+- `My Applications` page
+- submitted application record page
 
 **What to Screenshot**
-- current status label
-- remarks or instructions
-- timeline, progress bar, or status history if available
+- applications list with status badge
+- `Submitted Application Record` page title
+- `Info`, `Files / Documents`, and `Timeline` tabs
+- application ID, date submitted, and status
 
-### 3.9 Notifications
+### 4.6 Document Resubmission
 **Procedure**
-1. Open `Notifications`.
-2. Read messages related to application review, interviews, or document issues.
+1. Wait for staff review.
+2. If the application status becomes `Pending_Resubmission`, open the resubmission screen from the dashboard.
+3. Read the staff remarks.
+4. Upload only the rejected replacement files.
+5. Click `Submit Corrected Documents`.
 
 **Where to Screenshot**
-- notifications page
+- document resubmission page
 
 **What to Screenshot**
-- list of notifications
-- notification title
-- message preview
-- read or unread indicator
+- `Document Resubmission` page title
+- rejected document card
+- staff remarks
+- replacement upload field
+- `Submit Corrected Documents` button
 
-## 4. Staff User Guide
+### 4.7 Interview Status Tracking
+**Procedure**
+1. Open the dashboard or application record.
+2. Check when the application reaches `For_Interview`.
+3. Review the interview schedule once assigned.
 
-### 4.1 Staff Login
+**Where to Screenshot**
+- dashboard current application card
+- application timeline
+
+**What to Screenshot**
+- `For_Interview` status badge
+- interview schedule details if already assigned
+- timeline entry showing interview progress
+
+### 4.8 Statement of Account (SOA) Submission
+**Procedure**
+1. After passing the interview, open `Apply` again.
+2. The system switches to the `Statement of Account Submission` screen.
+3. Review the SOA deadline and policy.
+4. Upload the SOA file.
+5. Click `Submit SOA`.
+
+**Where to Screenshot**
+- SOA upload page
+
+**What to Screenshot**
+- `Statement of Account Submission` title
+- application period
+- SOA deadline policy
+- SOA deadline
+- SOA file upload field
+- `Submit SOA` button
+
+### 4.9 Student Notifications
+**Procedure**
+1. Use the notification bell in the header.
+2. Review unread updates for document review, interview scheduling, SOA review, or payout schedule.
+
+**Where to Screenshot**
+- notification dropdown in the header
+
+**What to Screenshot**
+- notification bell
+- unread badge
+- notification list
+- `Mark all as read` action
+
+**Important Note**
+- The current system uses a header notification dropdown, not a dedicated `Notifications` page.
+
+## 5. Staff User Guide
+
+### 5.1 Staff Login
 **Procedure**
 1. Open the login page.
 2. Enter staff credentials.
@@ -173,341 +199,276 @@ When taking screenshots, make sure that:
 
 **What to Screenshot**
 - login form
-- role-based access if shown
+- system title
 
-### 4.2 Staff Dashboard
+### 5.2 Staff Dashboard
 **Procedure**
 1. Log in as staff.
-2. Review the dashboard summary.
+2. Review the dashboard summary cards and workload snapshot.
 
 **Where to Screenshot**
 - staff dashboard
 
 **What to Screenshot**
-- total applications
-- pending document reviews
-- interview-related counts
-- quick action shortcuts
+- dashboard title
+- cards for review, interview, SOA, payout, returned, or closed records
 
-### 4.3 Application Review
+### 5.3 Applications Board
 **Procedure**
 1. Open `Applications`.
-2. Search or filter applications.
-3. Open a student record.
+2. Review the queue chips and records list.
+3. Filter or search as needed.
+4. Open an application for detailed review.
 
 **Where to Screenshot**
-- applications list page
-- application details page
+- applications page
 
 **What to Screenshot**
-- search bar or filter controls
-- applications table
-- status column
-- opened application details
+- `Applications` page title
+- queue chips such as `Under Review`, `Needs Correction`, `For Interview`, `SOA Phase`, `Ready for Payout`, and `Completed`
+- applications table or cards
+- search and filter controls
 
-### 4.4 Document Verification
+### 5.4 Document Verification Workspace
 **Procedure**
-1. Open a student's application.
-2. Go to `Documents`.
-3. Review each uploaded file.
-4. Mark each document as `Pending`, `Verified`, or `Rejected`.
-5. Add rejection remarks if needed.
+1. Open one application from the applications board.
+2. Review the applicant workspace.
+3. Check the submitted files.
+4. Mark a document as `Verified` or `Rejected`.
+5. Enter remarks when rejecting a file.
 
 **Where to Screenshot**
 - document verification page
 
 **What to Screenshot**
-- document list
-- status dropdown or status badges
+- applicant page title
+- tabs: `Documents`, `Timeline`, `File History`, `Staff Notes`
+- document preview or document list
+- status action area
 - remarks field
-- `Save` or `Update` button
 
-### 4.5 Interview Scheduling or Assignment
+**Workflow Note**
+- Rejecting an initial document returns the application to `Pending_Resubmission`.
+- Verifying all initial required files moves the application to `For_Interview`.
+
+### 5.5 Interview Scheduling
 **Procedure**
-1. Open the relevant application.
-2. Assign or confirm the interview batch.
-3. Save the changes.
+1. Open `Interviews` or `Interview Schedules`.
+2. Review applicants who are ready for scheduling.
+3. Create an interview batch with batch name, date, and venue.
+4. Save the schedule.
 
 **Where to Screenshot**
-- interview assignment section
-- batch selection page if separate
+- `Interview Batches` page
+- create batch form
 
 **What to Screenshot**
-- interview batch field
-- schedule or venue info
-- assigned batch details
+- `Interview Batches` title
+- ready-for-interview list
+- batch creation form
+- scheduled interview batch table
 
-### 4.6 Interview Result Encoding
+### 5.6 Interview Result Recording
 **Procedure**
-1. Open the student record.
-2. Enter the interview result.
-3. Save the update.
+1. Open an interview batch.
+2. Record the result for each applicant.
+3. Save the interview result.
 
 **Where to Screenshot**
-- interview result form
+- interview batch details or results table
 
 **What to Screenshot**
-- interview result field with options `Passed`, `Failed`, `Absent`
-- date field if available
-- `Save` button
-- updated application status after saving
+- applicant list
+- interview result field with `Passed`, `Failed`, and `Absent`
+- schedule and venue details
+- saved result row
 
-### 4.7 Case Notes
+**Workflow Note**
+- `Passed` moves the student to the SOA stage.
+- `Failed` or `Absent` closes the application as `Not_Eligible`.
+
+### 5.7 Staff Notes and Record Review
 **Procedure**
-1. Open an application.
-2. Go to `Case Notes`.
-3. Enter remarks or observations.
-4. Save the note.
+1. Open an application workspace.
+2. Go to `Staff Notes`.
+3. Add a case note or internal remark.
 
 **Where to Screenshot**
-- case notes section
+- staff notes tab
 
 **What to Screenshot**
-- note input area
-- existing notes list
-- `Save` button
+- note input field
+- saved notes list
+- submit button
 
-## 5. Administrator User Guide
-
-### 5.1 Admin Login
+### 5.8 Master Record and Closed Records
 **Procedure**
-1. Open the login page.
-2. Enter admin credentials.
-3. Click `Login`.
+1. Open `Master Record`.
+2. Review active or closed scholarship records.
+3. Print interview or disqualification notices when needed.
+4. Archive eligible closed records if required.
 
 **Where to Screenshot**
-- login page
+- master record page
 
 **What to Screenshot**
-- login form
-- system title
+- record list
+- status badges such as `Approved_Finished`, `Not_Eligible`, or `Forfeited`
+- print notice actions if visible
+- archive action if visible
 
-### 5.2 Admin Dashboard
+## 6. Administrator User Guide
+
+### 6.1 Admin Dashboard
 **Procedure**
 1. Log in as admin.
-2. Review summary cards and management options.
+2. Review the dashboard summary and management shortcuts.
 
 **Where to Screenshot**
 - admin dashboard
 
 **What to Screenshot**
-- counts for applications, pending reviews, approved scholars, and batches
-- quick access menu
-- announcements or system summary panels
+- dashboard title
+- summary cards
+- charts or record summaries if visible
 
-### 5.3 Manage User Accounts
+### 6.2 Application Period Management
 **Procedure**
-1. Open the user management page.
-2. View or create staff accounts.
-3. Update account status if needed.
+1. Open `Application Period`.
+2. Review the current application period.
+3. Open a new period or update the existing one.
+4. Set school year, semester, application dates, and SOA deadline policy.
+5. Save the settings.
 
 **Where to Screenshot**
-- users management page
-- create staff account form
+- application period management page
+
+**What to Screenshot**
+- `Application Period Management` page title
+- `Current Application Period` section
+- `Open New Application Period` section
+- school year and semester fields
+- application start and end dates
+- SOA deadline policy and global deadline fields
+
+### 6.3 Interview Schedules
+**Procedure**
+1. Open `Interview Schedules`.
+2. Review created interview batches and reschedule if necessary.
+
+**Where to Screenshot**
+- `Interview Batches` page under admin access
+
+**What to Screenshot**
+- batch list
+- schedule and venue
+- reschedule action
+
+### 6.4 Payout Batches
+**Procedure**
+1. Open `Payouts`.
+2. Review scholars who are ready for payout scheduling.
+3. Create a payout batch using the available filters.
+4. Enter batch name, schedule, venue, and amount per scholar.
+5. Save the payout batch.
+
+**Where to Screenshot**
+- payout page
+- create payout batch form
+
+**What to Screenshot**
+- page title `Payout Batches`
+- payout snapshot cards
+- approved scholars ready for scheduling
+- payout batch form
+- scheduled payout table
+
+**Important Note**
+- The implemented admin workflow uses `Payout Batches`, not a separate generic per-record `Application Approval` page in the current UI.
+
+### 6.5 Reports
+**Procedure**
+1. Open `Reports`.
+2. Select the report type and filters.
+3. Review the generated summaries and tables.
+
+**Where to Screenshot**
+- reports page
+
+**What to Screenshot**
+- report title
+- filter controls
+- report table or chart output
+
+### 6.6 Announcements
+**Procedure**
+1. Open `Announcements`.
+2. Create or update announcement content.
+3. Toggle publish status when ready.
+
+**Where to Screenshot**
+- announcements page
+
+**What to Screenshot**
+- announcement form
+- announcements list
+- publish toggle
+
+### 6.7 User Management
+**Procedure**
+1. Open `Users`.
+2. Review the user list.
+3. Create a staff account or update account status.
+4. Reset a password when needed.
+
+**Where to Screenshot**
+- users page
 
 **What to Screenshot**
 - users table
 - role column
-- create account button
-- staff account form fields
+- create user form
+- active or inactive status controls
 
-### 5.4 Application Settings
+### 6.8 Exceptions and Recovery
 **Procedure**
-1. Open `Application Settings`.
-2. Set school year, semester, application dates, SOA deadline, and application open or close status.
-3. Save the settings.
+1. Open `Exceptions` to review overdue SOA, rejected documents, or pending interview results.
+2. Open `Recovery` when helping recover a student account.
 
 **Where to Screenshot**
-- application settings page
+- exceptions page
+- recovery page
 
 **What to Screenshot**
-- school year field
-- semester field
-- start and end date fields
-- SOA deadline settings
-- application open or close toggle
-- `Save` button
+- exception summary cards
+- overdue or returned-record tables
+- recovery lookup form
 
-### 5.5 Batch Management
+### 6.9 Audit Logs
 **Procedure**
-1. Open `Batches`.
-2. Create or view interview and payout batches.
-3. Save the batch details.
+1. Open `Audit Logs`.
+2. Review recorded actions for users and workflow changes.
 
-**Where to Screenshot**
-- batches list page
-- create batch form
-
-**What to Screenshot**
-- batch table
-- batch type field
-- batch name
-- scheduled date
-- venue
-- `Save` button
-
-### 5.6 Announcements
-**Procedure**
-1. Open `Announcements`.
-2. Enter title, content, target audience, and publish status.
-3. Save or publish the announcement.
-
-**Where to Screenshot**
-- announcements page
-- announcement form
-
-**What to Screenshot**
-- title field
-- body field
-- target audience field
-- publish option
-- announcements list if available
-
-### 5.7 Application Approval
-**Procedure**
-1. Open a completed application.
-2. Review requirements and interview result.
-3. Enter final grant amount if needed.
-4. Update the application status to approved.
-
-**Where to Screenshot**
-- application approval page
-
-**What to Screenshot**
-- student details
-- document statuses
-- interview result
-- final grant amount field
-- approval status field
-- `Save` or `Approve` button
-
-### 5.8 Payout Assignment
-**Procedure**
-1. Open approved applications.
-2. Assign qualified students to a payout batch.
-3. Save the assignment.
-
-**Where to Screenshot**
-- payout assignment page
-- payout batch details page
-
-**What to Screenshot**
-- payout batch selector
-- approved student list
-- schedule and venue
-- assigned students table
-
-### 5.9 Archive Records
-**Procedure**
-1. Open completed records.
-2. Mark the application as archived.
-3. Add archive notes if applicable.
-4. Save the update.
-
-**Where to Screenshot**
-- archive action section
-- archived records page if available
-
-**What to Screenshot**
-- archive button or toggle
-- archive notes field
-- archived status indicator
-
-## 6. Reports and Recommended Screenshots
-
-### 6.1 Applications Report
-**Where to Screenshot**
-- applications report page
-
-**What to Screenshot**
-- report title
-- filter section
-- application records table
-
-### 6.2 Document Verification Report
-**Where to Screenshot**
-- document report page
-
-**What to Screenshot**
-- student name
-- document type
-- verification status
-- remarks
-
-### 6.3 Interview Results Report
-**Where to Screenshot**
-- interview report page
-
-**What to Screenshot**
-- applicant name
-- interview batch
-- interview result
-- updated application status
-
-### 6.4 Approved Scholars List
-**Where to Screenshot**
-- approved scholars report page
-
-**What to Screenshot**
-- list title
-- scholar names
-- school name
-- course
-- grant status
-
-### 6.5 Payout Report
-**Where to Screenshot**
-- payout report page
-
-**What to Screenshot**
-- batch name
-- schedule
-- venue
-- list of scholars
-- grant amounts
-
-### 6.6 Notifications Page
-**Where to Screenshot**
-- notifications page
-
-**What to Screenshot**
-- notification records
-- titles and messages
-- date sent
-
-### 6.7 Audit Log Report
 **Where to Screenshot**
 - audit logs page
 
 **What to Screenshot**
-- user
-- role
-- action
-- entity type
+- audit table
+- action name
+- actor
 - timestamp
 
-## 7. Suggested Screenshot List for Capstone Documentation
-If you need only the most important screenshots, capture these:
+## 7. Recommended Screenshot Sequence for Documentation
+If you need a clean system demo flow, capture screenshots in this order:
 
-1. Login page
-2. Student registration page
-3. Student profile page
-4. Scholarship application form
-5. Submitted application summary
-6. Document upload page
-7. Student notifications page
-8. Staff dashboard
-9. Applications review page
-10. Document verification page
-11. Interview result encoding page
-12. Admin dashboard
-13. User management page
-14. Application settings page
-15. Batch management page
-16. Announcements page
-17. Approved scholars page
-18. Payout report page
-19. Audit log page
-
-## 8. Conclusion
-This guide helps document not only how the system is used, but also what screenshots should be taken for the user manual, system documentation, and capstone presentation. The recommended screenshots are aligned with the major student, staff, and administrator workflows of the system.
+1. Register
+2. Login
+3. Student Dashboard
+4. Student Application Form
+5. Submitted Application Record
+6. Staff Applications Board
+7. Staff Document Verification
+8. Interview Batches
+9. SOA Submission
+10. Payout Batches
+11. Master Record or Completed Record

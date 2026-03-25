@@ -244,7 +244,7 @@ $scheduledTotalAmount = array_reduce($payoutBatches ?? [], static function ($car
                                         </button>
                                         <a href="<?php echo htmlspecialchars(base_url('admin/final-approval/export') . '?scope=batch&batch_id=' . urlencode((string) $batchId) . '&format=excel'); ?>" class="btn btn-sm btn-outline-success">Export List</a>
                                         <a href="<?php echo htmlspecialchars(base_url('admin/final-approval/export') . '?scope=batch&batch_id=' . urlencode((string) $batchId) . '&format=print'); ?>" target="_blank" class="btn btn-sm btn-outline-dark">Print List</a>
-                                        <a href="<?php echo htmlspecialchars(base_url('admin/final-approval/export') . '?scope=batch_signature&batch_id=' . urlencode((string) $batchId) . '&format=print'); ?>" target="_blank" class="btn btn-sm btn-outline-secondary">Signature Sheet</a>
+                                        <a href="<?php echo htmlspecialchars(base_url('admin/final-approval/export') . '?scope=batch_signature&batch_id=' . urlencode((string) $batchId) . '&format=print'); ?>" target="_blank" class="btn btn-sm btn-outline-secondary">Signatures</a>
                                         <a href="<?php echo htmlspecialchars(base_url('admin/generate-payroll') . '?batch_id=' . urlencode((string) $batchId)); ?>" target="_blank" class="btn btn-sm btn-outline-primary">Master Payroll</a>
                                     </div>
 
@@ -307,7 +307,7 @@ $scheduledTotalAmount = array_reduce($payoutBatches ?? [], static function ($car
                                                 </div>
                                                 <div class="modal-footer">
                                                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                                                    <button type="submit" class="btn btn-primary">Save</button>
                                                 </div>
                                             </form>
                                         </div>

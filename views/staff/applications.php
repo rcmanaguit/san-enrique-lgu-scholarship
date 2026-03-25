@@ -242,7 +242,14 @@ if ($applicationTypeFilter !== '') {
                         <div class="d-md-none p-3">
                             <div class="app-list-stack">
                                 <?php foreach ($applications as $application): ?>
-                                    <article class="app-list-item">
+                                    <?php $applicationRecordUrl = base_url('staff/verify-documents/' . (int) ($application['id'] ?? 0)); ?>
+                                    <article
+                                        class="app-list-item app-clickable-card"
+                                        role="link"
+                                        tabindex="0"
+                                        aria-label="Open application <?php echo htmlspecialchars((string) ($application['application_number'] ?? '')); ?>"
+                                        onclick="window.location.href='<?php echo htmlspecialchars($applicationRecordUrl, ENT_QUOTES); ?>'"
+                                        onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); window.location.href='<?php echo htmlspecialchars($applicationRecordUrl, ENT_QUOTES); ?>'; }">
                                         <div class="app-list-item-head">
                                             <div class="flex-grow-1">
                                                 <h3 class="app-list-item-title mb-1"><?php echo htmlspecialchars((string) (($application['last_name'] ?? '') . ', ' . ($application['first_name'] ?? ''))); ?></h3>
@@ -275,14 +282,6 @@ if ($applicationTypeFilter !== '') {
                                                     <span class="app-workflow-text"><?php echo htmlspecialchars((string) ($step['short_label'] ?? $step['label'] ?? '')); ?></span>
                                                 </div>
                                             <?php endforeach; ?>
-                                        </div>
-                                        <div class="app-actions-row mt-3">
-                                            <a href="<?php echo htmlspecialchars(base_url('staff/print-form?id=' . (int) ($application['id'] ?? 0))); ?>" class="btn btn-sm btn-outline-secondary w-100">
-                                                PDF Preview
-                                            </a>
-                                            <a href="<?php echo htmlspecialchars(base_url('staff/verify-documents/' . (int) ($application['id'] ?? 0))); ?>" class="btn btn-sm btn-outline-primary w-100">
-                                                <?php echo htmlspecialchars((string) ($application['primary_action_label'] ?? 'Open')); ?>
-                                            </a>
                                         </div>
                                     </article>
                                 <?php endforeach; ?>

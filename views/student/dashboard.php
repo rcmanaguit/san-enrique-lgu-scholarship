@@ -91,7 +91,7 @@ if ($currentApp && $currentStatus === 'Pending_Resubmission') {
         SELECT document_type, rejection_remarks, updated_at
         FROM documents
         WHERE application_id = :application_id AND status = 'Rejected'
-        ORDER BY FIELD(document_type, 'Grades', 'Residency', 'SOA'), id DESC
+        ORDER BY FIELD(document_type, 'Grades', 'Barangay Residency', 'Residency', 'SOA'), id DESC
     ");
     $stmtRejectedDocs->execute(['application_id' => (int) ($currentApp['id'] ?? 0)]);
     $rejectedDocuments = $stmtRejectedDocs->fetchAll();
@@ -364,7 +364,6 @@ switch ($currentStatus) {
                 <div>
                     <span class="app-page-eyebrow">Applicant Portal</span>
                     <h1 class="app-page-title">Welcome back, <?php echo $studentName; ?>!</h1>
-                    <p class="app-page-subtitle">Track your scholarship progress, review deadlines, and stay updated on the next required action for your application.</p>
                 </div>
                 <div class="app-page-header-actions">
                     <div class="badge bg-primary fs-6 p-2 shadow-sm">
@@ -381,7 +380,6 @@ switch ($currentStatus) {
                             <div>
                                 <h5 class="app-surface-title"><i class="fa-solid fa-id-card me-2 text-primary"></i>
                                     Current Application</h5>
-                                <p class="app-surface-copy">Current-term status, key dates, and the next action for your active scholarship record.</p>
                             </div>
                         </div>
                         <div class="app-surface-body">
@@ -392,7 +390,7 @@ switch ($currentStatus) {
                                     <?php if (!$hasConfiguredApplicationPeriod): ?>
                                         <h5 class="app-empty-state-title">No Application Period Yet</h5>
                                         <p class="app-empty-state-copy">The LGU has not configured the scholarship application period yet. Please wait for the official announcement.</p>
-                                        <button type="button" class="btn btn-secondary fw-bold" disabled>Applications Not Available</button>
+                                        <button type="button" class="btn btn-secondary fw-bold" disabled>Unavailable</button>
                                     <?php elseif (!$applicationWindowOpen): ?>
                                         <h5 class="app-empty-state-title">Applications Are Closed</h5>
                                         <p class="app-empty-state-copy">There is currently no open application window for <?php echo htmlspecialchars($activePeriod); ?>.</p>
@@ -486,7 +484,7 @@ switch ($currentStatus) {
                                                 <?php foreach ($rejectedDocuments as $rejectedDocument): ?>
                                                     <div>
                                                         <div class="fw-semibold text-dark">
-                                                            <?php echo htmlspecialchars((string) ($rejectedDocument['document_type'] ?? 'Document')); ?>
+                                                            <?php echo htmlspecialchars(document_type_label((string) ($rejectedDocument['document_type'] ?? 'Document'))); ?>
                                                         </div>
                                                         <div class="small text-muted mb-1">
                                                             Reviewed <?php echo htmlspecialchars($formatDashboardDate((string) ($rejectedDocument['updated_at'] ?? ''))); ?>
@@ -579,77 +577,6 @@ switch ($currentStatus) {
                         </div>
                     </div>
 
-                    <?php if ($currentStatus !== 'None'): ?>
-                        <div class="app-surface mb-4">
-                            <div class="app-surface-header">
-                                <div>
-                                    <h5 class="app-surface-title"><i class="fa-solid fa-timeline me-2 text-primary"></i>My Full Application Timeline</h5>
-                                    <p class="app-surface-copy">Chronological history of your scholarship records, including past terms, review updates, and schedule notices.</p>
-                                </div>
-                            </div>
-                            <div class="app-surface-body">
-                                <?php if ($applicationTimelines === []): ?>
-                                    <div class="app-empty-state py-4">
-                                        <div class="app-empty-state-icon"><i class="fa-solid fa-timeline"></i></div>
-                                        <h3 class="app-empty-state-title">No application timelines yet</h3>
-                                        <p class="app-empty-state-copy">Each application will have its own separate timeline once you start applying for the scholarship.</p>
-                                    </div>
-                                <?php else: ?>
-                                    <div class="d-grid gap-4">
-                                        <?php foreach ($applicationTimelines as $applicationId => $timelineGroup): ?>
-                                            <?php $timelineApplication = $timelineGroup['application'] ?? []; ?>
-                                            <section class="application-section-card">
-                                                <div class="application-section-head">
-                                                    <div>
-                                                        <h6 class="application-section-title mb-1">Application Timeline: App ID <?php echo (int) $applicationId; ?></h6>
-                                                        <p class="application-section-copy mb-0">
-                                                            <?php echo htmlspecialchars((string) (($timelineApplication['school_year'] ?? '') . ' | ' . ($timelineApplication['semester'] ?? ''))); ?>
-                                                            | <?php echo htmlspecialchars(str_replace('_', ' ', (string) ($timelineApplication['status'] ?? 'Unknown'))); ?>
-                                                        </p>
-                                                    </div>
-                                                    <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
-                                                        <span class="badge bg-secondary"><?php echo htmlspecialchars((string) ($timelineApplication['application_type'] ?? 'Application')); ?></span>
-                                                        <a href="<?php echo htmlspecialchars(base_url('student/application/' . (int) $applicationId)); ?>" class="btn btn-sm btn-outline-primary">View Record</a>
-                                                    </div>
-                                                </div>
-
-                                                <?php if (($timelineGroup['entries'] ?? []) === []): ?>
-                                                    <div class="app-empty-state py-4">
-                                                        <div class="app-empty-state-icon"><i class="fa-solid fa-timeline"></i></div>
-                                                        <h3 class="app-empty-state-title">No record entries yet</h3>
-                                                        <p class="app-empty-state-copy">This application does not have any recorded timeline entries yet.</p>
-                                                    </div>
-                                                <?php else: ?>
-                                                    <div class="app-case-timeline">
-                                                        <?php foreach ($timelineGroup['entries'] as $timelineEntry): ?>
-                                                            <article class="app-case-timeline-item">
-                                                                <div class="app-case-timeline-rail">
-                                                                    <span class="badge rounded-pill <?php echo htmlspecialchars((string) ($timelineEntry['badge_class'] ?? 'text-bg-secondary')); ?> app-case-timeline-icon">
-                                                                        <i class="fa-solid <?php echo htmlspecialchars((string) ($timelineEntry['icon'] ?? 'fa-circle')); ?>"></i>
-                                                                    </span>
-                                                                </div>
-                                                                <div class="app-case-timeline-body">
-                                                                    <div class="app-case-timeline-head">
-                                                                        <div>
-                                                                            <h3 class="app-case-timeline-title"><?php echo htmlspecialchars((string) ($timelineEntry['title'] ?? 'Timeline Entry')); ?></h3>
-                                                                            <p class="app-case-timeline-meta mb-0"><?php echo htmlspecialchars((string) ($timelineEntry['time'] ?? '')); ?></p>
-                                                                        </div>
-                                                                    </div>
-                                                                    <?php if (!empty($timelineEntry['details'])): ?>
-                                                                        <div class="small text-dark mt-2"><?php echo nl2br(htmlspecialchars((string) $timelineEntry['details'])); ?></div>
-                                                                    <?php endif; ?>
-                                                                </div>
-                                                            </article>
-                                                        <?php endforeach; ?>
-                                                    </div>
-                                                <?php endif; ?>
-                                            </section>
-                                        <?php endforeach; ?>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    <?php endif; ?>
                 </div>
             </div>
         </main>

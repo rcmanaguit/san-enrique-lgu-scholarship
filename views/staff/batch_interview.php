@@ -262,7 +262,7 @@ foreach (($upcomingBatches ?? []) as $batch) {
                                         <a href="<?php echo htmlspecialchars(base_url('admin/batch-interview/export') . '?scope=batch&batch_id=' . urlencode((string) $batchId) . '&format=excel'); ?>" class="btn btn-sm btn-outline-success">Export List</a>
                                         <a href="<?php echo htmlspecialchars(base_url('admin/batch-interview/export') . '?scope=batch&batch_id=' . urlencode((string) $batchId) . '&format=print'); ?>" target="_blank" class="btn btn-sm btn-outline-dark">Print List</a>
                                         <a href="<?php echo htmlspecialchars(base_url('admin/batch-interview/export') . '?scope=batch_results&batch_id=' . urlencode((string) $batchId) . '&format=excel'); ?>" class="btn btn-sm btn-outline-primary">Results</a>
-                                        <a href="<?php echo htmlspecialchars(base_url('admin/batch-interview/export') . '?scope=batch_attendance&batch_id=' . urlencode((string) $batchId) . '&format=print'); ?>" target="_blank" class="btn btn-sm btn-outline-secondary">Attendance Sheet</a>
+                                        <a href="<?php echo htmlspecialchars(base_url('admin/batch-interview/export') . '?scope=batch_attendance&batch_id=' . urlencode((string) $batchId) . '&format=print'); ?>" target="_blank" class="btn btn-sm btn-outline-secondary">Attendance</a>
                                         </div>
 
                                         <?php if (!$batchHasStarted): ?>
@@ -359,7 +359,7 @@ foreach (($upcomingBatches ?? []) as $batch) {
                                                     </div>
                                                     <div class="modal-footer">
                                                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                                                        <button type="submit" class="btn btn-primary">Save</button>
                                                     </div>
                                                 </form>
                                             </div>

@@ -790,7 +790,7 @@ class StudentController
             ];
 
             $gradesExtension = Validation::fileUpload($_FILES['grades_file'] ?? [], 'Grades file', $allowedUploads, 2 * 1024 * 1024);
-            $residencyExtension = Validation::fileUpload($_FILES['residency_file'] ?? [], 'Residency file', $allowedUploads, 2 * 1024 * 1024);
+            $residencyExtension = Validation::fileUpload($_FILES['residency_file'] ?? [], 'Barangay Residency file', $allowedUploads, 2 * 1024 * 1024);
             $idPictureUpload = $_FILES['id_picture_upload'] ?? [];
             $idPictureUploadProvided = (($idPictureUpload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE);
             $idPicture = null;
@@ -920,7 +920,7 @@ class StudentController
                 (int) $userId,
                 'Initial Upload'
             );
-            $stmtDoc->execute(['aid' => $appId, 'type' => 'Residency', 'path' => $residencyPath]);
+            $stmtDoc->execute(['aid' => $appId, 'type' => 'Barangay Residency', 'path' => $residencyPath]);
             $residencyDocumentId = (int) $db->lastInsertId();
             DocumentVersion::createSnapshot(
                 $residencyDocumentId,
@@ -1133,19 +1133,17 @@ class StudentController
     private function buildStudentApplicationTimeline(array $application, array $documents): array
     {
         $timeline = [];
-        $applicationId = (int) ($application['id'] ?? 0);
-        $termLabel = trim((string) (($application['school_year'] ?? '') . ' | ' . ($application['semester'] ?? '')));
 
         $timeline[] = [
             'time' => (string) ($application['created_at'] ?? ''),
             'icon' => 'fa-file-circle-plus',
             'badge_class' => 'text-bg-primary',
             'title' => 'Application submitted',
-            'details' => trim('App ID ' . $applicationId . ' | ' . $termLabel . ' | ' . (string) ($application['application_type'] ?? 'New') . ' application'),
+            'details' => trim((string) ($application['application_type'] ?? 'New') . ' application'),
         ];
 
         foreach ($documents as $document) {
-            $documentType = (string) ($document['document_type'] ?? 'Document');
+            $documentType = \document_type_label((string) ($document['document_type'] ?? 'Document'));
             $status = (string) ($document['status'] ?? 'Pending');
             $eventTime = (string) ($document['updated_at'] ?? $document['uploaded_at'] ?? '');
             $details = match ($status) {
@@ -1159,7 +1157,7 @@ class StudentController
                 'icon' => $status === 'Rejected' ? 'fa-file-circle-xmark' : ($status === 'Verified' ? 'fa-file-circle-check' : 'fa-file-arrow-up'),
                 'badge_class' => $status === 'Rejected' ? 'text-bg-danger' : ($status === 'Verified' ? 'text-bg-success' : 'text-bg-secondary'),
                 'title' => $documentType . ' ' . strtolower($status === 'Pending' ? 'submitted' : $status),
-                'details' => trim('App ID ' . $applicationId . ' | ' . $termLabel . ' | ' . $details),
+                'details' => $details,
             ];
         }
 
@@ -1247,15 +1245,15 @@ class StudentController
             SELECT id, document_type, file_path, status, rejection_remarks, updated_at
             FROM documents
             WHERE application_id = :application_id
-              AND document_type IN ('Grades', 'Residency')
-            ORDER BY FIELD(document_type, 'Grades', 'Residency'), id DESC
+              AND document_type IN ('Grades', 'Residency', 'Barangay Residency')
+            ORDER BY FIELD(document_type, 'Grades', 'Barangay Residency', 'Residency'), id DESC
         ");
         $stmt->execute(['application_id' => $applicationId]);
         $documents = $stmt->fetchAll();
 
         $byType = [];
         foreach ($documents as $document) {
-            $documentType = (string) ($document['document_type'] ?? '');
+            $documentType = \canonical_document_type((string) ($document['document_type'] ?? ''));
             if ($documentType !== '' && !isset($byType[$documentType])) {
                 $byType[$documentType] = $document;
             }

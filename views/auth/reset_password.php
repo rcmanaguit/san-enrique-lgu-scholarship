@@ -55,7 +55,7 @@
                             <div class="form-text">Lost your SIM card? Enter your new mobile number here to update your account.</div>
                         </div>
 
-                        <button type="submit" class="btn btn-primary w-100">Reset Password</button>
+                        <button type="submit" class="btn btn-primary w-100">Reset</button>
                     </form>
 
                     <div class="auth-back-row small">

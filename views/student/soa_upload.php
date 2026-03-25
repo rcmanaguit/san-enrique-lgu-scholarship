@@ -44,11 +44,11 @@
                                 <div class="mb-3">
                                     <label class="form-label fw-bold">Statement of Account *</label>
                                     <input type="file" class="form-control" name="soa_file" accept=".jpg,.jpeg,.png,.pdf" required>
-                                    <div class="form-text">Accepted formats: JPG, PNG, or PDF. Please upload not more than 2MB.</div>
+                                    <div class="form-text">Allowed types: JPG, PNG, PDF. Maximum file size: 2MB.</div>
                                 </div>
 
                                 <div class="d-flex justify-content-between gap-2 mt-4">
-                                    <a href="<?php echo htmlspecialchars(base_url('student/dashboard')); ?>" class="btn btn-outline-secondary px-4">Back to Dashboard</a>
+                                    <a href="<?php echo htmlspecialchars(base_url('student/dashboard')); ?>" class="btn btn-outline-secondary px-4">Back</a>
                                     <button type="submit" class="btn btn-primary px-4 fw-bold" <?php echo (!empty($soaDeadline) && !$soaDeadlineOpen) ? 'disabled' : ''; ?>>
                                         Submit SOA
                                     </button>

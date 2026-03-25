@@ -145,7 +145,7 @@ For security purposes, default passwords should be changed immediately after fir
 2. Go to the `Documents` section.
 3. Upload the required files:
    - Grades
-   - Residency
+   - Barangay Residency
    - SOA
 4. Click `Upload`.
 5. Wait for confirmation that the upload was successful.

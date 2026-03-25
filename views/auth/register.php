@@ -62,7 +62,7 @@
                             </div>
                         </div>
 
-                        <button type="submit" class="btn btn-success w-100">Continue to OTP Verification</button>
+                        <button type="submit" class="btn btn-success w-100">Verify OTP</button>
                     </form>
 
                     <div class="auth-secondary-links small">

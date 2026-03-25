@@ -714,7 +714,7 @@ function buildDocumentBlueprints(string $status, array $profile, int $sequence, 
 
     if (in_array($status, ['Submitted', 'Initial_Review'], true)) {
         $documents[] = makeDocument('Grades', $profile, $sequence, $createdFiles, [$pending], $baseDate);
-        $documents[] = makeDocument('Residency', $profile, $sequence, $createdFiles, [$pending], $baseDate->modify('+1 hour'));
+        $documents[] = makeDocument('Barangay Residency', $profile, $sequence, $createdFiles, [$pending], $baseDate->modify('+1 hour'));
         return $documents;
     }
 
@@ -724,16 +724,16 @@ function buildDocumentBlueprints(string $status, array $profile, int $sequence, 
             'rejection_remarks' => 'Uploaded grade sheet is blurred. Please submit a clearer copy.',
             'source_action' => 'Initial Upload',
         ]], $baseDate);
-        $documents[] = makeDocument('Residency', $profile, $sequence, $createdFiles, [[
+        $documents[] = makeDocument('Barangay Residency', $profile, $sequence, $createdFiles, [[
             'document_status' => $sequence % 2 === 0 ? 'Verified' : 'Rejected',
-            'rejection_remarks' => $sequence % 2 === 0 ? null : 'Residency certificate is missing the barangay captain signature.',
+            'rejection_remarks' => $sequence % 2 === 0 ? null : 'Barangay Residency certificate is missing the barangay captain signature.',
             'source_action' => 'Initial Upload',
         ]], $baseDate->modify('+1 hour'));
         return $documents;
     }
 
     $documents[] = makeDocument('Grades', $profile, $sequence, $createdFiles, [$verified], $baseDate);
-    $documents[] = makeDocument('Residency', $profile, $sequence, $createdFiles, [$verified], $baseDate->modify('+1 hour'));
+    $documents[] = makeDocument('Barangay Residency', $profile, $sequence, $createdFiles, [$verified], $baseDate->modify('+1 hour'));
 
     if (in_array($status, ['SOA_Under_Review', 'SOA_Resubmission_Required', 'Approved_Pending_Payroll', 'Approved_Finished'], true)) {
         $documents[] = makeDocument('SOA', $profile, $sequence, $createdFiles, [[
@@ -1017,7 +1017,7 @@ function createDocumentAsset(string $documentType, array $profile, string $docum
 {
     $prefix = match ($documentType) {
         'Grades' => 'grades_',
-        'Residency' => 'residency_',
+        'Barangay Residency' => 'residency_',
         default => 'soa_',
     };
     $path = newStorageFilePath('documents', $prefix, 'png');

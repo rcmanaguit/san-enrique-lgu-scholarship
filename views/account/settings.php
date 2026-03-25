@@ -1,4 +1,18 @@
-<?php require __DIR__ . '/../layouts/header.php'; ?>
+<?php
+require __DIR__ . '/../layouts/header.php';
+
+$accountSettingsOldInput = is_array($accountSettingsOldInput ?? null) ? $accountSettingsOldInput : [];
+
+$accountValue = static function (string $field, string $default = '') use ($accountSettingsOldInput, $accountUser): string {
+    if (array_key_exists($field, $accountSettingsOldInput)) {
+        return trim((string) $accountSettingsOldInput[$field]);
+    }
+
+    return trim((string) ($accountUser[$field] ?? $default));
+};
+
+$displayName = trim((string) (($accountUser['first_name'] ?? '') . ' ' . ($accountUser['last_name'] ?? '')));
+?>
 
 <div class="container-fluid bg-light" style="min-height: 100vh;">
     <div class="row">
@@ -9,7 +23,6 @@
                 <div>
                     <span class="app-page-eyebrow">Account</span>
                     <h1 class="app-page-title"><i class="fa-solid fa-user-gear me-2"></i>Account Settings</h1>
-                    <p class="app-page-subtitle">Update your mobile number, email address, or password using your current password for confirmation.</p>
                 </div>
             </section>
 
@@ -19,17 +32,14 @@
                         <div class="app-surface-header">
                             <div>
                                 <h2 class="app-surface-title">Current Account</h2>
-                                <p class="app-surface-copy">Your active login and contact details.</p>
                             </div>
                         </div>
                         <div class="app-surface-body">
                             <dl class="app-definition-list">
-                                <?php if (in_array((string) ($accountUser['role'] ?? ''), ['Staff', 'Admin'], true)): ?>
-                                    <div>
-                                        <dt>Name</dt>
-                                        <dd><?php echo htmlspecialchars(trim((string) (($accountUser['first_name'] ?? '') . ' ' . ($accountUser['last_name'] ?? ''))) ?: 'Not set'); ?></dd>
-                                    </div>
-                                <?php endif; ?>
+                                <div>
+                                    <dt>Name</dt>
+                                    <dd><?php echo htmlspecialchars($displayName !== '' ? $displayName : 'Not set'); ?></dd>
+                                </div>
                                 <div>
                                     <dt>Role</dt>
                                     <dd><?php echo htmlspecialchars((string) ($accountUser['role'] ?? 'User')); ?></dd>
@@ -47,6 +57,11 @@
                                     <dd><?php echo ((int) ($accountUser['is_active'] ?? 1) === 1) ? 'Active' : 'Inactive'; ?></dd>
                                 </div>
                             </dl>
+
+                            <div class="account-settings-summary-note mt-4">
+                                <div class="account-settings-summary-title">Security Check</div>
+                                <div class="account-settings-summary-copy">You will be asked for your current password before any profile or password change is saved.</div>
+                            </div>
                         </div>
                     </section>
                 </div>
@@ -55,12 +70,12 @@
                     <section class="app-surface">
                         <div class="app-surface-header">
                             <div>
-                                <h2 class="app-surface-title">Update Details</h2>
-                                <p class="app-surface-copy">Leave the new password blank if you only want to update your mobile number or email address.</p>
+                                <h2 class="app-surface-title">Profile</h2>
                             </div>
                         </div>
                         <div class="app-surface-body">
-                            <form action="<?php echo htmlspecialchars(base_url('account/settings')); ?>" method="POST" novalidate>
+                            <form action="<?php echo htmlspecialchars(base_url('account/settings')); ?>" method="POST" novalidate autocomplete="on">
+                                <input type="hidden" name="settings_section" value="profile">
                                 <div class="row g-3">
                                     <?php if (in_array((string) ($accountUser['role'] ?? ''), ['Staff', 'Admin'], true)): ?>
                                         <div class="col-md-6">
@@ -70,8 +85,9 @@
                                                 class="form-control"
                                                 id="first_name"
                                                 name="first_name"
-                                                value="<?php echo htmlspecialchars((string) ($accountUser['first_name'] ?? '')); ?>"
+                                                value="<?php echo htmlspecialchars($accountValue('first_name')); ?>"
                                                 maxlength="100"
+                                                autocomplete="given-name"
                                                 required
                                             >
                                         </div>
@@ -82,8 +98,9 @@
                                                 class="form-control"
                                                 id="last_name"
                                                 name="last_name"
-                                                value="<?php echo htmlspecialchars((string) ($accountUser['last_name'] ?? '')); ?>"
+                                                value="<?php echo htmlspecialchars($accountValue('last_name')); ?>"
                                                 maxlength="100"
+                                                autocomplete="family-name"
                                                 required
                                             >
                                         </div>
@@ -95,13 +112,15 @@
                                             class="form-control"
                                             id="phone_number"
                                             name="phone_number"
-                                            value="<?php echo htmlspecialchars((string) ($accountUser['phone_number'] ?? '')); ?>"
+                                            value="<?php echo htmlspecialchars($accountValue('phone_number')); ?>"
                                             inputmode="numeric"
                                             maxlength="11"
+                                            autocomplete="tel"
                                             required
                                             data-validate="phone"
                                             data-field-label="Mobile Number"
                                         >
+                                        <div class="form-text">Use your active 11-digit mobile number.</div>
                                     </div>
                                     <div class="col-md-6">
                                         <label for="email" class="form-label">Email Address</label>
@@ -110,28 +129,70 @@
                                             class="form-control"
                                             id="email"
                                             name="email"
-                                            value="<?php echo htmlspecialchars((string) ($accountUser['email'] ?? '')); ?>"
+                                            value="<?php echo htmlspecialchars($accountValue('email')); ?>"
+                                            autocomplete="email"
                                             data-validate="email"
                                             data-field-label="Email Address"
                                         >
+                                        <div class="form-text">Optional, but recommended for recovery and notices.</div>
                                     </div>
                                     <div class="col-12">
-                                        <label for="current_password" class="form-label">Current Password</label>
+                                        <label for="profile_current_password" class="form-label">Current Password</label>
                                         <div class="input-group">
                                             <input
                                                 type="password"
                                                 class="form-control"
-                                                id="current_password"
+                                                id="profile_current_password"
                                                 name="current_password"
+                                                autocomplete="current-password"
                                                 required
                                                 data-validate="required"
                                                 data-field-label="Current Password"
                                             >
-                                            <button type="button" class="input-group-text bg-white password-toggle" data-target="current_password" aria-label="Show password">
+                                            <button type="button" class="input-group-text bg-white password-toggle" data-target="profile_current_password" aria-label="Show password">
                                                 <i class="fa-regular fa-eye"></i>
                                             </button>
                                         </div>
-                                        <div class="form-text">Required to confirm any change to your account settings.</div>
+                                        <div class="form-text">Required only for saving profile changes.</div>
+                                    </div>
+                                </div>
+
+                                <div class="app-actions-row mt-4">
+                                    <button type="submit" class="btn btn-primary fw-bold px-4">
+                                        <i class="fa-solid fa-floppy-disk me-2"></i>Save
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </section>
+
+                    <section class="app-surface mt-4">
+                        <div class="app-surface-header">
+                            <div>
+                                <h2 class="app-surface-title">Password</h2>
+                            </div>
+                        </div>
+                        <div class="app-surface-body">
+                            <form action="<?php echo htmlspecialchars(base_url('account/settings')); ?>" method="POST" novalidate autocomplete="on">
+                                <input type="hidden" name="settings_section" value="password">
+                                <div class="row g-3">
+                                    <div class="col-12">
+                                        <label for="password_current_password" class="form-label">Current Password</label>
+                                        <div class="input-group">
+                                            <input
+                                                type="password"
+                                                class="form-control"
+                                                id="password_current_password"
+                                                name="current_password"
+                                                autocomplete="current-password"
+                                                required
+                                                data-validate="required"
+                                                data-field-label="Current Password"
+                                            >
+                                            <button type="button" class="input-group-text bg-white password-toggle" data-target="password_current_password" aria-label="Show password">
+                                                <i class="fa-regular fa-eye"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                     <div class="col-md-6">
                                         <label for="new_password" class="form-label">New Password</label>
@@ -142,13 +203,16 @@
                                                 id="new_password"
                                                 name="new_password"
                                                 minlength="8"
-                                                data-validate="password-optional"
+                                                autocomplete="new-password"
+                                                data-validate="password"
                                                 data-field-label="New Password"
+                                                required
                                             >
                                             <button type="button" class="input-group-text bg-white password-toggle" data-target="new_password" aria-label="Show password">
                                                 <i class="fa-regular fa-eye"></i>
                                             </button>
                                         </div>
+                                        <div class="form-text">Use at least 8 characters.</div>
                                     </div>
                                     <div class="col-md-6">
                                         <label for="confirm_password" class="form-label">Confirm New Password</label>
@@ -159,20 +223,23 @@
                                                 id="confirm_password"
                                                 name="confirm_password"
                                                 minlength="8"
+                                                autocomplete="new-password"
                                                 data-match-field="#new_password"
                                                 data-match-message="Confirm New Password must match your new password."
                                                 data-field-label="Confirm New Password"
+                                                required
                                             >
                                             <button type="button" class="input-group-text bg-white password-toggle" data-target="confirm_password" aria-label="Show password">
                                                 <i class="fa-regular fa-eye"></i>
                                             </button>
                                         </div>
+                                        <div class="form-text">Re-enter the same password to confirm it.</div>
                                     </div>
                                 </div>
 
                                 <div class="app-actions-row mt-4">
                                     <button type="submit" class="btn btn-primary fw-bold px-4">
-                                        <i class="fa-solid fa-floppy-disk me-2"></i>Save Account Changes
+                                        <i class="fa-solid fa-key me-2"></i>Update
                                     </button>
                                 </div>
                             </form>

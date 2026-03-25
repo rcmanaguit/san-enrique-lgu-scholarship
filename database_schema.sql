@@ -159,7 +159,7 @@ CREATE TABLE IF NOT EXISTS applications (
 CREATE TABLE IF NOT EXISTS documents (
     id INT AUTO_INCREMENT PRIMARY KEY,
     application_id INT NOT NULL,
-    document_type ENUM('Grades', 'Residency', 'SOA') NOT NULL,
+    document_type ENUM('Grades', 'Residency', 'Barangay Residency', 'SOA') NOT NULL,
     file_path VARCHAR(255) NOT NULL,
     status ENUM('Pending', 'Verified', 'Rejected') NOT NULL DEFAULT 'Pending',
     rejection_remarks TEXT NULL,

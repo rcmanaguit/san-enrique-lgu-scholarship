@@ -7,7 +7,7 @@ $documentMeta = [
         'input_name' => 'grades_file',
         'icon' => 'fa-file-lines',
     ],
-    'Residency' => [
+    'Barangay Residency' => [
         'label' => 'Certificate of Barangay Residency',
         'input_name' => 'residency_file',
         'icon' => 'fa-house-flag',
@@ -28,7 +28,7 @@ $documentMeta = [
                 </div>
                 <div class="app-page-header-actions">
                     <a href="<?php echo htmlspecialchars(base_url('student/dashboard')); ?>" class="btn btn-outline-secondary">
-                        <i class="fa-solid fa-arrow-left me-1"></i>Back to Dashboard
+                        <i class="fa-solid fa-arrow-left me-1"></i>Back
                     </a>
                 </div>
             </div>
@@ -44,7 +44,7 @@ $documentMeta = [
                     <form action="<?php echo htmlspecialchars(base_url('student/submit-application')); ?>" method="POST" enctype="multipart/form-data" novalidate>
                         <div class="row g-4">
                             <?php foreach ($documentMeta as $documentType => $meta): ?>
-                                <?php $document = $resubmissionDocuments[$documentType] ?? null; ?>
+                                <?php $document = $resubmissionDocuments[$documentType] ?? ($documentType === 'Barangay Residency' ? ($resubmissionDocuments['Residency'] ?? null) : null); ?>
                                 <?php if (!$document): ?>
                                     <?php continue; ?>
                                 <?php endif; ?>
@@ -92,7 +92,7 @@ $documentMeta = [
                                                 accept=".jpg,.jpeg,.png,.pdf"
                                                 required
                                                 data-field-label="<?php echo htmlspecialchars($meta['label']); ?>">
-                                            <div class="form-text">Please upload not more than 2MB.</div>
+                                            <div class="form-text">Allowed types: JPG, PNG, PDF. Maximum file size: 2MB.</div>
                                         <?php else: ?>
                                             <div class="app-pill-badge">
                                                 <i class="fa-solid fa-circle-check"></i> No action needed

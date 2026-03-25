@@ -108,7 +108,7 @@ $educationRows = is_array($education ?? null) ? $education : [];
 $grantsRows = is_array($grants ?? null) ? $grants : [];
 
 $documentLabel = static function (array $document): string {
-    $label = trim((string) ($document['requirement_name'] ?? $document['document_type'] ?? ''));
+    $label = trim((string) ($document['requirement_name'] ?? document_type_label((string) ($document['document_type'] ?? ''))));
     if ($label === '') {
         return 'Requirement';
     }

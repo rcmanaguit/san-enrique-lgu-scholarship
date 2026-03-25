@@ -60,8 +60,8 @@ $summaryWorkflowSteps = $workflowSteps ?? [];
                     <ul class="nav nav-pills app-review-tabs mb-4" role="tablist">
                         <li class="nav-item" role="presentation"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#review-documents" type="button">Documents</button></li>
                         <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#review-timeline" type="button">Timeline</button></li>
-                        <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#review-versions" type="button">File History</button></li>
-                        <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#review-notes" type="button">Staff Notes</button></li>
+                        <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#review-versions" type="button">History</button></li>
+                        <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#review-notes" type="button">Notes</button></li>
                     </ul>
 
                     <div class="tab-content">
@@ -93,8 +93,8 @@ $summaryWorkflowSteps = $workflowSteps ?? [];
                                                         ?>
                                                         <article class="app-list-item app-review-doc-card <?php echo !empty($doc['is_pending_review']) ? 'is-pending' : (!empty($doc['is_rejected']) ? 'is-returned' : 'is-verified'); ?>">
                                                             <div class="app-list-item-head mb-2">
-                                                                <button class="btn btn-link text-decoration-none fw-bold p-0 text-start view-doc-btn" data-document-id="<?php echo (int) ($doc['id'] ?? 0); ?>" data-preview-url="<?php echo htmlspecialchars($documentPreviewUrl); ?>" data-file-extension="<?php echo htmlspecialchars(strtolower(pathinfo((string) ($doc['file_path'] ?? ''), PATHINFO_EXTENSION))); ?>" data-doctype="<?php echo htmlspecialchars((string) $doc['document_type']); ?>">
-                                                                    <i class="fa-solid fa-file-lines text-primary me-1"></i><?php echo htmlspecialchars((string) $doc['document_type']); ?>
+                                                                <button class="btn btn-link text-decoration-none fw-bold p-0 text-start view-doc-btn" data-document-id="<?php echo (int) ($doc['id'] ?? 0); ?>" data-preview-url="<?php echo htmlspecialchars($documentPreviewUrl); ?>" data-file-extension="<?php echo htmlspecialchars(strtolower(pathinfo((string) ($doc['file_path'] ?? ''), PATHINFO_EXTENSION))); ?>" data-doctype="<?php echo htmlspecialchars(document_type_label((string) $doc['document_type'])); ?>">
+                                                                    <i class="fa-solid fa-file-lines text-primary me-1"></i><?php echo htmlspecialchars(document_type_label((string) $doc['document_type'])); ?>
                                                                 </button>
                                                                 <span class="<?php echo htmlspecialchars((string) (($doc['status_badge']['class'] ?? 'app-status-badge app-status-default'))); ?>">
                                                                     <?php echo htmlspecialchars((string) (($doc['status_badge']['label'] ?? ($doc['status'] ?? 'Pending')))); ?>
@@ -146,7 +146,7 @@ $summaryWorkflowSteps = $workflowSteps ?? [];
                                             <div class="d-flex align-items-center gap-2 flex-wrap">
                                                 <span id="preview-title" class="app-pill-badge">Select a document to view</span>
                                                 <a id="preview-open-new-page" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary d-none">
-                                                    <i class="fa-solid fa-up-right-from-square me-1"></i>Open In New Page
+                                                    <i class="fa-solid fa-up-right-from-square me-1"></i>Open
                                                 </a>
                                             </div>
                                         </div>
@@ -225,7 +225,7 @@ $summaryWorkflowSteps = $workflowSteps ?? [];
                                                     <?php foreach ($documentVersionHistory as $versionRows): ?>
                                                         <?php foreach ($versionRows as $versionRow): ?>
                                                             <tr>
-                                                                <td><?php echo htmlspecialchars((string) ($versionRow['document_type'] ?? 'Document')); ?></td>
+                                                                <td><?php echo htmlspecialchars(document_type_label((string) ($versionRow['document_type'] ?? 'Document'))); ?></td>
                                                                 <td>v<?php echo (int) ($versionRow['version_number'] ?? 0); ?></td>
                                                                 <td><?php echo htmlspecialchars((string) ($versionRow['source_action'] ?? '')); ?></td>
                                                                 <td><?php echo htmlspecialchars((string) ($versionRow['document_status'] ?? 'Pending')); ?></td>
@@ -253,7 +253,7 @@ $summaryWorkflowSteps = $workflowSteps ?? [];
                                         <input type="hidden" name="application_id" value="<?php echo (int) $applicationId; ?>">
                                         <label class="form-label fw-bold">Add Staff Note</label>
                                         <textarea class="form-control mb-2" name="note_text" rows="3" maxlength="3000" required></textarea>
-                                        <button type="submit" class="btn btn-sm btn-primary">Save Staff Note</button>
+                                        <button type="submit" class="btn btn-sm btn-primary">Save Note</button>
                                     </form>
                                     <?php if ($caseNotes === []): ?>
                                         <div class="app-empty-state py-4">

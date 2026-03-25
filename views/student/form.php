@@ -235,7 +235,7 @@ $courseOptions = is_array($courseOptions ?? null) ? $courseOptions : [];
                                     </div>
 
                                     <div class="application-step-actions is-end">
-                                        <button type="button" class="btn btn-primary btn-next px-4 fw-bold">Next Step <i
+                                        <button type="button" class="btn btn-primary btn-next px-4 fw-bold">Next <i
                                                 class="fa-solid fa-arrow-right ms-1"></i></button>
                                     </div>
                                 </div>
@@ -428,7 +428,7 @@ $courseOptions = is_array($courseOptions ?? null) ? $courseOptions : [];
                                     <div class="application-step-actions">
                                         <button type="button" class="btn btn-secondary btn-prev px-4 fw-bold"><i
                                                 class="fa-solid fa-arrow-left me-1"></i> Previous</button>
-                                        <button type="button" class="btn btn-primary btn-next px-4 fw-bold">Next Step <i
+                                        <button type="button" class="btn btn-primary btn-next px-4 fw-bold">Next <i
                                                 class="fa-solid fa-arrow-right ms-1"></i></button>
                                     </div>
                                 </div>
@@ -654,7 +654,7 @@ $courseOptions = is_array($courseOptions ?? null) ? $courseOptions : [];
                                     <div class="application-step-actions">
                                         <button type="button" class="btn btn-secondary btn-prev px-4 fw-bold"><i
                                                 class="fa-solid fa-arrow-left me-1"></i> Previous</button>
-                                        <button type="button" class="btn btn-primary btn-next px-4 fw-bold">Next Step <i
+                                        <button type="button" class="btn btn-primary btn-next px-4 fw-bold">Next <i
                                                 class="fa-solid fa-arrow-right ms-1"></i></button>
                                     </div>
                                 </div>
@@ -691,7 +691,7 @@ $courseOptions = is_array($courseOptions ?? null) ? $courseOptions : [];
                                                     <div>
                                                         <h6 class="fw-bold mb-1"><i
                                                                 class="fa-solid fa-upload text-primary me-2"></i>A. Document Uploads</h6>
-                                                        <p class="small text-muted mb-0">Upload the current term requirements in JPG, PNG, or PDF format. Please upload not more than 2MB per file.</p>
+                                                        <p class="small text-muted mb-0">Allowed types: JPG, PNG, PDF. Maximum file size: 2MB.</p>
                                                     </div>
                                                     <span class="badge rounded-pill text-bg-secondary" id="documents-card-badge">Pending</span>
                                                 </div>
@@ -701,11 +701,13 @@ $courseOptions = is_array($courseOptions ?? null) ? $courseOptions : [];
                                                         <label class="form-label fw-bold">Previous Grades / Report Card *</label>
                                                         <input type="file" class="form-control" name="grades_file" id="grades_file"
                                                             accept=".jpg,.jpeg,.png,.pdf" required>
+                                                        <div class="form-text">Allowed types: JPG, PNG, PDF. Maximum file size: 2MB.</div>
                                                     </div>
                                                     <div class="col-md-6">
                                                         <label class="form-label fw-bold">Certificate of Barangay Residency *</label>
                                                         <input type="file" class="form-control" name="residency_file" id="residency_file"
                                                             accept=".jpg,.jpeg,.png,.pdf" required>
+                                                        <div class="form-text">Allowed types: JPG, PNG, PDF. Maximum file size: 2MB.</div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -738,7 +740,7 @@ $courseOptions = is_array($courseOptions ?? null) ? $courseOptions : [];
                                                             class="fa-solid fa-video me-1"></i> Open Camera</button>
                                                     <button type="button" id="open-camera-modal-btn"
                                                         class="btn btn-sm btn-outline-secondary fw-bold"><i
-                                                            class="fa-solid fa-expand me-1"></i> Large Camera View</button>
+                                                            class="fa-solid fa-expand me-1"></i>Large View</button>
                                                     <label for="id_picture_upload" class="btn btn-sm btn-outline-secondary fw-bold mb-0">
                                                         <i class="fa-solid fa-upload me-1"></i> Upload Photo
                                                     </label>
@@ -751,6 +753,7 @@ $courseOptions = is_array($courseOptions ?? null) ? $courseOptions : [];
                                                         class="btn btn-sm btn-warning fw-bold" style="display: none;"><i
                                                             class="fa-solid fa-rotate-right me-1"></i> Retake</button>
                                                 </div>
+                                                <div class="small text-muted mt-2">Allowed types: JPG, PNG. Maximum file size: 2MB.</div>
                                                 <div class="small text-muted mt-2" id="photo-source-note">Use a clear recent photo with your face centered, shoulders visible, and a plain background.</div>
 
                                                 <input type="hidden" id="id_picture_base64" name="id_picture_base64"
@@ -779,7 +782,7 @@ $courseOptions = is_array($courseOptions ?? null) ? $courseOptions : [];
                                                     <div class="d-flex flex-wrap gap-2">
                                                         <button type="button" id="open-signature-modal-btn"
                                                             class="btn btn-sm btn-outline-primary"><i
-                                                                class="fa-solid fa-up-right-and-down-left-from-center me-1"></i>Full Screen Pad</button>
+                                                                class="fa-solid fa-up-right-and-down-left-from-center me-1"></i>Fullscreen</button>
                                                         <label for="signature_upload" class="btn btn-sm btn-outline-secondary mb-0">
                                                             <i class="fa-solid fa-upload me-1"></i>Upload Signature Image
                                                         </label>
@@ -791,6 +794,7 @@ $courseOptions = is_array($courseOptions ?? null) ? $courseOptions : [];
                                                             class="fa-solid fa-eraser me-1"></i> Clear
                                                         Signature</button>
                                                 </div>
+                                                <div class="small text-muted mt-2">Allowed types: JPG, PNG. Maximum file size: 2MB.</div>
                                                 <div class="small text-muted mt-2" id="signature-source-note">Draw directly in the box, use the full-screen pad, or upload a PNG/JPG image of your signature.</div>
 
                                                 <input type="hidden" id="e_signature_base64" name="e_signature_base64"
@@ -802,7 +806,7 @@ $courseOptions = is_array($courseOptions ?? null) ? $courseOptions : [];
                                     <div class="application-step-actions">
                                         <button type="button" class="btn btn-secondary btn-prev px-4 fw-bold"><i
                                                 class="fa-solid fa-arrow-left me-1"></i> Previous</button>
-                                        <button type="button" class="btn btn-primary btn-next px-4 fw-bold">Review Application <i
+                                        <button type="button" class="btn btn-primary btn-next px-4 fw-bold">Review <i
                                                 class="fa-solid fa-arrow-right ms-1"></i></button>
                                     </div>
                                 </div>
@@ -895,7 +899,7 @@ $courseOptions = is_array($courseOptions ?? null) ? $courseOptions : [];
                                     <div class="small text-muted" id="application-draft-status">Your form draft is saved automatically in this browser while you fill it out.</div>
                                 </div>
                                 <button type="button" class="btn btn-sm btn-outline-secondary" id="clear-application-draft-btn">
-                                    <i class="fa-solid fa-trash-can me-1"></i>Clear Draft
+                                    <i class="fa-solid fa-trash-can me-1"></i>Clear
                                 </button>
                             </div>
                         </div>
@@ -1603,7 +1607,7 @@ $courseOptions = is_array($courseOptions ?? null) ? $courseOptions : [];
             if (reviewAttachmentsSummary) {
                 reviewAttachmentsSummary.innerHTML = [
                     formatReviewLine('Grades File', gradesFileInput?.files?.[0]?.name ?? (documentsComplete ? 'Attached' : 'Pending')),
-                    formatReviewLine('Residency File', residencyFileInput?.files?.[0]?.name ?? (documentsComplete ? 'Attached' : 'Pending')),
+                    formatReviewLine('Barangay Residency', residencyFileInput?.files?.[0]?.name ?? (documentsComplete ? 'Attached' : 'Pending')),
                     formatReviewLine('2x2 Photo', idPictureUploadInput?.files?.[0]?.name ?? (photoComplete ? 'Captured' : 'Pending')),
                     formatReviewLine('E-Signature', signatureUploadInput?.files?.[0]?.name ?? (signatureComplete ? 'Completed' : 'Pending')),
                 ].join('');

@@ -9,7 +9,6 @@
                 <div>
                     <span class="app-page-eyebrow">Accountability</span>
                     <h1 class="app-page-title"><i class="fa-solid fa-clipboard-list me-2"></i>Audit Logs</h1>
-                    <p class="app-page-subtitle">Track internal actions, system changes, and user activity across the scholarship workflow.</p>
                 </div>
             </section>
 
@@ -17,7 +16,6 @@
                 <div class="app-surface-header">
                     <div>
                         <h2 class="app-surface-title">Filter Logs</h2>
-                        <p class="app-surface-copy">Narrow activity records by actor role, action name, or affected entity.</p>
                     </div>
                 </div>
                 <div class="app-surface-body">
@@ -66,7 +64,6 @@
                 <div class="app-surface-header">
                     <div>
                         <h2 class="app-surface-title">Latest System Activity</h2>
-                        <p class="app-surface-copy">Recorded internal and user-facing actions from the audit trail.</p>
                     </div>
                     <span class="app-pill-badge"><i class="fa-solid fa-clock-rotate-left"></i><?php echo count($logs); ?> Records</span>
                 </div>

@@ -105,7 +105,7 @@ $formatMoney = static function ($value): string {
 
 $findDocument = static function (array $documents, string $type): ?array {
     foreach ($documents as $document) {
-        if (($document['document_type'] ?? '') === $type) {
+        if (document_type_matches((string) ($document['document_type'] ?? ''), $type)) {
             return $document;
         }
     }
@@ -146,7 +146,7 @@ $calculatedAge = $calculateAge($application['date_of_birth'] ?? '');
 $photoSrc = $toDataUri($application['id_picture_path'] ?? '');
 $signatureSrc = $toDataUri($application['e_signature_path'] ?? '');
 $gradesDocument = $findDocument($documents, 'Grades');
-$residencyDocument = $findDocument($documents, 'Residency');
+$residencyDocument = $findDocument($documents, 'Barangay Residency');
 $soaDocument = $findDocument($documents, 'SOA');
 $backUrl = $_SESSION['role'] === 'Admin'
     ? 'admin/dashboard'
@@ -629,7 +629,7 @@ body {
                         <div class="checkbox-line">[ ] College Student</div>
                         <div class="checkbox-line">[ ] Application Complete</div>
                         <div class="checkbox-line">[ ] Grades Reviewed</div>
-                        <div class="checkbox-line">[ ] Residency Verified</div>
+                        <div class="checkbox-line">[ ] Barangay Residency Verified</div>
                         <div class="checkbox-line">[ ] SOA Reviewed</div>
                     </div>
                 </td>

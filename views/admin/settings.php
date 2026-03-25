@@ -12,7 +12,6 @@ $hasConfiguredPeriod = !empty($settings['school_year']) && !empty($settings['sem
                 <div>
                     <span class="app-page-eyebrow">Period Management</span>
                     <h1 class="app-page-title">Application Period Management</h1>
-                    <p class="app-page-subtitle">Use the simple actions below to open a new period, extend the current deadline, or close student submissions.</p>
                 </div>
             </section>
 
@@ -27,7 +26,7 @@ $hasConfiguredPeriod = !empty($settings['school_year']) && !empty($settings['sem
                                 Extend Deadline
                             </button>
                             <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#closeSubmissionsModal">
-                                Close Submissions
+                                Close
                             </button>
                         </div>
                     <?php endif; ?>
@@ -81,7 +80,6 @@ $hasConfiguredPeriod = !empty($settings['school_year']) && !empty($settings['sem
                         <div class="app-surface-header">
                             <div>
                                 <h2 class="app-surface-title">Open New Application Period</h2>
-                                <p class="app-surface-copy">Use this when you are starting a new school year or semester.</p>
                             </div>
                         </div>
                         <div class="app-surface-body">
@@ -174,7 +172,7 @@ $hasConfiguredPeriod = !empty($settings['school_year']) && !empty($settings['sem
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Save New Deadline</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
                     </div>
                 </form>
             </div>
@@ -198,7 +196,7 @@ $hasConfiguredPeriod = !empty($settings['school_year']) && !empty($settings['sem
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-danger">Close Submissions</button>
+                        <button type="submit" class="btn btn-danger">Close</button>
                     </div>
                 </form>
             </div>

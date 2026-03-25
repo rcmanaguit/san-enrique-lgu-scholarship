@@ -80,15 +80,7 @@ $activePeriodLabel = \App\Models\ApplicationPeriod::activePeriodLabel($applicati
                         <header class="public-guide-document-header">
                             <span class="public-guide-kicker">Guide</span>
                             <h2 class="public-section-title mb-2">Scholarship Application Guide</h2>
-                            <p class="public-guide-intro mb-0">Official guide for scholarship applicants of the Municipality of San Enrique, Negros Occidental.</p>
                         </header>
-
-                        <div class="public-guide-jump-nav">
-                            <a href="#guide-eligibility" class="public-guide-jump-link">Eligibility</a>
-                            <a href="#guide-requirements" class="public-guide-jump-link">Requirements</a>
-                            <a href="#guide-procedure" class="public-guide-jump-link">Procedure</a>
-                            <a href="#guide-reminders" class="public-guide-jump-link">Reminders</a>
-                        </div>
 
                         <section class="public-guide-entry" id="guide-eligibility">
                             <h3 class="public-guide-entry-title">Eligibility</h3>
@@ -152,7 +144,7 @@ $activePeriodLabel = \App\Models\ApplicationPeriod::activePeriodLabel($applicati
                                 <?php if ($isApplicationOpen): ?>
                                     <a href="<?php echo htmlspecialchars(base_url('register')); ?>" class="btn btn-primary btn-lg px-4">Start Application</a>
                                 <?php else: ?>
-                                    <button type="button" class="btn btn-secondary btn-lg px-4" disabled>Application Period Closed</button>
+                                    <button type="button" class="btn btn-secondary btn-lg px-4" disabled>Period Closed</button>
                                 <?php endif; ?>
                             </div>
                         </section>

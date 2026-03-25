@@ -146,7 +146,7 @@ class PrintableFormController
         $signatureSrc = $this->toTrimmedDataUri((string) ($application['e_signature_path'] ?? ''));
         $logoSrc = $this->toDataUri(dirname(__DIR__, 2) . '/public/assets/images/lgu-logo.png');
         $gradesDocument = $this->findDocument($documents, 'Grades');
-        $residencyDocument = $this->findDocument($documents, 'Residency');
+        $residencyDocument = $this->findDocument($documents, 'Barangay Residency');
         $soaDocument = $this->findDocument($documents, 'SOA');
 
         return compact(
@@ -341,7 +341,7 @@ class PrintableFormController
     private function findDocument(array $documents, string $type): ?array
     {
         foreach ($documents as $document) {
-            if (($document['document_type'] ?? '') === $type) {
+            if (\document_type_matches((string) ($document['document_type'] ?? ''), $type)) {
                 return $document;
             }
         }

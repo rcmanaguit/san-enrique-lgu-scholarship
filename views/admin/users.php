@@ -9,7 +9,6 @@
                 <div>
                     <span class="app-page-eyebrow">Administration</span>
                     <h1 class="app-page-title"><i class="fa-solid fa-users-gear me-2"></i>User Management</h1>
-                    <p class="app-page-subtitle">Create internal accounts, activate or deactivate access, and reset passwords for staff and admin users.</p>
                 </div>
             </section>
 
@@ -19,7 +18,6 @@
                         <div class="app-surface-header">
                             <div>
                                 <h2 class="app-surface-title">Create Internal Account</h2>
-                                <p class="app-surface-copy">Use this form for new staff or admin accounts only.</p>
                             </div>
                         </div>
                         <div class="app-surface-body">
@@ -53,7 +51,7 @@
                                     <label class="form-label fw-bold">Temporary Password</label>
                                     <input type="password" class="form-control" name="password" required>
                                 </div>
-                                <button type="submit" class="btn btn-primary w-100 fw-bold">Create Account</button>
+                                <button type="submit" class="btn btn-primary w-100 fw-bold">Create</button>
                             </form>
                         </div>
                     </section>
@@ -64,7 +62,6 @@
                         <div class="app-surface-header">
                             <div>
                                 <h2 class="app-surface-title">System Users</h2>
-                                <p class="app-surface-copy">Manage current staff and admin access across the system.</p>
                             </div>
                             <span class="app-pill-badge"><i class="fa-solid fa-user-shield"></i><?php echo count($users); ?> Accounts</span>
                         </div>

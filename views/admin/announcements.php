@@ -9,7 +9,6 @@
                 <div>
                     <span class="app-page-eyebrow">Communications</span>
                     <h1 class="app-page-title"><i class="fa-solid fa-bullhorn me-2"></i>Announcements</h1>
-                    <p class="app-page-subtitle">Publish notices for the public site, the student portal, or both, then manage what stays live in the announcement feed.</p>
                 </div>
             </section>
 
@@ -19,7 +18,6 @@
                         <div class="app-surface-header">
                             <div>
                                 <h2 class="app-surface-title">Publish Announcement</h2>
-                                <p class="app-surface-copy">Create a new advisory and choose where it should appear.</p>
                             </div>
                         </div>
                         <div class="app-surface-body">
@@ -44,7 +42,7 @@
                                     <input class="form-check-input" type="checkbox" name="is_published" id="announcementPublished" checked>
                                     <label class="form-check-label" for="announcementPublished">Publish immediately</label>
                                 </div>
-                                <button type="submit" class="btn btn-primary w-100 fw-bold">Save Announcement</button>
+                                <button type="submit" class="btn btn-primary w-100 fw-bold">Save</button>
                             </form>
                         </div>
                     </section>
@@ -55,7 +53,6 @@
                         <div class="app-surface-header">
                             <div>
                                 <h2 class="app-surface-title">Announcement Feed</h2>
-                                <p class="app-surface-copy">Manage published advisories and drafts in one running feed.</p>
                             </div>
                             <span class="app-pill-badge"><i class="fa-solid fa-bullhorn"></i><?php echo count($announcements); ?> Items</span>
                         </div>

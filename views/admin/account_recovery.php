@@ -18,7 +18,6 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'Admin') {
                 <div>
                     <span class="app-page-eyebrow">Recovery</span>
                     <h1 class="app-page-title"><i class="fa-solid fa-user-shield me-2"></i>Account Recovery Assistance</h1>
-                    <p class="app-page-subtitle">Use this page for verified recovery requests such as mobile number replacement, email update, or password reset.</p>
                 </div>
             </section>
 
@@ -28,7 +27,6 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'Admin') {
                         <div class="app-surface-header">
                             <div>
                                 <h2 class="app-surface-title">Manual Recovery Update</h2>
-                                <p class="app-surface-copy">Enter the current account details first, then the updated contact information or new password.</p>
                             </div>
                         </div>
                         <div class="app-surface-body">

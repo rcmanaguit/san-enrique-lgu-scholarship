@@ -31,6 +31,12 @@ class AuthController
             exit;
         }
 
+        $accountSettingsOldInput = $_SESSION['_account_settings_old_input'] ?? [];
+        unset($_SESSION['_account_settings_old_input']);
+        if (!is_array($accountSettingsOldInput)) {
+            $accountSettingsOldInput = [];
+        }
+
         require __DIR__ . '/../../views/account/settings.php';
     }
 
@@ -55,8 +61,52 @@ class AuthController
         }
 
         try {
-            $currentPassword = Validation::requiredString($_POST['current_password'] ?? '', 'Current password', 255);
             $isInternalUser = in_array((string) ($user['role'] ?? ''), ['Staff', 'Admin'], true);
+            $currentPhone = trim((string) ($user['phone_number'] ?? ''));
+            $currentEmail = trim((string) ($user['email'] ?? ''));
+            $currentFirstName = trim((string) ($user['first_name'] ?? ''));
+            $currentLastName = trim((string) ($user['last_name'] ?? ''));
+            $settingsSection = trim((string) ($_POST['settings_section'] ?? 'profile'));
+            if (!in_array($settingsSection, ['profile', 'password'], true)) {
+                $settingsSection = 'profile';
+            }
+
+            if ($settingsSection === 'password') {
+                $currentPassword = Validation::requiredString($_POST['current_password'] ?? '', 'Current password', 255);
+                if (!password_verify($currentPassword, (string) ($user['password_hash'] ?? ''))) {
+                    throw new ValidationException('Current password is incorrect.');
+                }
+
+                $newPasswordInput = (string) ($_POST['new_password'] ?? '');
+                $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
+                if ($newPasswordInput === '') {
+                    throw new ValidationException('Enter a new password first.');
+                }
+
+                $newPassword = Validation::password($newPasswordInput);
+                if (!hash_equals($newPassword, $confirmPassword)) {
+                    throw new ValidationException('Confirm New Password must match your new password.');
+                }
+
+                User::updatePassword($userId, password_hash($newPassword, PASSWORD_BCRYPT));
+                User::clearOtp($userId);
+
+                AuditLog::recordCurrentUser(
+                    'account.password_updated',
+                    'user',
+                    $userId,
+                    'User updated their password.',
+                    ['password_changed' => true]
+                );
+
+                redirect_with_flash('account/settings', 'success', 'Your password was updated successfully.');
+            }
+
+            $currentPassword = Validation::requiredString($_POST['current_password'] ?? '', 'Current password', 255);
+            if (!password_verify($currentPassword, (string) ($user['password_hash'] ?? ''))) {
+                throw new ValidationException('Current password is incorrect.');
+            }
+
             $newFirstName = $isInternalUser
                 ? Validation::requiredString($_POST['first_name'] ?? '', 'First name', 100)
                 : trim((string) ($user['first_name'] ?? ''));
@@ -65,17 +115,6 @@ class AuthController
                 : trim((string) ($user['last_name'] ?? ''));
             $newPhoneInput = trim((string) ($_POST['phone_number'] ?? ''));
             $newEmailInput = trim((string) ($_POST['email'] ?? ''));
-            $newPasswordInput = (string) ($_POST['new_password'] ?? '');
-            $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
-
-            if (!password_verify($currentPassword, (string) ($user['password_hash'] ?? ''))) {
-                throw new ValidationException('Current password is incorrect.');
-            }
-
-            $currentPhone = trim((string) ($user['phone_number'] ?? ''));
-            $currentEmail = trim((string) ($user['email'] ?? ''));
-            $currentFirstName = trim((string) ($user['first_name'] ?? ''));
-            $currentLastName = trim((string) ($user['last_name'] ?? ''));
 
             $normalizedPhone = Validation::phone($newPhoneInput);
             $normalizedEmail = $newEmailInput !== '' ? Validation::email($newEmailInput) : null;
@@ -83,9 +122,8 @@ class AuthController
             $nameChanged = $isInternalUser && ($newFirstName !== $currentFirstName || $newLastName !== $currentLastName);
             $phoneChanged = $normalizedPhone !== $currentPhone;
             $emailChanged = ($normalizedEmail ?? '') !== $currentEmail;
-            $passwordChanged = $newPasswordInput !== '';
 
-            if (!$nameChanged && !$phoneChanged && !$emailChanged && !$passwordChanged) {
+            if (!$nameChanged && !$phoneChanged && !$emailChanged) {
                 throw new ValidationException('No account changes were provided.');
             }
 
@@ -103,15 +141,6 @@ class AuthController
                 }
             }
 
-            if ($passwordChanged) {
-                $newPassword = Validation::password($newPasswordInput);
-                if (!hash_equals($newPassword, $confirmPassword)) {
-                    throw new ValidationException('Confirm New Password must match your new password.');
-                }
-                User::updatePassword($userId, password_hash($newPassword, PASSWORD_BCRYPT));
-                User::clearOtp($userId);
-            }
-
             if ($nameChanged) {
                 User::updateName($userId, $newFirstName, $newLastName);
                 $_SESSION['first_name'] = $newFirstName;
@@ -121,20 +150,26 @@ class AuthController
             User::updateRecoveryContact($userId, $phoneChanged ? $normalizedPhone : null, $emailChanged ? $normalizedEmail : null);
 
             AuditLog::recordCurrentUser(
-                'account.settings_updated',
+                'account.profile_updated',
                 'user',
                 $userId,
-                'User updated account settings.',
+                'User updated account profile details.',
                 [
                     'name_changed' => $nameChanged,
                     'phone_changed' => $phoneChanged,
                     'email_changed' => $emailChanged,
-                    'password_changed' => $passwordChanged,
                 ]
             );
 
-            redirect_with_flash('account/settings', 'success', 'Your account settings were updated successfully.');
+            redirect_with_flash('account/settings', 'success', 'Your account details were updated successfully.');
         } catch (ValidationException $e) {
+            $_SESSION['_account_settings_old_input'] = [
+                'settings_section' => trim((string) ($_POST['settings_section'] ?? 'profile')),
+                'first_name' => trim((string) ($_POST['first_name'] ?? '')),
+                'last_name' => trim((string) ($_POST['last_name'] ?? '')),
+                'phone_number' => trim((string) ($_POST['phone_number'] ?? '')),
+                'email' => trim((string) ($_POST['email'] ?? '')),
+            ];
             redirect_with_flash('account/settings', 'error', $e->getMessage());
         } catch (Exception $e) {
             error_log('Failed to update account settings: ' . $e->getMessage());
