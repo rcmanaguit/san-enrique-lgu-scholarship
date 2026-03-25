@@ -1,0 +1,28 @@
+flowchart LR
+    mobile["Mobile User"]
+    office["Office User"]
+    tower["Cell Tower / Mobile Network"]
+    internet["Internet"]
+    web["Web Server"]
+    app["Online Application System"]
+    db["Database Server"]
+    files["File Storage"]
+    sms["SMS Notification Service"]
+
+    mobile --> tower
+    tower --> internet
+    office --> internet
+    internet --> web
+    web --> app
+    app --> db
+    app --> files
+    app --> sms
+    sms --> mobile
+
+    classDef core fill:#e8f1fb,stroke:#2f6da3,stroke-width:2px,color:#10273c;
+    classDef data fill:#eef8ec,stroke:#5d8f49,stroke-width:2px,color:#18351a;
+    classDef external fill:#fff5e8,stroke:#b7791f,stroke-width:2px,color:#4b2a02;
+
+    class mobile,office,tower,internet,sms external;
+    class web,app core;
+    class db,files data;

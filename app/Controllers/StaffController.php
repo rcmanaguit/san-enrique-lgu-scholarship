@@ -421,10 +421,6 @@ class StaffController
         $stmt->execute($params);
         $searchResults = $stmt->fetchAll();
 
-        if (!$selectedProfileId && $searchResults !== []) {
-            $selectedProfileId = (int) ($searchResults[0]['profile_id'] ?? 0);
-        }
-
         $selectedRecord = null;
         $applicationHistory = [];
         $documentHistory = [];
@@ -1044,6 +1040,10 @@ class StaffController
 
         foreach ($auditHistory as $log) {
             if ((string) ($log['entity_type'] ?? '') !== 'application') {
+                continue;
+            }
+
+            if ((string) ($log['action'] ?? '') === 'application.submitted') {
                 continue;
             }
 

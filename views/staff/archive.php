@@ -61,13 +61,6 @@ $calculateApplicantAge = static function ($value): string {
                     <span class="app-page-eyebrow">Case Folder</span>
                     <h1 class="app-page-title"><i class="fa-solid fa-address-card me-2"></i><?php echo $recordOnlyView ? 'Master Record' : 'Records'; ?></h1>
                 </div>
-                <?php if ($recordOnlyView): ?>
-                    <div class="app-page-header-actions">
-                        <a href="<?php echo htmlspecialchars(base_url('staff/archive')); ?>" class="btn btn-outline-secondary">
-                            <i class="fa-solid fa-arrow-left me-2"></i>Back to Search
-                        </a>
-                    </div>
-                <?php endif; ?>
             </section>
 
             <?php if (!$recordOnlyView): ?>

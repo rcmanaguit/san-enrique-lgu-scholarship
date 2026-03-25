@@ -112,11 +112,6 @@ $summaryWorkflowSteps = $workflowSteps ?? [];
                                                             <?php elseif (!empty($doc['updated_at'])): ?>
                                                                 <p class="small text-muted mb-3">Last updated: <?php echo htmlspecialchars((string) $doc['updated_at']); ?></p>
                                                             <?php endif; ?>
-                                                            <div class="mb-3">
-                                                                <a href="<?php echo htmlspecialchars($documentPreviewUrl); ?>" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary">
-                                                                    <i class="fa-solid fa-up-right-from-square me-1"></i>Open In New Page
-                                                                </a>
-                                                            </div>
                                                             <?php if (($doc['status'] ?? '') !== 'Verified'): ?>
                                                                 <div class="d-flex gap-2 mt-3 flex-wrap">
                                                                     <form action="<?php echo htmlspecialchars(base_url('staff/update-document-status')); ?>" method="POST" class="flex-grow-1">

@@ -36,7 +36,8 @@
 </head>
 
 <?php $layoutUserRole = $_SESSION['role'] ?? null; ?>
-<body class="bg-light<?php echo $layoutUserRole !== null ? ' app-shell-layout' : ''; ?>">
+<?php $layoutHideAuthenticatedNavbar = (bool) ($hideAuthenticatedNavbar ?? false); ?>
+<body class="bg-light<?php echo $layoutUserRole !== null && !$layoutHideAuthenticatedNavbar ? ' app-shell-layout' : ''; ?>">
 <?php $layoutBasePath = trim((string) app_base_path(), '/'); ?>
 <?php $layoutCurrentPath = trim((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/'); ?>
 <?php if ($layoutBasePath !== '' && str_starts_with($layoutCurrentPath, $layoutBasePath)) {
@@ -63,7 +64,7 @@ if ($layoutCurrentUserId > 0) {
     $layoutUnreadNotificationCount = \App\Models\Notification::unreadCountForUser($layoutCurrentUserId);
 }
 ?>
-<?php if ($layoutUserRole !== null): ?>
+<?php if ($layoutUserRole !== null && !$layoutHideAuthenticatedNavbar): ?>
     <nav class="navbar navbar-expand-lg app-navbar sticky-top">
         <div class="container-fluid">
             <div class="app-navbar-left">

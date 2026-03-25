@@ -1,3 +1,4 @@
+<?php $hideAuthenticatedNavbar = true; ?>
 <?php require __DIR__ . '/../layouts/header.php'; ?>
 <?php $publicAnnouncements = \App\Models\Announcement::latestForAudience('Public', 3); ?>
 <?php
