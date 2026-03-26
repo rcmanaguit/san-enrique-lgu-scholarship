@@ -15,6 +15,7 @@
                     <p class="auth-form-lead small">Enter the 6-digit reset code sent by SMS or to the email address used in your scholarship application.</p>
 
                     <form action="<?php echo htmlspecialchars(base_url('reset-password')); ?>" method="POST" novalidate>
+                        <?php echo csrf_input(); ?>
                         <div class="mb-3">
                             <label for="otp_code" class="form-label">Reset Code</label>
                             <input type="text" class="form-control text-center fw-bold" id="otp_code" name="otp_code"

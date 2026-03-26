@@ -22,6 +22,7 @@
                         </div>
                         <div class="app-surface-body">
                             <form action="<?php echo htmlspecialchars(base_url('admin/announcements')); ?>" method="POST">
+                                <?php echo csrf_input(); ?>
                                 <div class="mb-3">
                                     <label class="form-label fw-bold">Title</label>
                                     <input type="text" class="form-control" name="title" maxlength="180" required>
@@ -89,6 +90,7 @@
                                             </div>
                                             <p class="mb-3 text-muted"><?php echo nl2br(htmlspecialchars((string) $announcement['body'])); ?></p>
                                             <form action="<?php echo htmlspecialchars(base_url('admin/announcements/toggle')); ?>" method="POST" class="d-inline">
+                                                <?php echo csrf_input(); ?>
                                                 <input type="hidden" name="announcement_id" value="<?php echo (int) $announcement['id']; ?>">
                                                 <input type="hidden" name="is_published" value="<?php echo ((int) ($announcement['is_published'] ?? 0) === 1) ? '0' : '1'; ?>">
                                                 <button type="submit" class="btn btn-sm btn-outline-primary">

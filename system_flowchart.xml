@@ -1,0 +1,152 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="System Flowchart">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1600" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="start" value="Start" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d9ead3;strokeColor=#38761d;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="20" width="120" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="login" value="User Login / Registration Input" style="shape=parallelogram;whiteSpace=wrap;html=1;fillColor=#cfe2f3;strokeColor=#1f4e79;" vertex="1" parent="1">
+          <mxGeometry x="480" y="100" width="280" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="validate" value="Validate User Account" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#b45f06;" vertex="1" parent="1">
+          <mxGeometry x="500" y="190" width="240" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="authcheck" value="Account Valid?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cc0000;" vertex="1" parent="1">
+          <mxGeometry x="530" y="280" width="180" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="retry" value="Display Error Message" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4cccc;strokeColor=#cc0000;" vertex="1" parent="1">
+          <mxGeometry x="830" y="295" width="220" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="dashboard" value="Open User Dashboard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d9ead3;strokeColor=#38761d;" vertex="1" parent="1">
+          <mxGeometry x="500" y="400" width="240" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="appinput" value="Input Application Details and Upload Requirements" style="shape=parallelogram;whiteSpace=wrap;html=1;fillColor=#cfe2f3;strokeColor=#1f4e79;" vertex="1" parent="1">
+          <mxGeometry x="430" y="490" width="380" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="saveapp" value="Process and Save Application Data" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#b45f06;" vertex="1" parent="1">
+          <mxGeometry x="470" y="590" width="300" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="db1" value="Database&#xa;Users / Student Profiles / Applications / Documents" style="shape=cylinder;whiteSpace=wrap;html=1;boundedLbl=1;fillColor=#ead1dc;strokeColor=#741b47;" vertex="1" parent="1">
+          <mxGeometry x="900" y="560" width="220" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="notify1" value="Send Submission Notification" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#6a329f;" vertex="1" parent="1">
+          <mxGeometry x="480" y="680" width="280" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="review" value="Staff Reviews Documents" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#b45f06;" vertex="1" parent="1">
+          <mxGeometry x="500" y="760" width="240" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="doccheck" value="Requirements Complete?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cc0000;" vertex="1" parent="1">
+          <mxGeometry x="520" y="850" width="200" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="resubmit" value="Update Status: Pending Resubmission&#xa;Notify Student to Resubmit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4cccc;strokeColor=#cc0000;" vertex="1" parent="1">
+          <mxGeometry x="820" y="870" width="260" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="verify" value="Verify Documents and Update Status" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d9ead3;strokeColor=#38761d;" vertex="1" parent="1">
+          <mxGeometry x="470" y="980" width="300" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="scheduleInterview" value="Schedule Interview" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#b45f06;" vertex="1" parent="1">
+          <mxGeometry x="500" y="1070" width="240" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="notifyInterview" value="Send Interview Notification" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#6a329f;" vertex="1" parent="1">
+          <mxGeometry x="490" y="1160" width="260" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="recordResult" value="Record Interview Result" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#b45f06;" vertex="1" parent="1">
+          <mxGeometry x="500" y="1240" width="240" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="passcheck" value="Passed Interview?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cc0000;" vertex="1" parent="1">
+          <mxGeometry x="530" y="1330" width="180" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="noteligible" value="Update Status: Not Eligible&#xa;Notify Student" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4cccc;strokeColor=#cc0000;" vertex="1" parent="1">
+          <mxGeometry x="820" y="1340" width="230" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="soaInput" value="Student Uploads Statement of Account (SOA)" style="shape=parallelogram;whiteSpace=wrap;html=1;fillColor=#cfe2f3;strokeColor=#1f4e79;" vertex="1" parent="1">
+          <mxGeometry x="430" y="1450" width="380" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="soaReview" value="Review SOA and Update Status" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#b45f06;" vertex="1" parent="1">
+          <mxGeometry x="470" y="1540" width="300" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="soaCheck" value="SOA Approved?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cc0000;" vertex="1" parent="1">
+          <mxGeometry x="530" y="1630" width="180" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="soaReject" value="Request SOA Resubmission&#xa;Notify Student" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f4cccc;strokeColor=#cc0000;" vertex="1" parent="1">
+          <mxGeometry x="820" y="1640" width="230" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="approvePayout" value="Approve Application for Payout" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d9ead3;strokeColor=#38761d;" vertex="1" parent="1">
+          <mxGeometry x="460" y="1750" width="320" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="schedulePayout" value="Schedule Payout Batch" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#b45f06;" vertex="1" parent="1">
+          <mxGeometry x="490" y="1840" width="260" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="notifyPayout" value="Send Payout Notification" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#6a329f;" vertex="1" parent="1">
+          <mxGeometry x="500" y="1930" width="240" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="report" value="Generate Reports / Printable Records" style="shape=parallelogram;whiteSpace=wrap;html=1;fillColor=#cfe2f3;strokeColor=#1f4e79;" vertex="1" parent="1">
+          <mxGeometry x="460" y="2010" width="320" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="end" value="End" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d9ead3;strokeColor=#38761d;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="2100" width="120" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="start" target="login"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="login" target="validate"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="validate" target="authcheck"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e4" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="authcheck" target="retry"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e5" value="Yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="authcheck" target="dashboard"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="dashboard" target="appinput"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="appinput" target="saveapp"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="saveapp" target="db1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="saveapp" target="notify1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="notify1" target="review"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="review" target="doccheck"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e12" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="doccheck" target="resubmit"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e13" value="Yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="doccheck" target="verify"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="verify" target="db1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="verify" target="scheduleInterview"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="scheduleInterview" target="notifyInterview"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="notifyInterview" target="recordResult"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="recordResult" target="passcheck"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e19" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="passcheck" target="noteligible"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e20" value="Yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="passcheck" target="soaInput"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e21" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="soaInput" target="soaReview"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e22" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="soaReview" target="soaCheck"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e23" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="soaCheck" target="soaReject"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e24" value="Yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="soaCheck" target="approvePayout"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e25" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="approvePayout" target="db1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e26" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="approvePayout" target="schedulePayout"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e27" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="schedulePayout" target="notifyPayout"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e28" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="notifyPayout" target="report"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e29" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="report" target="end"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="<?php echo htmlspecialchars(asset_url('css/style.css')); ?>">
     <link rel="icon" type="image/png" href="<?php echo htmlspecialchars(asset_url('images/lgu-logo.png')); ?>">
     <link rel="shortcut icon" href="<?php echo htmlspecialchars(asset_url('images/lgu-logo.png')); ?>">
+    <meta name="csrf-token" content="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script>
@@ -31,6 +32,41 @@
             document.documentElement.setAttribute('data-theme', 'light');
             document.documentElement.style.colorScheme = 'light';
         }
+    })();
+    </script>
+    <script>
+    (function () {
+        function ensureCsrfField(form) {
+            if (!form || String(form.method || '').toUpperCase() !== 'POST') {
+                return;
+            }
+
+            var tokenMeta = document.querySelector('meta[name="csrf-token"]');
+            var token = tokenMeta ? tokenMeta.getAttribute('content') || '' : '';
+            if (!token) {
+                return;
+            }
+
+            var existingField = form.querySelector('input[name="_csrf"]');
+            if (existingField) {
+                existingField.value = token;
+                return;
+            }
+
+            var hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = '_csrf';
+            hidden.value = token;
+            form.appendChild(hidden);
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('form').forEach(ensureCsrfField);
+        });
+
+        document.addEventListener('submit', function (event) {
+            ensureCsrfField(event.target);
+        }, true);
     })();
     </script>
 </head>
@@ -158,6 +194,7 @@ if ($layoutCurrentUserId > 0) {
                             <div class="notification-dropdown-header d-flex justify-content-between align-items-center">
                                 <strong>Notifications</strong>
                                 <form action="<?php echo htmlspecialchars(base_url('notifications/mark-all-read')); ?>" method="POST" data-notification-mark-all-form>
+                                    <?php echo csrf_input(); ?>
                                     <input type="hidden" name="redirect_to" value="<?php echo htmlspecialchars($layoutCurrentPath); ?>">
                                     <button type="submit" class="btn btn-link btn-sm p-0 text-decoration-none">Read All</button>
                                 </form>

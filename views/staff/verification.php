@@ -115,12 +115,14 @@ $summaryWorkflowSteps = $workflowSteps ?? [];
                                                             <?php if (($doc['status'] ?? '') !== 'Verified'): ?>
                                                                 <div class="d-flex gap-2 mt-3 flex-wrap">
                                                                     <form action="<?php echo htmlspecialchars(base_url('staff/update-document-status')); ?>" method="POST" class="flex-grow-1">
+                                                                        <?php echo csrf_input(); ?>
                                                                         <input type="hidden" name="document_id" value="<?php echo (int) $doc['id']; ?>">
                                                                         <input type="hidden" name="application_id" value="<?php echo (int) $applicationId; ?>">
                                                                         <input type="hidden" name="status" value="Verified">
                                                                         <button type="button" class="btn btn-sm btn-success w-100 confirm-action" data-action="verify this document"><i class="fa-solid fa-check me-1"></i>Verify</button>
                                                                     </form>
                                                                     <form action="<?php echo htmlspecialchars(base_url('staff/update-document-status')); ?>" method="POST" class="flex-grow-1">
+                                                                        <?php echo csrf_input(); ?>
                                                                         <input type="hidden" name="document_id" value="<?php echo (int) $doc['id']; ?>">
                                                                         <input type="hidden" name="application_id" value="<?php echo (int) $applicationId; ?>">
                                                                         <input type="hidden" name="status" value="Rejected">
@@ -250,6 +252,7 @@ $summaryWorkflowSteps = $workflowSteps ?? [];
                                 </div>
                                 <div class="app-surface-body">
                                     <form action="<?php echo htmlspecialchars(base_url('staff/add-case-note')); ?>" method="POST" class="mb-3">
+                                        <?php echo csrf_input(); ?>
                                         <input type="hidden" name="application_id" value="<?php echo (int) $applicationId; ?>">
                                         <label class="form-label fw-bold">Add Staff Note</label>
                                         <textarea class="form-control mb-2" name="note_text" rows="3" maxlength="3000" required></textarea>

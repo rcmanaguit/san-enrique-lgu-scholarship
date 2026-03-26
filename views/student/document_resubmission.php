@@ -42,6 +42,7 @@ $documentMeta = [
                 </div>
                 <div class="app-surface-body">
                     <form action="<?php echo htmlspecialchars(base_url('student/submit-application')); ?>" method="POST" enctype="multipart/form-data" novalidate>
+                        <?php echo csrf_input(); ?>
                         <div class="row g-4">
                             <?php foreach ($documentMeta as $documentType => $meta): ?>
                                 <?php $document = $resubmissionDocuments[$documentType] ?? ($documentType === 'Barangay Residency' ? ($resubmissionDocuments['Residency'] ?? null) : null); ?>

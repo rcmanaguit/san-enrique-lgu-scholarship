@@ -15,6 +15,7 @@
                     <p class="auth-form-lead small">Use your registered mobile number and password to continue.</p>
 
                     <form action="<?php echo htmlspecialchars(base_url('login')); ?>" method="POST" novalidate>
+                        <?php echo csrf_input(); ?>
                         <div class="mb-3">
                             <label for="phone_number" class="form-label">Mobile Number</label>
                             <div class="input-group">

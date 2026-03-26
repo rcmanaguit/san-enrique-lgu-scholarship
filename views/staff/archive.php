@@ -510,14 +510,16 @@ $calculateApplicantAge = static function ($value): string {
                                                         <a href="<?php echo htmlspecialchars(base_url('staff/print-notice/' . (int) $application['id'] . '/payout')); ?>" target="_blank" class="btn btn-sm btn-outline-success">Payout Notice</a>
                                                     <?php endif; ?>
                                                     <?php if ($recordLifecycle === 'Archived'): ?>
-                                                        <form method="POST" action="<?php echo htmlspecialchars(base_url('staff/archive/toggle')); ?>" class="w-100">
+                                                            <form method="POST" action="<?php echo htmlspecialchars(base_url('staff/archive/toggle')); ?>" class="w-100">
+                                                                <?php echo csrf_input(); ?>
                                                             <input type="hidden" name="application_id" value="<?php echo (int) $application['id']; ?>">
                                                             <input type="hidden" name="archive_action" value="unarchive">
                                                             <input type="hidden" name="redirect_query" value="<?php echo htmlspecialchars($redirectQuery); ?>">
                                                             <button type="submit" class="btn btn-sm btn-outline-secondary w-100">Restore</button>
                                                         </form>
                                                     <?php elseif ($canArchive): ?>
-                                                        <form method="POST" action="<?php echo htmlspecialchars(base_url('staff/archive/toggle')); ?>" class="w-100">
+                                                            <form method="POST" action="<?php echo htmlspecialchars(base_url('staff/archive/toggle')); ?>" class="w-100">
+                                                                <?php echo csrf_input(); ?>
                                                             <input type="hidden" name="application_id" value="<?php echo (int) $application['id']; ?>">
                                                             <input type="hidden" name="archive_action" value="archive">
                                                             <input type="hidden" name="redirect_query" value="<?php echo htmlspecialchars($redirectQuery); ?>">
@@ -623,6 +625,7 @@ $calculateApplicantAge = static function ($value): string {
                                                         <td class="text-end">
                                                             <?php if ($recordLifecycle === 'Archived'): ?>
                                                                 <form method="POST" action="<?php echo htmlspecialchars(base_url('staff/archive/toggle')); ?>" class="d-inline">
+                                                                    <?php echo csrf_input(); ?>
                                                                     <input type="hidden" name="application_id" value="<?php echo (int) $application['id']; ?>">
                                                                     <input type="hidden" name="archive_action" value="unarchive">
                                                                     <input type="hidden" name="redirect_query" value="<?php echo htmlspecialchars($redirectQuery); ?>">
@@ -630,6 +633,7 @@ $calculateApplicantAge = static function ($value): string {
                                                                 </form>
                                                             <?php elseif ($canArchive): ?>
                                                                 <form method="POST" action="<?php echo htmlspecialchars(base_url('staff/archive/toggle')); ?>" class="d-inline">
+                                                                    <?php echo csrf_input(); ?>
                                                                     <input type="hidden" name="application_id" value="<?php echo (int) $application['id']; ?>">
                                                                     <input type="hidden" name="archive_action" value="archive">
                                                                     <input type="hidden" name="redirect_query" value="<?php echo htmlspecialchars($redirectQuery); ?>">

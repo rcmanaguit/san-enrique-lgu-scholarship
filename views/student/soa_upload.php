@@ -41,6 +41,7 @@
                             </div>
 
                             <form action="<?php echo htmlspecialchars(base_url('student/submit-application')); ?>" method="POST" enctype="multipart/form-data">
+                                <?php echo csrf_input(); ?>
                                 <div class="mb-3">
                                     <label class="form-label fw-bold">Statement of Account *</label>
                                     <input type="file" class="form-control" name="soa_file" accept=".jpg,.jpeg,.png,.pdf" required>

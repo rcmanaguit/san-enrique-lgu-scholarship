@@ -40,7 +40,7 @@ $activePeriodLabel = \App\Models\ApplicationPeriod::activePeriodLabel($applicati
         <div class="container public-hero-content">
             <div class="row">
                 <div class="col-lg-8">
-                    <p class="public-hero-kicker mb-2">Official Scholarship Portal</p>
+                    <p class="public-hero-kicker mb-2">Scholarship Portal</p>
                     <h1 class="public-hero-title">San Enrique LGU Scholarship Program</h1>
                     <p class="public-hero-text">
                         Online scholarship application and monitoring system for qualified college students of the

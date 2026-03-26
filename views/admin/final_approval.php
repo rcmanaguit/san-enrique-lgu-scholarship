@@ -115,6 +115,7 @@ $scheduledTotalAmount = array_reduce($payoutBatches ?? [], static function ($car
                         </div>
 
                         <form action="<?php echo htmlspecialchars(base_url('admin/create-payout-batch')); ?>" method="POST" id="payoutForm" class="row g-3 align-items-end mt-1">
+                            <?php echo csrf_input(); ?>
                             <input type="hidden" name="school_type" value="<?php echo htmlspecialchars($schoolTypeFilter ?? ''); ?>">
                             <input type="hidden" name="barangay" value="<?php echo htmlspecialchars($barangayFilter ?? ''); ?>">
                             <div class="col-md-4">
@@ -286,6 +287,7 @@ $scheduledTotalAmount = array_reduce($payoutBatches ?? [], static function ($car
                                     <div class="modal-dialog modal-dialog-centered">
                                         <div class="modal-content">
                                             <form action="<?php echo htmlspecialchars(base_url('admin/reschedule-payout-batch')); ?>" method="POST">
+                                                <?php echo csrf_input(); ?>
                                                 <input type="hidden" name="batch_id" value="<?php echo $batchId; ?>">
                                                 <div class="modal-header">
                                                     <h3 class="modal-title fs-5" id="reschedulePayoutBatchModalLabel<?php echo $batchId; ?>">Reschedule Payout Batch</h3>

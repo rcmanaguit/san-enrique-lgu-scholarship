@@ -15,6 +15,7 @@
                     <p class="auth-form-lead small">Create your login first, then verify your mobile number to start your scholarship application.</p>
 
                     <form action="<?php echo htmlspecialchars(base_url('register')); ?>" method="POST" novalidate>
+                        <?php echo csrf_input(); ?>
                         <div class="row g-3 mb-3">
                             <div class="col-md-6">
                                 <label for="first_name" class="form-label">First Name</label>

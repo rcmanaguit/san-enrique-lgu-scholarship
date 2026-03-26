@@ -35,6 +35,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'Admin') {
                             </div>
 
                             <form action="<?php echo htmlspecialchars(base_url('admin/account-recovery')); ?>" method="POST">
+                                <?php echo csrf_input(); ?>
                                 <input type="hidden" name="confirmed_user_id" id="confirmed_user_id" value="">
 
                                 <div class="row g-3">

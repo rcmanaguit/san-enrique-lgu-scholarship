@@ -15,6 +15,7 @@
                     <p class="auth-form-lead small">Enter your registered mobile number to receive an SMS reset code.</p>
 
                     <form action="<?php echo htmlspecialchars(base_url('forgot-password')); ?>" method="POST" novalidate>
+                        <?php echo csrf_input(); ?>
                         <div class="mb-4">
                             <label for="phone_number" class="form-label">Registered Mobile Number</label>
                             <input type="tel" class="form-control" id="phone_number" name="phone_number"

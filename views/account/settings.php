@@ -75,6 +75,7 @@ $displayName = trim((string) (($accountUser['first_name'] ?? '') . ' ' . ($accou
                         </div>
                         <div class="app-surface-body">
                             <form action="<?php echo htmlspecialchars(base_url('account/settings')); ?>" method="POST" novalidate autocomplete="on">
+                                <?php echo csrf_input(); ?>
                                 <input type="hidden" name="settings_section" value="profile">
                                 <div class="row g-3">
                                     <?php if (in_array((string) ($accountUser['role'] ?? ''), ['Staff', 'Admin'], true)): ?>
@@ -174,6 +175,7 @@ $displayName = trim((string) (($accountUser['first_name'] ?? '') . ' ' . ($accou
                         </div>
                         <div class="app-surface-body">
                             <form action="<?php echo htmlspecialchars(base_url('account/settings')); ?>" method="POST" novalidate autocomplete="on">
+                                <?php echo csrf_input(); ?>
                                 <input type="hidden" name="settings_section" value="password">
                                 <div class="row g-3">
                                     <div class="col-12">

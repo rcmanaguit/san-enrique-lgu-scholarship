@@ -18,6 +18,30 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
 }
 
+$sessionIdleTimeoutSeconds = 30 * 60;
+if (isset($_SESSION['user_id'])) {
+    $lastActivityAt = (int) ($_SESSION['_last_activity_at'] ?? 0);
+    if ($lastActivityAt > 0 && (time() - $lastActivityAt) > $sessionIdleTimeoutSeconds) {
+        $_SESSION = [];
+
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+        }
+
+        session_destroy();
+        session_start();
+        $_SESSION['_flash_messages'][] = [
+            'type' => 'error',
+            'message' => 'Your session expired after 30 minutes of inactivity. Please log in again.',
+        ];
+        header('Location: ' . ($_SERVER['APP_BASE_PATH'] ?? '') . '/login');
+        exit;
+    }
+}
+
+$_SESSION['_last_activity_at'] = time();
+
 // 2. Load Composer's Autoloader (This automatically loads all our classes and libraries!)
 // We use __DIR__ . '/../' because index.php is inside /public, and vendor is one folder up.
 require __DIR__ . '/../vendor/autoload.php';
@@ -35,6 +59,25 @@ $configuredBasePath = trim((string) ($_ENV['APP_BASE_PATH'] ?? ''), '/');
 $basePath = $configuredBasePath !== '' ? '/' . $configuredBasePath : '';
 $_SERVER['APP_BASE_PATH'] = $basePath;
 $router->setBasePath($basePath);
+
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && !csrf_is_valid()) {
+    if ((($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest')
+        || str_contains((string) ($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json')) {
+        header('Content-Type: application/json', true, 419);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Your session expired. Refresh the page and try again.',
+        ]);
+        exit;
+    }
+
+    $_SESSION['_flash_messages'][] = [
+        'type' => 'error',
+        'message' => 'Your session expired. Please try again.',
+    ];
+    header('Location: ' . base_url('login'));
+    exit;
+}
 
 // ==========================================
 // 🚦 APPLICATION ROUTES

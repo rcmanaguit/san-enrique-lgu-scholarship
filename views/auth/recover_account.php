@@ -15,6 +15,7 @@
                     <p class="auth-form-lead small">Enter the email address used in your scholarship application.</p>
 
                     <form action="<?php echo htmlspecialchars(base_url('recover-account')); ?>" method="POST" novalidate>
+                        <?php echo csrf_input(); ?>
                         <div class="mb-4">
                             <label for="email" class="form-label">Application Email Address</label>
                             <input type="email" class="form-control" id="email" name="email"

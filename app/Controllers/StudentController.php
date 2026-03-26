@@ -920,7 +920,7 @@ class StudentController
                 (int) $userId,
                 'Initial Upload'
             );
-            $stmtDoc->execute(['aid' => $appId, 'type' => 'Barangay Residency', 'path' => $residencyPath]);
+            $stmtDoc->execute(['aid' => $appId, 'type' => 'Residency', 'path' => $residencyPath]);
             $residencyDocumentId = (int) $db->lastInsertId();
             DocumentVersion::createSnapshot(
                 $residencyDocumentId,
@@ -944,7 +944,7 @@ class StudentController
                 ['Staff', 'Admin'],
                 'New Scholarship Application',
                 $profileData['first_name'] . ' ' . $profileData['last_name'] . ' submitted a new scholarship application.',
-                'staff/dashboard'
+                'staff/verify-documents/' . (int) $appId
             );
 
             AuditLog::recordCurrentUser(

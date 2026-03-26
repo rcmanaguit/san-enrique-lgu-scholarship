@@ -84,6 +84,7 @@ $hasConfiguredPeriod = !empty($settings['school_year']) && !empty($settings['sem
                         </div>
                         <div class="app-surface-body">
                             <form action="<?php echo htmlspecialchars(base_url('admin/settings')); ?>" method="POST" id="open-new-period-form">
+                                <?php echo csrf_input(); ?>
                                 <input type="hidden" name="action_mode" value="open_new">
                                 <div class="row g-3">
                                     <div class="col-md-6">
@@ -155,6 +156,7 @@ $hasConfiguredPeriod = !empty($settings['school_year']) && !empty($settings['sem
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <form action="<?php echo htmlspecialchars(base_url('admin/settings')); ?>" method="POST" id="extend-period-form">
+                    <?php echo csrf_input(); ?>
                     <input type="hidden" name="action_mode" value="extend_current">
                     <div class="modal-header">
                         <h2 class="modal-title fs-5" id="extendDeadlineModalLabel">Extend Current Submission Deadline</h2>
@@ -183,6 +185,7 @@ $hasConfiguredPeriod = !empty($settings['school_year']) && !empty($settings['sem
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <form action="<?php echo htmlspecialchars(base_url('admin/settings')); ?>" method="POST" id="close-period-form">
+                    <?php echo csrf_input(); ?>
                     <input type="hidden" name="action_mode" value="close_submissions">
                     <div class="modal-header">
                         <h2 class="modal-title fs-5" id="closeSubmissionsModalLabel">Close Student Submissions</h2>

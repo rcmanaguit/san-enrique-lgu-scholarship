@@ -54,6 +54,55 @@ class DocumentVersion
         ]);
     }
 
+    public static function appendReviewState(
+        int $documentId,
+        string $documentStatus,
+        ?string $rejectionRemarks,
+        ?int $reviewedByUserId = null
+    ): bool {
+        $db = Database::connect();
+
+        $versionStmt = $db->prepare("
+            SELECT file_path
+            FROM document_versions
+            WHERE document_id = :document_id
+            ORDER BY version_number DESC, id DESC
+            LIMIT 1
+        ");
+        $versionStmt->execute(['document_id' => $documentId]);
+        $filePath = (string) $versionStmt->fetchColumn();
+
+        if ($filePath === '') {
+            $documentStmt = $db->prepare("
+                SELECT file_path
+                FROM documents
+                WHERE id = :document_id
+                LIMIT 1
+            ");
+            $documentStmt->execute(['document_id' => $documentId]);
+            $filePath = (string) $documentStmt->fetchColumn();
+        }
+
+        if ($filePath === '') {
+            return false;
+        }
+
+        $sourceAction = match ($documentStatus) {
+            'Verified' => 'Review Verified',
+            'Rejected' => 'Review Rejected',
+            default => 'Review Updated',
+        };
+
+        return self::createSnapshot(
+            $documentId,
+            $filePath,
+            $documentStatus,
+            $rejectionRemarks,
+            $reviewedByUserId,
+            $sourceAction
+        );
+    }
+
     public static function historyForApplicationIds(array $applicationIds): array
     {
         if ($applicationIds === []) {

@@ -123,6 +123,7 @@ foreach (($upcomingBatches ?? []) as $batch) {
                         </div>
 
                         <form action="<?php echo htmlspecialchars(base_url('admin/create-batch')); ?>" method="POST" id="batchForm" class="row g-3 align-items-end mt-1">
+                            <?php echo csrf_input(); ?>
                             <input type="hidden" name="school_type" value="<?php echo htmlspecialchars($schoolTypeFilter ?? ''); ?>">
                             <input type="hidden" name="barangay" value="<?php echo htmlspecialchars($barangayFilter ?? ''); ?>">
                             <div class="col-lg-4">
@@ -309,6 +310,7 @@ foreach (($upcomingBatches ?? []) as $batch) {
                                                                     </span>
                                                                     <?php if ($batchHasStarted): ?>
                                                                         <form action="<?php echo htmlspecialchars(base_url('admin/record-interview-result')); ?>" method="POST" class="d-flex gap-2 flex-wrap app-batch-result-form">
+                                                                            <?php echo csrf_input(); ?>
                                                                             <input type="hidden" name="batch_id" value="<?php echo (int) $batch['id']; ?>">
                                                                             <input type="hidden" name="application_id" value="<?php echo (int) $participant['application_id']; ?>">
                                                                             <select name="interview_result" class="form-select form-select-sm" style="min-width: 120px;" required>
@@ -337,7 +339,8 @@ foreach (($upcomingBatches ?? []) as $batch) {
                                     <div class="modal fade" id="rescheduleInterviewBatchModal<?php echo $batchId; ?>" tabindex="-1" aria-labelledby="rescheduleInterviewBatchModalLabel<?php echo $batchId; ?>" aria-hidden="true">
                                         <div class="modal-dialog modal-dialog-centered">
                                             <div class="modal-content">
-                                                <form action="<?php echo htmlspecialchars(base_url('admin/reschedule-batch')); ?>" method="POST">
+                                            <form action="<?php echo htmlspecialchars(base_url('admin/reschedule-batch')); ?>" method="POST">
+                                                <?php echo csrf_input(); ?>
                                                     <input type="hidden" name="batch_id" value="<?php echo $batchId; ?>">
                                                     <div class="modal-header">
                                                         <h3 class="modal-title fs-5" id="rescheduleInterviewBatchModalLabel<?php echo $batchId; ?>">Reschedule Interview Batch</h3>

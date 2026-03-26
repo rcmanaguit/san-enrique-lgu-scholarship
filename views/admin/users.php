@@ -17,11 +17,12 @@
                     <section class="app-surface h-100">
                         <div class="app-surface-header">
                             <div>
-                                <h2 class="app-surface-title">Create Internal Account</h2>
+                                <h2 class="app-surface-title">Create Staff Account</h2>
                             </div>
                         </div>
                         <div class="app-surface-body">
                             <form action="<?php echo htmlspecialchars(base_url('admin/users/create')); ?>" method="POST">
+                                <?php echo csrf_input(); ?>
                                 <div class="row g-3">
                                     <div class="col-md-6">
                                         <label class="form-label fw-bold">First Name</label>
@@ -31,13 +32,6 @@
                                         <label class="form-label fw-bold">Last Name</label>
                                         <input type="text" class="form-control" name="last_name" maxlength="100" required>
                                     </div>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold">Role</label>
-                                    <select class="form-select" name="role" required>
-                                        <option value="Staff">Staff</option>
-                                        <option value="Admin">Admin</option>
-                                    </select>
                                 </div>
                                 <div class="mb-3 mt-3">
                                     <label class="form-label fw-bold">Mobile Number</label>
@@ -70,7 +64,7 @@
                                 <div class="app-empty-state">
                                     <div class="app-empty-state-icon"><i class="fa-regular fa-user"></i></div>
                                     <h3 class="app-empty-state-title">No internal accounts found</h3>
-                                    <p class="app-empty-state-copy">Create a staff or admin account to start managing internal access.</p>
+                                    <p class="app-empty-state-copy">Create a staff account to start managing internal access.</p>
                                 </div>
                             <?php else: ?>
                                 <div class="table-responsive">
@@ -85,6 +79,7 @@
                                         </thead>
                                         <tbody>
                                             <?php foreach ($users as $user): ?>
+                                                <?php $isOwnAccount = (int) ($user['id'] ?? 0) === (int) ($_SESSION['user_id'] ?? 0); ?>
                                                 <tr>
                                                     <td>
                                                         <div class="fw-bold"><?php echo htmlspecialchars(trim((string) (($user['display_last_name'] ?? '') . ', ' . ($user['display_first_name'] ?? '')), ', ') ?: (string) $user['phone_number']); ?></div>
@@ -101,14 +96,18 @@
                                                     </td>
                                                     <td>
                                                         <div class="d-flex flex-column gap-2">
-                                                            <form action="<?php echo htmlspecialchars(base_url('admin/users/status')); ?>" method="POST" class="d-flex gap-2 flex-wrap">
-                                                                <input type="hidden" name="user_id" value="<?php echo (int) $user['id']; ?>">
-                                                                <input type="hidden" name="is_active" value="<?php echo ((int) ($user['is_active'] ?? 1) === 1) ? '0' : '1'; ?>">
-                                                                <button type="submit" class="btn btn-sm btn-outline-primary">
-                                                                    <?php echo ((int) ($user['is_active'] ?? 1) === 1) ? 'Deactivate' : 'Activate'; ?>
-                                                                </button>
-                                                            </form>
+                                                            <?php if (!$isOwnAccount): ?>
+                                                                <form action="<?php echo htmlspecialchars(base_url('admin/users/status')); ?>" method="POST" class="d-flex gap-2 flex-wrap">
+                                                                    <?php echo csrf_input(); ?>
+                                                                    <input type="hidden" name="user_id" value="<?php echo (int) $user['id']; ?>">
+                                                                    <input type="hidden" name="is_active" value="<?php echo ((int) ($user['is_active'] ?? 1) === 1) ? '0' : '1'; ?>">
+                                                                    <button type="submit" class="btn btn-sm btn-outline-primary">
+                                                                        <?php echo ((int) ($user['is_active'] ?? 1) === 1) ? 'Deactivate' : 'Activate'; ?>
+                                                                    </button>
+                                                                </form>
+                                                            <?php endif; ?>
                                                             <form action="<?php echo htmlspecialchars(base_url('admin/users/reset-password')); ?>" method="POST" class="d-flex gap-2 flex-wrap">
+                                                                <?php echo csrf_input(); ?>
                                                                 <input type="hidden" name="user_id" value="<?php echo (int) $user['id']; ?>">
                                                                 <input type="password" class="form-control form-control-sm" name="new_password" placeholder="New password" required>
                                                                 <button type="submit" class="btn btn-sm btn-outline-danger">Reset</button>

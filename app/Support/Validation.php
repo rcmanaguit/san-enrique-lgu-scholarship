@@ -174,18 +174,47 @@ class Validation
             throw new ValidationException($field . ' is required.');
         }
 
-        if (!preg_match('/^data:image\/(png|jpeg);base64,/', $normalized, $matches)) {
+        $normalized = preg_replace('/\s+/', '', $normalized) ?? '';
+        if ($normalized === '') {
+            throw new ValidationException($field . ' is required.');
+        }
+
+        if (!preg_match('/^data:image\/([a-zA-Z0-9.+-]+);base64,/i', $normalized, $matches)) {
             throw new ValidationException($field . ' format is invalid.');
         }
 
-        $extension = strtolower($matches[1] === 'jpeg' ? 'jpg' : $matches[1]);
-        if (!in_array($extension, $allowedExtensions, true)) {
-            throw new ValidationException($field . ' format is not supported.');
-        }
+        $declaredType = strtolower((string) $matches[1]);
+        $binaryPayload = substr($normalized, strpos($normalized, ',') + 1);
+        $binaryPayload = str_replace(' ', '+', $binaryPayload);
 
-        $binary = base64_decode(substr($normalized, strpos($normalized, ',') + 1), true);
+        $binary = base64_decode($binaryPayload, true);
         if ($binary === false || $binary === '') {
             throw new ValidationException($field . ' could not be processed.');
+        }
+
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mimeType = strtolower((string) $finfo->buffer($binary));
+        $mimeToExtension = [
+            'image/png' => 'png',
+            'image/jpeg' => 'jpg',
+            'image/jpg' => 'jpg',
+        ];
+        $extension = $mimeToExtension[$mimeType] ?? null;
+
+        if ($extension === null) {
+            throw new ValidationException($field . ' format is invalid.');
+        }
+
+        if ($declaredType === 'jpeg') {
+            $declaredType = 'jpg';
+        }
+
+        if ($declaredType !== $extension) {
+            throw new ValidationException($field . ' format is invalid.');
+        }
+
+        if (!in_array($extension, $allowedExtensions, true)) {
+            throw new ValidationException($field . ' format is not supported.');
         }
 
         if (strlen($binary) > 2 * 1024 * 1024) {

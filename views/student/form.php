@@ -106,6 +106,7 @@ $courseOptions = is_array($courseOptions ?? null) ? $courseOptions : [];
                                 data-draft-semester="<?php echo htmlspecialchars((string) ($currentSemester ?? '')); ?>"
                                 novalidate
                                 enctype="multipart/form-data">
+                                <?php echo csrf_input(); ?>
                                 <div class="application-form-body">
 
                                 <div class="form-step active" id="step-1">

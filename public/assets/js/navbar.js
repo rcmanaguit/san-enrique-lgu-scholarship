@@ -131,6 +131,8 @@ document.addEventListener("DOMContentLoaded", function () {
   var suggestionsForm = document.querySelector("[data-search-suggestions-form]");
   var suggestionsList = document.querySelector("[data-navbar-search-suggestions]");
   var notificationWidget = document.querySelector("[data-notification-widget]");
+  var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+  var csrfToken = csrfMeta ? csrfMeta.getAttribute("content") || "" : "";
 
   function setMobileSidebarState(isOpen) {
     if (!sidebar || !body) {
@@ -456,7 +458,8 @@ document.addEventListener("DOMContentLoaded", function () {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
           Accept: "application/json",
-          "X-Requested-With": "XMLHttpRequest"
+          "X-Requested-With": "XMLHttpRequest",
+          "X-CSRF-Token": csrfToken
         },
         body: body,
         keepalive: keepalive === true

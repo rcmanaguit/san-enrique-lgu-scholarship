@@ -543,8 +543,7 @@ switch ($currentStatus) {
                             <ul class="list-unstyled small mb-0">
                                 <li class="mb-3">
                                     <strong class="text-dark">Physical SOA Required</strong><br>
-                                    <span class="text-muted">You MUST bring your physical, original SOA during the
-                                        payout day for COA auditing purposes.</span>
+                                    <span class="text-muted">You must bring your physical, original SOA during payout day for verification.</span>
                                 </li>
                                 <li>
                                     <strong class="text-dark">Keep your Number Active</strong><br>

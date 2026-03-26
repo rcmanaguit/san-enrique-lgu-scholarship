@@ -20,6 +20,7 @@ require __DIR__ . '/../layouts/header.php';
                     <p class="auth-form-lead small">Enter the 6-digit verification code sent to your registered mobile number.</p>
 
                     <form action="<?php echo htmlspecialchars(base_url('verify-otp')); ?>" method="POST" novalidate>
+                        <?php echo csrf_input(); ?>
                         <div class="mb-4">
                             <label for="otp_code" class="form-label d-block text-start">Verification Code</label>
                             <input type="text" class="form-control form-control-lg text-center fw-bold" id="otp_code" name="otp_code"
@@ -38,6 +39,7 @@ require __DIR__ . '/../layouts/header.php';
 
                     <p class="text-muted small mb-2">Didn’t receive the code?</p>
                     <form action="<?php echo htmlspecialchars(base_url('verify-otp/resend')); ?>" method="POST" class="d-inline">
+                        <?php echo csrf_input(); ?>
                         <button id="resendBtn" type="submit" class="auth-resend-button<?php echo $secondsRemaining > 0 ? ' disabled' : ''; ?>"
                             <?php echo $secondsRemaining > 0 ? 'disabled' : ''; ?>>
                             <?php echo $secondsRemaining > 0 ? 'Resend Code (' . $secondsRemaining . 's)' : 'Resend Code'; ?>

@@ -15,6 +15,9 @@ use PHPMailer\PHPMailer\PHPMailer;
 class AuthController
 {
     private const OTP_RESEND_COOLDOWN_SECONDS = 60;
+    private const LOGIN_THROTTLE_WINDOW_SECONDS = 15 * 60;
+    private const LOGIN_THROTTLE_MAX_ATTEMPTS = 5;
+    private const LOGIN_THROTTLE_LOCKOUT_SECONDS = 15 * 60;
 
     public function accountSettings()
     {
@@ -193,6 +196,18 @@ class AuthController
             redirect_with_flash('login', 'error', $e->getMessage());
         }
 
+        $loginThrottleStatus = $this->loginThrottleStatus($phone);
+        if (($loginThrottleStatus['locked_until'] ?? 0) > time()) {
+            $secondsRemaining = max(1, (int) $loginThrottleStatus['locked_until'] - time());
+            $minutesRemaining = (int) ceil($secondsRemaining / 60);
+            AuditLog::record(null, 'Guest', 'auth.login_throttled', 'user', null, 'Login blocked by rate limiter.', [
+                'phone_number' => $phone,
+                'ip_address' => \client_ip(),
+                'minutes_remaining' => $minutesRemaining,
+            ]);
+            redirect_with_flash('login', 'error', "Too many failed login attempts. Try again in {$minutesRemaining} minute(s).");
+        }
+
         $db = Database::connect();
 
         // Secure Prepared Statement to prevent SQL Injection
@@ -202,6 +217,7 @@ class AuthController
 
         // Verify password and check if they exist
         if ($user && password_verify($password, $user['password_hash'])) {
+            $this->clearLoginThrottle($phone);
             if ((int) ($user['is_active'] ?? 1) !== 1) {
                 AuditLog::record((int) $user['id'], (string) ($user['role'] ?? 'Student'), 'auth.login_blocked_inactive', 'user', (int) $user['id'], 'Login blocked because the account is inactive.');
                 redirect_with_flash('login', 'error', 'This account is inactive. Please contact the LGU office.');
@@ -234,6 +250,7 @@ class AuthController
             exit;
 
         } else {
+            $this->registerFailedLoginAttempt($phone);
             AuditLog::record(null, 'Guest', 'auth.login_failed', 'user', null, 'Login failed due to invalid credentials.', ['phone_number' => $phone]);
             redirect_with_flash('login', 'error', 'Invalid credentials. Please try again.');
         }
@@ -567,5 +584,83 @@ class AuthController
             error_log('Email recovery code failed to send to ' . $emailAddress . ': ' . $e->getMessage());
             return false;
         }
+    }
+
+    private function loginThrottleStatus(string $phone): array
+    {
+        $path = $this->loginThrottleFilePath($phone);
+        if (!is_file($path)) {
+            return ['attempts' => 0, 'first_failed_at' => 0, 'locked_until' => 0];
+        }
+
+        $raw = file_get_contents($path);
+        $state = json_decode($raw !== false ? $raw : '', true);
+        if (!is_array($state)) {
+            @unlink($path);
+            return ['attempts' => 0, 'first_failed_at' => 0, 'locked_until' => 0];
+        }
+
+        $normalized = [
+            'attempts' => max(0, (int) ($state['attempts'] ?? 0)),
+            'first_failed_at' => max(0, (int) ($state['first_failed_at'] ?? 0)),
+            'locked_until' => max(0, (int) ($state['locked_until'] ?? 0)),
+        ];
+
+        $now = time();
+        if ($normalized['locked_until'] > 0 && $normalized['locked_until'] <= $now) {
+            @unlink($path);
+            return ['attempts' => 0, 'first_failed_at' => 0, 'locked_until' => 0];
+        }
+
+        if ($normalized['first_failed_at'] > 0 && ($now - $normalized['first_failed_at']) > self::LOGIN_THROTTLE_WINDOW_SECONDS) {
+            @unlink($path);
+            return ['attempts' => 0, 'first_failed_at' => 0, 'locked_until' => 0];
+        }
+
+        return $normalized;
+    }
+
+    private function registerFailedLoginAttempt(string $phone): void
+    {
+        $path = $this->loginThrottleFilePath($phone);
+        $status = $this->loginThrottleStatus($phone);
+        $now = time();
+
+        $attempts = (int) ($status['attempts'] ?? 0);
+        $firstFailedAt = (int) ($status['first_failed_at'] ?? 0);
+
+        if ($firstFailedAt <= 0 || ($now - $firstFailedAt) > self::LOGIN_THROTTLE_WINDOW_SECONDS) {
+            $attempts = 0;
+            $firstFailedAt = $now;
+        }
+
+        $attempts++;
+
+        $payload = [
+            'attempts' => $attempts,
+            'first_failed_at' => $firstFailedAt,
+            'locked_until' => $attempts >= self::LOGIN_THROTTLE_MAX_ATTEMPTS ? ($now + self::LOGIN_THROTTLE_LOCKOUT_SECONDS) : 0,
+        ];
+
+        file_put_contents($path, json_encode($payload, JSON_PRETTY_PRINT));
+    }
+
+    private function clearLoginThrottle(string $phone): void
+    {
+        $path = $this->loginThrottleFilePath($phone);
+        if (is_file($path)) {
+            @unlink($path);
+        }
+    }
+
+    private function loginThrottleFilePath(string $phone): string
+    {
+        $directory = \storage_path('runtime/login_throttle');
+        if (!is_dir($directory)) {
+            @mkdir($directory, 0775, true);
+        }
+
+        $key = hash('sha256', $phone . '|' . \client_ip());
+        return $directory . DIRECTORY_SEPARATOR . $key . '.json';
     }
 }

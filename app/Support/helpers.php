@@ -1,5 +1,73 @@
 <?php
 
+if (!function_exists('csrf_token')) {
+    function csrf_token(): string
+    {
+        if (!isset($_SESSION['_csrf_token']) || !is_string($_SESSION['_csrf_token']) || $_SESSION['_csrf_token'] === '') {
+            $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
+        }
+
+        return $_SESSION['_csrf_token'];
+    }
+}
+
+if (!function_exists('csrf_input')) {
+    function csrf_input(): string
+    {
+        return '<input type="hidden" name="_csrf" value="' . htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') . '">';
+    }
+}
+
+if (!function_exists('csrf_request_token')) {
+    function csrf_request_token(): string
+    {
+        $headerToken = trim((string) ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''));
+        if ($headerToken !== '') {
+            return $headerToken;
+        }
+
+        return trim((string) ($_POST['_csrf'] ?? ''));
+    }
+}
+
+if (!function_exists('csrf_is_valid')) {
+    function csrf_is_valid(): bool
+    {
+        $sessionToken = (string) ($_SESSION['_csrf_token'] ?? '');
+        $requestToken = csrf_request_token();
+
+        return $sessionToken !== '' && $requestToken !== '' && hash_equals($sessionToken, $requestToken);
+    }
+}
+
+if (!function_exists('client_ip')) {
+    function client_ip(): string
+    {
+        $candidates = [
+            $_SERVER['HTTP_CF_CONNECTING_IP'] ?? null,
+            $_SERVER['HTTP_X_FORWARDED_FOR'] ?? null,
+            $_SERVER['REMOTE_ADDR'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            $value = trim((string) $candidate);
+            if ($value === '') {
+                continue;
+            }
+
+            if (str_contains($value, ',')) {
+                $value = trim((string) explode(',', $value)[0]);
+            }
+
+            if (filter_var($value, FILTER_VALIDATE_IP)) {
+                return $value;
+            }
+        }
+
+        return 'unknown';
+    }
+}
+
 if (!function_exists('app_base_path')) {
     function app_base_path(): string
     {

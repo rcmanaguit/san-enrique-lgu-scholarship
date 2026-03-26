@@ -524,7 +524,7 @@ class AdminController
         }
 
         try {
-            $role = Validation::enum($_POST['role'] ?? '', ['Staff', 'Admin'], 'Role');
+            $role = 'Staff';
             $firstName = Validation::requiredString($_POST['first_name'] ?? '', 'First name', 100);
             $lastName = Validation::requiredString($_POST['last_name'] ?? '', 'Last name', 100);
             $phone = Validation::phone($_POST['phone_number'] ?? '');

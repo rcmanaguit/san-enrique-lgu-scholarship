@@ -568,6 +568,18 @@ class StaffController
 
                 if ($applicationHistory !== []) {
                     $applicationIds = array_map(static fn ($row) => (int) $row['id'], $applicationHistory);
+                    $batchIds = [];
+                    foreach ($applicationHistory as $applicationRow) {
+                        $interviewBatchId = (int) ($applicationRow['interview_batch_id'] ?? 0);
+                        $payoutBatchId = (int) ($applicationRow['payout_batch_id'] ?? 0);
+                        if ($interviewBatchId > 0) {
+                            $batchIds[] = $interviewBatchId;
+                        }
+                        if ($payoutBatchId > 0) {
+                            $batchIds[] = $payoutBatchId;
+                        }
+                    }
+                    $batchIds = array_values(array_unique($batchIds));
                     $placeholders = implode(',', array_fill(0, count($applicationIds), '?'));
 
                     $documentStmt = $db->prepare("
@@ -591,18 +603,31 @@ class StaffController
                     }
                     unset($documentRow);
 
-                    $auditParams = array_map('strval', $applicationIds);
-                    $auditPlaceholders = implode(',', array_fill(0, count($auditParams), '?'));
-                    array_unshift($auditParams, 'application');
-                    array_unshift($auditParams, (string) $selectedRecord['user_id']);
+                    $auditConditions = ['user_id = ?'];
+                    $auditParams = [(string) $selectedRecord['user_id']];
+
+                    if ($applicationIds !== []) {
+                        $applicationAuditIds = array_map('strval', $applicationIds);
+                        $applicationAuditPlaceholders = implode(',', array_fill(0, count($applicationAuditIds), '?'));
+                        $auditConditions[] = "(entity_type = ? AND entity_id IN ($applicationAuditPlaceholders))";
+                        $auditParams[] = 'application';
+                        array_push($auditParams, ...$applicationAuditIds);
+                    }
+
+                    if ($batchIds !== []) {
+                        $batchAuditIds = array_map('strval', $batchIds);
+                        $batchAuditPlaceholders = implode(',', array_fill(0, count($batchAuditIds), '?'));
+                        $auditConditions[] = "(entity_type = ? AND entity_id IN ($batchAuditPlaceholders))";
+                        $auditParams[] = 'batch';
+                        array_push($auditParams, ...$batchAuditIds);
+                    }
 
                     $auditStmt = $db->prepare("
                         SELECT *
                         FROM audit_logs
-                        WHERE user_id = ?
-                           OR (entity_type = ? AND entity_id IN ($auditPlaceholders))
+                        WHERE " . implode(' OR ', $auditConditions) . "
                         ORDER BY created_at DESC, id DESC
-                        LIMIT 80
+                        LIMIT 120
                     ");
                     $auditStmt->execute($auditParams);
                     $auditHistory = $auditStmt->fetchAll();
@@ -917,11 +942,27 @@ class StaffController
         array $caseNotes
     ): array {
         $timelines = [];
+        $interviewBatchApplications = [];
+        $payoutBatchApplications = [];
+        $scheduleAuditAdded = [
+            'interview' => [],
+            'payout' => [],
+        ];
 
         foreach ($applicationHistory as $application) {
             $applicationId = (int) ($application['id'] ?? 0);
             if ($applicationId <= 0) {
                 continue;
+            }
+
+            $interviewBatchId = (int) ($application['interview_batch_id'] ?? 0);
+            if ($interviewBatchId > 0) {
+                $interviewBatchApplications[$interviewBatchId][] = $applicationId;
+            }
+
+            $payoutBatchId = (int) ($application['payout_batch_id'] ?? 0);
+            if ($payoutBatchId > 0) {
+                $payoutBatchApplications[$payoutBatchId][] = $applicationId;
             }
 
             $timelines[$applicationId] = [
@@ -948,22 +989,6 @@ class StaffController
                 ]),
             ];
 
-            if (!empty($application['interview_schedule'])) {
-                $timelines[$applicationId]['entries'][] = [
-                    'time' => (string) ($application['interview_schedule'] ?? ''),
-                    'icon' => 'fa-calendar-check',
-                    'badge_class' => 'text-bg-info',
-                    'title' => 'Interview scheduled',
-                    'actor' => 'Staff / Admin',
-                    'details' => 'Interview batch assigned to the applicant.',
-                    'meta' => array_filter([
-                        'Application ID' => $applicationId > 0 ? 'App ID ' . $applicationId : null,
-                        'Batch' => (string) ($application['interview_batch_name'] ?? ''),
-                        'Venue' => (string) ($application['interview_venue'] ?? ''),
-                    ]),
-                ];
-            }
-
             if (!empty($application['interview_result_at']) || !empty($application['interview_result'])) {
                 $timelines[$applicationId]['entries'][] = [
                     'time' => (string) ($application['interview_result_at'] ?? $application['updated_at'] ?? $application['created_at'] ?? ''),
@@ -980,21 +1005,63 @@ class StaffController
                 ];
             }
 
-            if (!empty($application['payout_schedule'])) {
-                $timelines[$applicationId]['entries'][] = [
-                    'time' => (string) ($application['payout_schedule'] ?? ''),
-                    'icon' => 'fa-money-check-dollar',
-                    'badge_class' => 'text-bg-success',
-                    'title' => 'Payout scheduled',
-                    'actor' => 'Admin',
-                    'details' => 'Approved scholar added to a payout batch.',
-                    'meta' => array_filter([
-                        'Application ID' => $applicationId > 0 ? 'App ID ' . $applicationId : null,
-                        'Batch' => (string) ($application['payout_batch_name'] ?? ''),
-                        'Venue' => (string) ($application['payout_venue'] ?? ''),
-                    ]),
-                ];
+        }
+
+        $documentTimelineAdded = [];
+        foreach ($documentVersionHistory as $version) {
+            $applicationId = (int) ($version['application_id'] ?? 0);
+            if ($applicationId <= 0 || !isset($timelines[$applicationId])) {
+                continue;
             }
+
+            $entryTime = (string) ($version['created_at'] ?? '');
+            if (trim($entryTime) === '') {
+                continue;
+            }
+
+            $documentId = (int) ($version['document_id'] ?? 0);
+            $versionNumber = (int) ($version['version_number'] ?? 0);
+            $documentType = (string) ($version['document_type'] ?? 'Document');
+            $status = (string) ($version['document_status'] ?? 'Pending');
+            $sourceAction = (string) ($version['source_action'] ?? '');
+            $entryKey = implode(':', [$applicationId, $documentId, $versionNumber, $status, $entryTime]);
+            $documentTimelineAdded[$entryKey] = true;
+
+            $actor = (string) ($version['uploader_role'] ?? '');
+            if ($actor === '') {
+                $actor = $status === 'Pending' ? 'Student' : 'Staff / Admin';
+            }
+
+            $title = match (true) {
+                $status === 'Pending' && in_array($sourceAction, ['Initial Upload', 'SOA Upload'], true) => $documentType . ' submitted for review',
+                $status === 'Pending' && in_array($sourceAction, ['Resubmission', 'SOA Resubmission'], true) => $documentType . ' resubmitted for review',
+                $status === 'Verified' => $documentType . ' verified',
+                $status === 'Rejected' => $documentType . ' rejected',
+                default => $documentType . ' ' . strtolower($status),
+            };
+
+            $details = match (true) {
+                $status === 'Pending' && in_array($sourceAction, ['Initial Upload', 'SOA Upload'], true) => 'A document was uploaded and is waiting for review.',
+                $status === 'Pending' && in_array($sourceAction, ['Resubmission', 'SOA Resubmission'], true) => 'A corrected document was resubmitted and is waiting for review.',
+                $status === 'Verified' => 'A document was marked as verified.',
+                $status === 'Rejected' => 'A document was rejected and returned for correction.',
+                default => 'A document update was recorded.',
+            };
+
+            $timelines[$applicationId]['entries'][] = [
+                'time' => $entryTime,
+                'icon' => $status === 'Rejected' ? 'fa-file-circle-xmark' : ($status === 'Verified' ? 'fa-file-circle-check' : 'fa-file-arrow-up'),
+                'badge_class' => $status === 'Rejected' ? 'text-bg-danger' : ($status === 'Verified' ? 'text-bg-success' : 'text-bg-secondary'),
+                'title' => $title,
+                'actor' => $actor,
+                'details' => $details,
+                'meta' => array_filter([
+                    'Document Type' => $documentType,
+                    'Version' => $versionNumber > 0 ? 'V' . $versionNumber : null,
+                    'Source Action' => $sourceAction,
+                    'Remarks' => (string) ($version['rejection_remarks'] ?? ''),
+                ]),
+            ];
         }
 
         foreach ($documentHistory as $document) {
@@ -1003,10 +1070,17 @@ class StaffController
                 continue;
             }
 
+            $documentId = (int) ($document['id'] ?? 0);
             $status = (string) ($document['status'] ?? '');
+            $entryTime = (string) ($document['updated_at'] ?? '');
+            $entryKey = implode(':', [$applicationId, $documentId, 0, $status, $entryTime]);
+            if (isset($documentTimelineAdded[$entryKey])) {
+                continue;
+            }
+
             $documentType = (string) ($document['document_type'] ?? 'Document');
             $timelines[$applicationId]['entries'][] = [
-                'time' => (string) ($document['updated_at'] ?? ''),
+                'time' => $entryTime,
                 'icon' => $status === 'Rejected' ? 'fa-file-circle-xmark' : ($status === 'Verified' ? 'fa-file-circle-check' : 'fa-file-arrow-up'),
                 'badge_class' => $status === 'Rejected' ? 'text-bg-danger' : ($status === 'Verified' ? 'text-bg-success' : 'text-bg-secondary'),
                 'title' => $documentType . ' ' . strtolower($status === 'Pending' ? 'submitted for review' : $status),
@@ -1039,11 +1113,72 @@ class StaffController
         }
 
         foreach ($auditHistory as $log) {
-            if ((string) ($log['entity_type'] ?? '') !== 'application') {
+            $entityType = (string) ($log['entity_type'] ?? '');
+            $action = (string) ($log['action'] ?? '');
+            $metadata = json_decode((string) ($log['metadata_json'] ?? ''), true);
+            $metadata = is_array($metadata) ? $metadata : [];
+
+            if (
+                $entityType === 'batch'
+                && in_array($action, ['interview_batch.created', 'interview_batch.rescheduled', 'payout_batch.created', 'payout_batch.rescheduled'], true)
+            ) {
+                $batchId = (int) ($log['entity_id'] ?? 0);
+                $isInterview = str_starts_with($action, 'interview_batch.');
+                $targetApplications = $isInterview
+                    ? ($interviewBatchApplications[$batchId] ?? [])
+                    : ($payoutBatchApplications[$batchId] ?? []);
+
+                if ($targetApplications === []) {
+                    continue;
+                }
+
+                $isRescheduled = str_ends_with($action, '.rescheduled');
+                $entryTime = (string) (
+                    $metadata[$isRescheduled ? 'new_schedule' : 'scheduled_date']
+                    ?? $log['created_at']
+                    ?? ''
+                );
+                $venue = (string) (
+                    $metadata[$isRescheduled ? 'new_venue' : 'venue']
+                    ?? ''
+                );
+                $batchName = (string) ($metadata['batch_name'] ?? '');
+
+                foreach ($targetApplications as $applicationId) {
+                    if (!isset($timelines[$applicationId])) {
+                        continue;
+                    }
+
+                    $scheduleAuditAdded[$isInterview ? 'interview' : 'payout'][$applicationId] = true;
+                    $timelines[$applicationId]['entries'][] = [
+                        'time' => $entryTime,
+                        'icon' => $isInterview ? 'fa-calendar-check' : 'fa-money-check-dollar',
+                        'badge_class' => $isInterview ? 'text-bg-info' : 'text-bg-success',
+                        'title' => $isInterview
+                            ? ($isRescheduled ? 'Interview rescheduled' : 'Interview scheduled')
+                            : ($isRescheduled ? 'Payout rescheduled' : 'Payout scheduled'),
+                        'actor' => (string) ($log['actor_role'] ?? ($isInterview ? 'Staff / Admin' : 'Admin')),
+                        'details' => $isInterview
+                            ? ($isRescheduled ? 'Interview schedule was updated for the applicant.' : 'Interview batch assigned to the applicant.')
+                            : ($isRescheduled ? 'Payout schedule was updated for the scholar.' : 'Approved scholar added to a payout batch.'),
+                        'meta' => array_filter([
+                            'Application ID' => 'App ID ' . $applicationId,
+                            'Batch' => $batchName,
+                            'Venue' => $venue,
+                            'Old Schedule' => $isRescheduled ? (string) ($metadata['old_schedule'] ?? '') : null,
+                            'Old Venue' => $isRescheduled ? (string) ($metadata['old_venue'] ?? '') : null,
+                        ]),
+                    ];
+                }
+
                 continue;
             }
 
-            if ((string) ($log['action'] ?? '') === 'application.submitted') {
+            if ($entityType !== 'application') {
+                continue;
+            }
+
+            if ($action === 'application.submitted') {
                 continue;
             }
 
@@ -1052,16 +1187,54 @@ class StaffController
                 continue;
             }
 
-            $metadata = json_decode((string) ($log['metadata_json'] ?? ''), true);
             $timelines[$applicationId]['entries'][] = [
                 'time' => (string) ($log['created_at'] ?? ''),
                 'icon' => 'fa-clock-rotate-left',
                 'badge_class' => 'text-bg-dark',
-                'title' => $this->humanizeAuditAction((string) ($log['action'] ?? 'System activity')),
+                'title' => $this->humanizeAuditAction($action ?: 'System activity'),
                 'actor' => (string) ($log['actor_role'] ?? 'System'),
                 'details' => (string) ($log['description'] ?? ''),
-                'meta' => is_array($metadata) ? $metadata : [],
+                'meta' => $metadata,
             ];
+        }
+
+        foreach ($applicationHistory as $application) {
+            $applicationId = (int) ($application['id'] ?? 0);
+            if ($applicationId <= 0 || !isset($timelines[$applicationId])) {
+                continue;
+            }
+
+            if (!isset($scheduleAuditAdded['interview'][$applicationId]) && !empty($application['interview_schedule'])) {
+                $timelines[$applicationId]['entries'][] = [
+                    'time' => (string) ($application['interview_schedule'] ?? ''),
+                    'icon' => 'fa-calendar-check',
+                    'badge_class' => 'text-bg-info',
+                    'title' => 'Interview scheduled',
+                    'actor' => 'Staff / Admin',
+                    'details' => 'Interview batch assigned to the applicant.',
+                    'meta' => array_filter([
+                        'Application ID' => 'App ID ' . $applicationId,
+                        'Batch' => (string) ($application['interview_batch_name'] ?? ''),
+                        'Venue' => (string) ($application['interview_venue'] ?? ''),
+                    ]),
+                ];
+            }
+
+            if (!isset($scheduleAuditAdded['payout'][$applicationId]) && !empty($application['payout_schedule'])) {
+                $timelines[$applicationId]['entries'][] = [
+                    'time' => (string) ($application['payout_schedule'] ?? ''),
+                    'icon' => 'fa-money-check-dollar',
+                    'badge_class' => 'text-bg-success',
+                    'title' => 'Payout scheduled',
+                    'actor' => 'Admin',
+                    'details' => 'Approved scholar added to a payout batch.',
+                    'meta' => array_filter([
+                        'Application ID' => 'App ID ' . $applicationId,
+                        'Batch' => (string) ($application['payout_batch_name'] ?? ''),
+                        'Venue' => (string) ($application['payout_venue'] ?? ''),
+                    ]),
+                ];
+            }
         }
 
         foreach ($timelines as &$timelineGroup) {
@@ -1522,12 +1695,19 @@ class StaffController
         $auditStmt = $db->prepare("
             SELECT *
             FROM audit_logs
-            WHERE entity_type = 'application'
-              AND entity_id = :application_id
+            WHERE (entity_type = 'application' AND entity_id = :application_id)
+               OR (
+                    entity_type = 'batch'
+                    AND entity_id IN (:interview_batch_id, :payout_batch_id)
+               )
             ORDER BY created_at DESC, id DESC
-            LIMIT 50
+            LIMIT 80
         ");
-        $auditStmt->execute(['application_id' => (string) $applicationId]);
+        $auditStmt->execute([
+            'application_id' => (string) $applicationId,
+            'interview_batch_id' => (string) ((int) ($applicant['interview_batch_id'] ?? 0)),
+            'payout_batch_id' => (string) ((int) ($applicant['payout_batch_id'] ?? 0)),
+        ]);
         $auditHistory = $auditStmt->fetchAll();
 
         $timelineGroups = $this->buildApplicationTimelines(
@@ -1858,7 +2038,7 @@ class StaffController
             // 1. Update the specific document
             $stmt = $db->prepare("UPDATE documents SET status = :status, rejection_remarks = :remarks WHERE id = :id");
             $stmt->execute(['status' => $status, 'remarks' => $remarks, 'id' => $docId]);
-            DocumentVersion::updateLatestReviewState((int) $docId, $status, $remarks);
+            DocumentVersion::appendReviewState((int) $docId, $status, $remarks, (int) ($_SESSION['user_id'] ?? 0));
 
             // 2. Determine what happens to the overall Application Status
             if ($status === 'Rejected') {
